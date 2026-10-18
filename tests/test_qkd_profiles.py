@@ -185,3 +185,22 @@ def test_evaluate_itself_enforces_minimum_assurance_and_rejects_unknown_profile(
     assert [f.kind for f in profiles.evaluate(bb84, ev, Policy(min_assurance=3))] == ["policy"]
     assert [f.kind for f in profiles.evaluate(profiles.UNKNOWN_PROFILE, ev, Policy())] == ["policy"]
     assert profiles.profile_for("no-existe") is profiles.UNKNOWN_PROFILE
+
+
+# ---- perfil ETSI-014-KME: la interfaz solo entrega claves; todo lo físico es confianza en el operador ------------------
+def test_etsi014_profile_demands_key_size_and_the_approved_hops_and_claims_no_physical_witness():
+    from qce.qkd import profiles as PR
+    prof = PR.profile_for("ETSI-014-KME")
+    pol = Policy(allow_simulated_qkd=True)
+    spec = {"trusted_hops": 0}
+    assert prof.assurance is PR.Assurance.TRUSTED_DEVICES and prof.per_key_witnesses is False and prof.witnesses == ("key_size_bits",)
+    assert PR.evaluate(prof, {"key_size_bits": 256}, pol, spec=spec) == []
+    assert PR.evaluate(prof, {"key_size_bits": 128}, pol, spec=spec) == []                            # límite inclusivo
+    for bad in (120, 130, True, "256", None, 0):
+        assert [f.kind for f in PR.evaluate(prof, {"key_size_bits": bad}, pol, spec=spec)] and PR.evaluate(prof, {"key_size_bits": bad}, pol, spec=spec)[0].kind in ("policy", "invalid")
+    assert [f.kind for f in PR.evaluate(prof, {}, pol, spec=spec)] == ["invalid"]                    # falta el testigo
+    assert [f.kind for f in PR.evaluate(prof, {"key_size_bits": 256}, pol, spec=None)] == ["policy"]   # sin ficha: no se inventa el dato (y no es «inválido»)
+    assert [f.kind for f in PR.evaluate(prof, {"key_size_bits": 256}, pol, spec={"trusted_hops": 1})] == ["policy"]   # 1 salto > 0 de la política
+    assert PR.evaluate(prof, {"key_size_bits": 256}, Policy(allow_simulated_qkd=True, max_trusted_hops=1), spec={"trusted_hops": 1}) == []
+    assert [f.kind for f in PR.evaluate(prof, {"key_size_bits": 256}, pol, spec={"trusted_hops": -1})] == ["invalid"]
+    assert [f.kind for f in PR.evaluate(prof, {"key_size_bits": 256}, pol, spec={"trusted_hops": True})] == ["invalid", "policy"]   # bool no es un número válido: ni como dato ni en la ficha

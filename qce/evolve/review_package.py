@@ -31,6 +31,8 @@ TOP = {  # archivo del repositorio → ruta dentro del paquete
     "docs/QKD_LAYER_CONFORMANCE.md": "docs/QKD_LAYER_CONFORMANCE.md",
     "docs/TLS13_TRANSPORT.md": "docs/TLS13_TRANSPORT.md",
     "docs/TLS13_PSK_TRANSPORT.md": "docs/TLS13_PSK_TRANSPORT.md",
+    "docs/ETSI014_ADAPTER.md": "docs/ETSI014_ADAPTER.md",
+    "docs/SLHDSA.md": "docs/SLHDSA.md",
     "docs/QKD_TLS_OPTIONS.md": "docs/QKD_TLS_OPTIONS.md",
     "formal/qil1.spthy": "formal/qil1.spthy",
     "formal/expected_qil1.json": "formal/expected_qil1.json",

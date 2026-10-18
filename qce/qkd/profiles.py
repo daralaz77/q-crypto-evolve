@@ -38,6 +38,7 @@ class QKDProtocol(str, Enum):
     TF = "TF-QKD"
     CV = "CV-QKD"
     DI = "DI-QKD"
+    ETSI_014 = "ETSI-014-KME"   # gestor de claves (KME) accesible por ETSI GS QKD 014: la interfaz NO expone testigos físicos
     UNKNOWN = "UNKNOWN"
 
 
@@ -56,6 +57,7 @@ class Profile:
     assurance: Assurance
     witnesses: tuple[str, ...]  # claves que el dispositivo DEBE aportar por cada clave
     relay_untrusted: bool = False  # el relé/nodo central no es tenedor de claves
+    per_key_witnesses: bool = True  # False = los testigos no describen cada clave (p. ej. un KME): no se exige ligar la evidencia a la clave
     needs_spec: tuple[str, ...] = ()  # umbrales que solo puede dar la ficha aprobada del equipo
     note: str = ""
 
@@ -73,6 +75,9 @@ PROFILES: dict[QKDProtocol, Profile] = {p.protocol: p for p in (
             needs_spec=("excess_noise_max",)),
     Profile(QKDProtocol.DI, Assurance.DEVICE_INDEPENDENT, COMMON + ("qber", "chsh_s", "loophole_free", "trusted_hops"),
             note="experimental: exige prueba de Bell sin lagunas"),
+    Profile(QKDProtocol.ETSI_014, Assurance.TRUSTED_DEVICES, ("key_size_bits",), needs_spec=("trusted_hops",), per_key_witnesses=False,
+            note="la interfaz 014 solo entrega claves: no hay QBER, ε ni amplificación que comprobar. Se confía en el operador del KME y en su ficha aprobada "
+                 "(saltos de confianza); nada de esto es una garantía física"),
 )}
 UNKNOWN_PROFILE = Profile(QKDProtocol.UNKNOWN, Assurance.NONE, ())
 
@@ -103,19 +108,22 @@ def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | Non
     missing = [w for w in profile.witnesses if w not in evidence]
     if missing:
         return [Finding("invalid", f"faltan testigos exigidos por {profile.protocol.value}: {missing}")]
-    if key_id is not None and evidence["key_id"] != key_id:
+    if key_id is not None and profile.per_key_witnesses and evidence["key_id"] != key_id:
         out.append(Finding("invalid", "los testigos no corresponden a esta clave (¿reutilización de evidencia?)"))
     # --- clave finita y amplificación de privacidad (BB84 y familia) ---
-    eps = evidence["epsilon"]
-    if not _num(eps) or not 0 < eps < 1:
-        out.append(Finding("invalid", "ε (parámetro de seguridad de clave finita) inválido"))
-    elif eps > policy.max_epsilon:
-        out.append(Finding("policy", f"ε={eps:g} > máximo de la política {policy.max_epsilon:g}"))
-    if evidence["privacy_amplification"] is not True:
+    if "epsilon" in profile.witnesses:
+        eps = evidence["epsilon"]
+        if not _num(eps) or not 0 < eps < 1:
+            out.append(Finding("invalid", "ε (parámetro de seguridad de clave finita) inválido"))
+        elif eps > policy.max_epsilon:
+            out.append(Finding("policy", f"ε={eps:g} > máximo de la política {policy.max_epsilon:g}"))
+    if "privacy_amplification" in profile.witnesses and evidence["privacy_amplification"] is not True:
         out.append(Finding("policy", "el dispositivo no declara amplificación de privacidad: no es clave utilizable"))
-    # --- confianza en nodos intermedios ---
-    hops = evidence["trusted_hops"]
-    if not isinstance(hops, int) or isinstance(hops, bool) or hops < 0:
+    # --- confianza en nodos intermedios (testigo del dispositivo, o ficha aprobada si el perfil no lo reporta) ---
+    hops = evidence["trusted_hops"] if "trusted_hops" in profile.witnesses else (spec or {}).get("trusted_hops")
+    if hops is None and "trusted_hops" not in profile.witnesses:
+        pass  # el dato debe venir de la ficha aprobada: su ausencia la informa el bucle de `needs_spec` (política), no como respuesta inválida
+    elif not isinstance(hops, int) or isinstance(hops, bool) or hops < 0:
         out.append(Finding("invalid", "trusted_hops inválido"))
     elif hops > policy.max_trusted_hops:
         out.append(Finding("policy", f"{hops} saltos por nodos de confianza > máximo {policy.max_trusted_hops}: cada uno ve la clave"))
@@ -137,6 +145,10 @@ def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | Non
             out.append(Finding("anomaly", f"CHSH {s:.3f} ≤ {CLASSICAL_CHSH + policy.chsh_margin:.2f}: no certifica correlaciones cuánticas"))
     if "loophole_free" in profile.witnesses and evidence["loophole_free"] is not True:
         out.append(Finding("policy", "DI-QKD sin prueba de Bell libre de lagunas: no cumple su propio modelo"))
+    if "key_size_bits" in profile.witnesses:
+        ksb = evidence["key_size_bits"]
+        if not isinstance(ksb, int) or isinstance(ksb, bool) or ksb < 128 or ksb % 8:
+            out.append(Finding("policy", "tamaño de clave del KME por debajo de 128 bits o no múltiplo de 8"))
     # --- decoy ---
     if "decoy_ok" in profile.witnesses and evidence["decoy_ok"] is not True:
         out.append(Finding("anomaly", "estadística de estados señuelo inconsistente (posible ataque de número de fotones)"))

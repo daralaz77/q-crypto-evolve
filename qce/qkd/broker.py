@@ -131,7 +131,7 @@ class KeyBroker:
             except QKDDeviceError:
                 mat.destroy()
                 raise
-            if evidence.get("key_id") != ref.key_reference:  # testigos de otra clave = evidencia reutilizada
+            if profiles.profile_for(self._caps[link_id][0]).per_key_witnesses and evidence.get("key_id") != ref.key_reference:  # testigos de otra clave = evidencia reutilizada
                 mat.destroy()
                 self._log("witness_mismatch", link=link_id)
                 raise QKDDeviceError(ErrorCategory.INTEGRITY_FAILURE, "los testigos no corresponden a la clave entregada")

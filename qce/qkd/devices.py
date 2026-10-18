@@ -5,6 +5,7 @@ que entrega lleva is_simulation=True y el broker la rechaza salvo que la políti
 """
 from __future__ import annotations
 
+import hmac
 import os
 import time
 from dataclasses import dataclass, field
@@ -79,6 +80,20 @@ class DeviceRegistry:
         except AuthenticationFailure:
             self._log("auth_failed", rec.device_id)
             raise QKDDeviceError(ErrorCategory.AUTHENTICATION_FAILURE, "prueba de identidad inválida") from None
+        rec.trust_state, rec.last_successful_check = "TRUSTED", self._clock()
+        self._log("auth_ok", rec.device_id)
+
+    def authenticate_pinned_certificate(self, adapter) -> None:
+        """Identidad por certificado fijado (dispositivos que no firman desafíos, p. ej. un KME de ETSI GS QKD 014): `public_key` del alta es la huella
+        SHA-256 del certificado del dispositivo; se compara en tiempo constante con la que presenta ahora. No sustituye a la aprobación humana del alta."""
+        rec = self.get(adapter.device_id)
+        if rec.trust_state in ("UNTRUSTED", "REVIEW_REQUIRED"):
+            raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, f"estado {rec.trust_state}: requiere aprobación humana (approve)")
+        got = adapter.peer_certificate_fingerprint()
+        if not hmac.compare_digest(bytes(got), rec.public_key):
+            rec.trust_state = "UNTRUSTED"
+            self._log("identity_changed", rec.device_id)
+            raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, "el certificado del dispositivo no coincide con el fijado en el alta")
         rec.trust_state, rec.last_successful_check = "TRUSTED", self._clock()
         self._log("auth_ok", rec.device_id)
 

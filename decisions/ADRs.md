@@ -53,3 +53,8 @@ Decisión: usar la PSK externa de TLS 1.3 de OpenSSL (opción A de `docs/QKD_TLS
 Por qué: el protocolo es estándar y de una implementación muy usada; lo propio queda reducido a un puente de FFI y a la preparación de la clave. Ventaja extra: no hay clave privada de larga duración ni certificados en esta ruta.
 Alternativas descartadas: `openssl s_server`/`s_client` como subprocesos (la PSK iría por la línea de órdenes, visible en `ps`); esperar a un `ssl` de Python con PSK (no hay fecha).
 Consecuencias: dependencia de la ruta de `libssl` ≥ 3.5; el puente es código delicado sin revisión; el `kid` es visible. HSM: no viable desde `ssl` de Python (ver `docs/TLS13_PSK_TRANSPORT.md` §5).
+
+## ADR-10 — ETSI GS QKD 014 como perfil de confianza en el operador, no de garantía física
+Decisión: el adaptador 014 se registra con un perfil propio (`ETSI-014-KME`) que no pide QBER, ε ni amplificación (la interfaz no los da), pide el tamaño de clave y la ficha aprobada (saltos de confianza), y su identidad es el certificado fijado en el alta.
+Por qué: inventar testigos que la interfaz no ofrece, o usar los de BB84, sería afirmar una garantía que no existe (principio de la skill de adaptadores). Coste: el broker distingue ahora perfiles con testigos por clave y sin ellos (`per_key_witnesses`), y `evaluate` toma los saltos de la ficha cuando el perfil no los reporta.
+Consecuencia: probado solo contra un emulador (simulación declarada); ningún KME real. SLH-DSA (ADR sin número, `docs/SLHDSA.md`): se añade como primitiva por el `libcrypto` del sistema, no integrada en el protocolo.

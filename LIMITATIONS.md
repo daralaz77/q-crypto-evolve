@@ -77,3 +77,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - La corrección de OpenSSL/TLS 1.3 se asume; no se reprodujo su análisis formal.
 - Rotación automática: hay que llamar a `rotate_if_due` periódicamente (sin planificador). Revocación: CRL explícita (sin OCSP, sin distribución automática; sin `crl_file` el cliente no comprueba).
 - **Sigue sin haber HSM ni agente de claves** para la ruta con certificados (Python `ssl` exige la clave en el proceso); en la ruta PSK no existe clave privada de larga duración.
+
+## Adaptador ETSI GS QKD 014 y SLH-DSA
+- El adaptador 014 (`docs/ETSI014_ADAPTER.md`) **no se ha probado con ningún KME real**, solo con un emulador que es simulación. La interfaz solo entrega claves: la garantía es la confianza en el operador del KME y en la ficha aprobada, nunca física. Una clave por petición; sin extensiones de fabricantes.
+- SLH-DSA (`docs/SLHDSA.md`) usa el `libcrypto` del sistema por un puente `ctypes` NO REVISADO; los vectores oficiales ACVP de SLH-DSA **no se han ejecutado**; no está integrada en el apretón ni en las declaraciones firmadas.
