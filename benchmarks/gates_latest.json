@@ -1,21 +1,21 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "f3dc48c42b4fec04",
+  "release_id": "008de59988cb1892",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
-      "detail": "cadenas de registro íntegras (67 incidentes/eventos), lock coincide, umbrales no debilitados",
+      "detail": "cadenas de registro íntegras (71 incidentes/eventos), lock coincide, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.21
+      "seconds": 0.26
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "395 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "397 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 41.49
+      "seconds": 41.31
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -37,7 +37,7 @@
             "tls-config-allows-tls12",
             "prof-keybinding-off"
           ],
-          "seconds": 1505.6,
+          "seconds": 1507.9,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,16 +46,16 @@
           "checked": 3
         }
       },
-      "seconds": 1507.16
+      "seconds": 1509.1
     },
     {
       "gate": "G4-REGRESION",
       "status": "pass",
-      "detail": "20 incidentes históricos reproducidos y siguen corregidos",
+      "detail": "22 incidentes históricos reproducidos y siguen corregidos",
       "evidence": {
-        "checked": 20
+        "checked": 22
       },
-      "seconds": 13.25
+      "seconds": 14.29
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -73,12 +73,12 @@
     }
   ],
   "metrics": {
-    "tests_passed": 395,
-    "total_seconds": 1562.1,
-    "incidents_total": 20,
-    "incidents_resolved": 20,
+    "tests_passed": 397,
+    "total_seconds": 1565.0,
+    "incidents_total": 22,
+    "incidents_resolved": 22,
     "recurring_patterns": [
-      "13 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
+      "14 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
       "5 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
       "2 incidentes con causa 'configuracion': revisar el diseño, no solo el síntoma"
     ]
