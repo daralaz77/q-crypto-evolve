@@ -1,0 +1,185 @@
+/*
+  Modelo simbólico de QIL1, la capa interna con clave QKD sobre TLS (docs/QKD_LAYER_SPEC.md). ESTADO: NO REVISADO por terceros.
+
+  Qué modela:   el apretón de la capa (HELLO, ACCEPT, CONFIRM) sobre un canal TLS ABSTRACTO. TLS no se modela criptográficamente:
+                cada sesión TLS aporta a sus dos extremos un valor de ligadura (`bind`) y la huella del certificado del servidor.
+                - Sesión honesta: cliente y servidor comparten `bind` y huella; el atacante no ve ni altera los mensajes.
+                - El atacante siempre puede abrir SU PROPIA sesión TLS hacia el servidor como cliente (TLS aquí no autentica clientes).
+                - Con -DBREAKTLS el atacante además puede terminar la sesión del cliente con un certificado falso (rogue) y retransmitir.
+                La clave QKD es secreta, compartida y de un solo uso por cada extremo (hecho linear). -DREVEALQKD permite revelarla.
+  Qué NO modela: la capa de registros AEAD interna, la física de QKD, la seguridad de TLS, ni la longitud/codificación de los mensajes.
+  Mutante del modelo: -DNOBIND quita `bind` y la huella del certificado de la derivación (para comprobar que el modelo tiene dientes).
+*/
+theory QIL1
+begin
+
+builtins: symmetric-encryption
+
+functions: h/1, kdf1/2, kdf2/2, kdfc/2, mac/2, cert/1
+
+restriction Equality:
+  "All x y #i. Eq(x, y) @ i ==> x = y"
+
+/* ---------------- servidor y clave QKD ---------------- */
+rule Server_setup:
+  [ ] --[ ServerExists() ]-> [ !Server('S') ]
+
+rule Qkd_setup:
+  [ Fr(~kid), Fr(~qk) ]
+  --[ QkdKey(~kid) ]->
+  [ QkdC(~kid, ~qk), QkdS(~kid, ~qk), !QkdAll(~kid, ~qk), Out(~kid) ]   /* el id viaja en claro dentro de TLS: se supone conocido */
+
+#ifdef REVEALQKD
+rule Reveal_qkd:
+  [ !QkdAll(kid, qk) ] --[ RevealQkd(kid) ]-> [ Out(qk) ]
+#endif
+
+/* ---------------- sesiones TLS abstractas ---------------- */
+/* Sesión honesta: mismos bind y huella en los dos extremos; el atacante no interviene en el canal */
+rule Tls_honest:
+  [ Fr(~tid), Fr(~bind), !Server(S) ]
+  --[ TlsHonest(~tid) ]->
+  [ TlsC(~tid, ~bind, cert(S)), TlsS(~tid, ~bind, cert(S)), !HonestTls(~tid) ]
+
+/* El atacante abre su propia sesión TLS hacia el servidor (siempre posible: sin autenticación de cliente) */
+rule Tls_adversary_as_client:
+  [ Fr(~tid), Fr(~bind), !Server(S) ]
+  --[ TlsAdvClient(~tid) ]->
+  [ TlsS(~tid, ~bind, cert(S)), !AdvClientTls(~tid), Out(~bind) ]
+
+#ifdef BREAKTLS
+/* Autenticación de TLS rota: el atacante termina la sesión del cliente con un certificado falso */
+rule Tls_rogue_server:
+  [ Fr(~tid), Fr(~bind) ]
+  --[ TlsRogue(~tid) ]->
+  [ TlsC(~tid, ~bind, cert('rogue')), !RogueTls(~tid), Out(~bind) ]
+#endif
+
+/* Entrega de mensajes dentro de TLS */
+rule Deliver_honest_to_server:
+  [ ToS(tid, m), !HonestTls(tid) ] --> [ RecvS(tid, m) ]
+
+rule Deliver_honest_to_client:
+  [ ToC(tid, m), !HonestTls(tid) ] --> [ RecvC(tid, m) ]
+
+rule Server_to_adversary_in_own_session:   /* lo que el servidor envía a la sesión que abrió el atacante */
+  [ ToC(tid, m), !AdvClientTls(tid) ] --> [ Out(m) ]
+
+rule Adversary_to_server_in_own_session:
+  [ In(m), !AdvClientTls(tid) ] --> [ RecvS(tid, m) ]
+
+#ifdef BREAKTLS
+rule Client_to_adversary_in_rogue_session:  /* el atacante lee lo que el cliente envía a su servidor falso */
+  [ ToS(tid, m), !RogueTls(tid) ] --> [ Out(m) ]
+
+rule Adversary_to_client_in_rogue_session:
+  [ In(m), !RogueTls(tid) ] --> [ RecvC(tid, m) ]
+#endif
+
+/* ---------------- protocolo QIL1 ---------------- */
+#ifdef NOBIND
+/* MUTANTE: la derivación NO incluye la ligadura TLS ni la huella del certificado */
+rule C1_hello:
+  let hello = <'QIL1', kid, ~nc>
+  in
+  [ TlsC(tid, b, ch), QkdC(kid, qk), Fr(~nc) ]
+  --[ ClientStart(kid, ~nc) ]->
+  [ St_C1(tid, b, ch, kid, qk, ~nc), ToS(tid, hello) ]
+
+rule C2_confirm:
+  let th = h(<'QIL1', kid, nc, ns>)
+      tag_c = mac(kdfc(qk, th), <'client', th, ts>)
+  in
+  [ St_C1(tid, b, ch, kid, qk, nc), RecvC(tid, <ns, ts>) ]
+  --[ Eq(ts, mac(kdfc(qk, th), <'server', th>)),
+      ClientDone(kid, th, kdf1(qk, th), kdf2(qk, th), b, ch) ]->
+  [ ToS(tid, tag_c) ]
+
+rule S1_accept:
+  let th = h(<'QIL1', kid, nc, ~ns>)
+      ts = mac(kdfc(qk, th), <'server', th>)
+  in
+  [ TlsS(tid, b, ch), RecvS(tid, <'QIL1', kid, nc>), QkdS(kid, qk), Fr(~ns) ]
+  --[ ServerStart(kid, th, b, ch) ]->
+  [ St_S1(tid, b, ch, kid, qk, th, ts), ToC(tid, <~ns, ts>) ]
+#else
+rule C1_hello:
+  let hello = <'QIL1', kid, ~nc>
+  in
+  [ TlsC(tid, b, ch), QkdC(kid, qk), Fr(~nc) ]
+  --[ ClientStart(kid, ~nc) ]->
+  [ St_C1(tid, b, ch, kid, qk, ~nc), ToS(tid, hello) ]
+
+rule C2_confirm:
+  let th = h(<'QIL1', b, ch, kid, nc, ns>)
+      tag_c = mac(kdfc(qk, th), <'client', th, ts>)
+  in
+  [ St_C1(tid, b, ch, kid, qk, nc), RecvC(tid, <ns, ts>) ]
+  --[ Eq(ts, mac(kdfc(qk, th), <'server', th>)),
+      ClientDone(kid, th, kdf1(qk, th), kdf2(qk, th), b, ch) ]->
+  [ ToS(tid, tag_c) ]
+
+rule S1_accept:
+  let th = h(<'QIL1', b, ch, kid, nc, ~ns>)
+      ts = mac(kdfc(qk, th), <'server', th>)
+  in
+  [ TlsS(tid, b, ch), RecvS(tid, <'QIL1', kid, nc>), QkdS(kid, qk), Fr(~ns) ]
+  --[ ServerStart(kid, th, b, ch) ]->
+  [ St_S1(tid, b, ch, kid, qk, th, ts), ToC(tid, <~ns, ts>) ]
+#endif
+
+rule S2_done:
+  let tag_c = mac(kdfc(qk, th), <'client', th, ts>)
+  in
+  [ St_S1(tid, b, ch, kid, qk, th, ts), RecvS(tid, tc) ]
+  --[ Eq(tc, tag_c), ServerDone(kid, th, kdf1(qk, th), kdf2(qk, th), b, ch) ]->
+  [ ]
+
+/* ================= propiedades ================= */
+
+/* Sanidad: el protocolo puede completarse (el cliente termina primero: verifica la etiqueta del servidor antes de enviar la suya) */
+lemma executable:
+  exists-trace
+  "Ex kid th k1 k2 b ch b2 ch2 #i #j.
+       ClientDone(kid, th, k1, k2, b, ch) @ i & ServerDone(kid, th, k1, k2, b2, ch2) @ j & i < j"
+
+/* Alcanzabilidad del ataque de retransmisión: el cliente termina contra un servidor falso (solo posible con TLS roto y sin ligadura) */
+lemma rogue_relay_reaches_done:
+  exists-trace
+  "Ex kid th k1 k2 b #i. ClientDone(kid, th, k1, k2, b, cert('rogue')) @ i"
+
+/* Secreto de las claves internas mientras la clave QKD no se revele (aunque TLS esté roto) */
+lemma secrecy_c2s:
+  "All kid th k1 k2 b ch #i. ClientDone(kid, th, k1, k2, b, ch) @ i
+     ==> (not (Ex #j. K(k1) @ j)) | (Ex #r. RevealQkd(kid) @ r)"
+
+lemma secrecy_s2c:
+  "All kid th k1 k2 b ch #i. ClientDone(kid, th, k1, k2, b, ch) @ i
+     ==> (not (Ex #j. K(k2) @ j)) | (Ex #r. RevealQkd(kid) @ r)"
+
+/* Acuerdo del cliente: el servidor inició un apretón con el mismo transcript */
+lemma agreement:
+  "All kid th k1 k2 b ch #i. ClientDone(kid, th, k1, k2, b, ch) @ i
+     ==> (Ex b2 ch2 #j. ServerStart(kid, th, b2, ch2) @ j & j < i) | (Ex #r. RevealQkd(kid) @ r)"
+
+/* Ligadura al canal (cliente): el servidor está en LA MISMA sesión TLS (mismo bind y misma huella de certificado).
+   Si un atacante terminó TLS con un certificado falso y retransmitió, este lema cae: lo detecta la derivación. */
+lemma channel_agreement:
+  "All kid th k1 k2 b ch #i. ClientDone(kid, th, k1, k2, b, ch) @ i
+     ==> (Ex #j. ServerStart(kid, th, b, ch) @ j & j < i) | (Ex #r. RevealQkd(kid) @ r)"
+
+/* Acuerdo del servidor: completa solo si un cliente terminó con las mismas claves y la misma sesión TLS */
+lemma server_agreement:
+  "All kid th k1 k2 b ch #i. ServerDone(kid, th, k1, k2, b, ch) @ i
+     ==> (Ex #j. ClientDone(kid, th, k1, k2, b, ch) @ j & j < i) | (Ex #r. RevealQkd(kid) @ r)"
+
+/* La clave QKD autentica al cliente: el servidor solo completa con quien posee la clave */
+lemma client_authenticated_by_qkd:
+  "All kid th k1 k2 b ch #i. ServerDone(kid, th, k1, k2, b, ch) @ i
+     ==> (Ex nc #j. ClientStart(kid, nc) @ j & j < i) | (Ex #r. RevealQkd(kid) @ r)"
+
+/* Un solo uso: dos apretones del servidor con el mismo id de clave son imposibles */
+lemma key_single_use:
+  "All kid th1 th2 b1 c1 b2 c2 #i #j. ServerStart(kid, th1, b1, c1) @ i & ServerStart(kid, th2, b2, c2) @ j ==> #i = #j"
+
+end

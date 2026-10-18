@@ -1,0 +1,144 @@
+{
+  "demo": "q-crypto-evolve lab",
+  "all_ok": true,
+  "checks": [
+    {
+      "check": "1. línea base: toda la batería pasa",
+      "ok": true,
+      "observed": ".....                                                                    [100%]"
+    },
+    {
+      "check": "2. el fallo controlado es detectado por las pruebas",
+      "ok": true,
+      "observed": "falla: ['tests/test_fuzz.py::test_handshake_message_bitflips_never_succeed']"
+    },
+    {
+      "check": "3. aislamiento de causa: un único archivo difiere de la versión estable",
+      "ok": true,
+      "observed": "difiere: ['qce/protocols/session.py']"
+    },
+    {
+      "check": "4. el cambio se clasifica como nivel 2 (protocolo → revisión obligatoria)",
+      "ok": true,
+      "observed": "nivel 2"
+    },
+    {
+      "check": "5. el candidato defectuoso NO se promueve (BLOCKED/FAILED, G2 en fallo)",
+      "ok": true,
+      "observed": "estado=BLOCKED G2=fail G3=blocked"
+    },
+    {
+      "check": "6. sin evidencia (mutación/dependencias no ejecutadas) la puerta de seguridad bloquea",
+      "ok": true,
+      "observed": "evidencia insuficiente: prueba de mutación no ejecutada; evidencia insuficiente: auditoría de dependencias omi"
+    },
+    {
+      "check": "7. tras la reparación toda la batería vuelve a pasar",
+      "ok": true,
+      "observed": "......                                                                   [100%]"
+    },
+    {
+      "check": "8. el parche es mínimo (≈1 línea cambiada)",
+      "ok": true,
+      "observed": "2 líneas +/-"
+    },
+    {
+      "check": "9. el código cambió, así que las firmas de la versión anterior NO valen",
+      "ok": true,
+      "observed": "962115d2a9dfa8a8 → 9549fca4be1fa118"
+    },
+    {
+      "check": "10. autorrevisión / firma suplantada del revisor es rechazada (G5 no pasa)",
+      "ok": true,
+      "observed": "sin revisión firmada de un agente distinto del implementador para este código exacto"
+    },
+    {
+      "check": "11. revisión firmada por un agente distinto: G5 pasa",
+      "ok": true,
+      "observed": "revisión independiente válida: ['agente-rev']"
+    },
+    {
+      "check": "12. aun así NO es RELEASE_APPROVED (falta autorización humana y evidencia completa)",
+      "ok": true,
+      "observed": "estado=BLOCKED"
+    },
+    {
+      "check": "13. el implementador no puede marcar su propio cambio como VERIFIED",
+      "ok": true,
+      "observed": "QCEError (regla de independencia)"
+    },
+    {
+      "check": "14. al reintroducir el fallo, la prueba histórica lo detecta (G4 REGRESIÓN)",
+      "ok": true,
+      "observed": "REGRESIÓN: incidentes ya corregidos reaparecen ['INC-0010']"
+    },
+    {
+      "check": "15. la versión con regresión no se promueve",
+      "ok": true,
+      "observed": "estado=BLOCKED"
+    },
+    {
+      "check": "16. la reversión restaura el código exactamente (hash = snapshot estable)",
+      "ok": true,
+      "observed": "restaurados 50 archivos"
+    },
+    {
+      "check": "17. tras revertir, las pruebas críticas vuelven a pasar",
+      "ok": true,
+      "observed": "......                                                                   [100%]"
+    },
+    {
+      "check": "18. la reversión NO tocó el vault ni el libro de incidentes",
+      "ok": true,
+      "observed": "vault y cadena de evidencia intactos"
+    },
+    {
+      "check": "19. la clave revocada sigue revocada tras revertir el código",
+      "ok": true,
+      "observed": "estado=REVOKED"
+    },
+    {
+      "check": "20. intentar aflojar los criterios de aceptación bloquea (trinquete G1)",
+      "ok": true,
+      "observed": "umbral 'min_mutation_score' debilitado (1.0 → 0.5) sin autorización"
+    },
+    {
+      "check": "21. el nivel de un cambio a gates.json es 3 (bloqueado hasta aprobación humana)",
+      "ok": true,
+      "observed": "nivel 3"
+    },
+    {
+      "check": "22. nueva sesión: incidente y lección recuperados desde disco",
+      "ok": true,
+      "observed": "INC-0010: resuelto / lección PROPOSED"
+    },
+    {
+      "check": "23. nueva sesión: las pruebas históricas se reutilizan automáticamente (G4)",
+      "ok": true,
+      "observed": "10 incidentes históricos reproducidos y siguen corregidos"
+    },
+    {
+      "check": "24. la cadena de incidentes y de tareas sigue íntegra",
+      "ok": true,
+      "observed": "36 + 13 entradas"
+    },
+    {
+      "check": "25. la tarea queda en ROLLED_BACK (nunca RELEASE_APPROVED sin humano)",
+      "ok": true,
+      "observed": "ANALYZED → APPROVED_FOR_IMPLEMENTATION → IMPLEMENTED → TESTING → FAILED → ANALYZED → APPROVED_FOR_IMPLEMENTATION → IMPLEMENTED → TESTING → INDEPENDENT_REVIEW → VERIFIED → RELEASE_REVIEW → FAILED → ROLLED_BACK"
+    }
+  ],
+  "timings_s": {
+    "deteccion_a_incidente": 6.43,
+    "preparar_reparacion": 6.51,
+    "reversion": 0.03,
+    "total": 103.5
+  },
+  "not_demonstrated": [
+    "hallazgo autónomo de fallos desconocidos",
+    "auditoría externa",
+    "resistencia a canales laterales",
+    "hardware QKD real",
+    "despliegue en producción"
+  ]
+}

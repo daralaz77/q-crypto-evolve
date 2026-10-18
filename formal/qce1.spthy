@@ -1,0 +1,175 @@
+/*
+  Modelo simbólico de QCE1 (docs/QCE1_SPEC.md, secciones 4 a 8 y 11) para Tamarin Prover.
+
+  Qué modela:   los 4 mensajes del apretón de manos, el KEM híbrido (X25519 + ML-KEM-768) como dos
+                KEM abstractos independientes combinados con una función de un solo sentido, la firma
+                híbrida (Ed25519 + ML-DSA-65) como dos esquemas independientes que deben verificarse
+                AMBOS, la derivación de claves a partir del transcript, las confirmaciones MAC, la
+                identidad fijada (pinning) del servidor y, opcionalmente, una clave QKD mezclada.
+  Qué NO modela: la capa de registros (AEAD), canales laterales, aleatoriedad defectuosa, la
+                dureza real de las primitivas (se asumen ideales), la longitud de los mensajes,
+                la política de suites más allá de lo que se dice abajo, ni nada del código Python.
+                Un modelo simbólico prueba el DISEÑO bajo esas abstracciones, no la implementación.
+
+  Rotura de un componente (se activa al ejecutar con -D):
+     BREAKX  X25519 roto (p. ej. por un ordenador cuántico): el atacante obtiene la clave privada desde la pública.
+     BREAKM  ML-KEM-768 roto.   BREAKE  Ed25519 roto.   BREAKD  ML-DSA-65 roto.
+     QKD     el servidor y el cliente mezclan una clave QKD secreta (no entra nunca al atacante).
+
+  Los resultados esperados por configuración están en formal/EXPECTED.md y los comprueba tests/test_formal_model.py.
+*/
+theory QCE1
+begin
+
+builtins: symmetric-encryption
+
+functions: true/0, h/1, comb/4, kc2s/2, ks2c/2, kck/2, mac/2, pick/1,
+           pkx/1, pkm/1, encx/2, encm/2, decx/2, decm/2,
+           pke/1, pkd/1, sige/2, sigd/2, vere/3, verd/3,
+           dlogx/1, dlogm/1, dloge/1, dlogd/1
+
+equations:
+  decx(encx(m, pkx(sk)), sk) = m,
+  decm(encm(m, pkm(sk)), sk) = m,
+  vere(sige(m, sk), m, pke(sk)) = true,
+  verd(sigd(m, sk), m, pkd(sk)) = true
+
+#ifdef BREAKX
+equations: dlogx(pkx(sk)) = sk
+#endif
+#ifdef BREAKM
+equations: dlogm(pkm(sk)) = sk
+#endif
+#ifdef BREAKE
+equations: dloge(pke(sk)) = sk
+#endif
+#ifdef BREAKD
+equations: dlogd(pkd(sk)) = sk
+#endif
+
+restriction Equality:
+  "All x y #i. Eq(x, y) @ i ==> x = y"
+
+/* ---------------- identidades de servidor (fijadas por el cliente) ---------------- */
+rule Register_server:
+  [ Fr(~ske), Fr(~skd) ]
+  --[ Server($S) ]->
+  [ !LTK($S, ~ske, ~skd), !Pk($S, pke(~ske), pkd(~skd)), Out(<pke(~ske), pkd(~skd)>) ]
+
+/* Compromiso de la identidad a largo plazo (se usa para el secreto hacia adelante) */
+rule Reveal_LTK:
+  [ !LTK(S, ske, skd) ] --[ RevealLTK(S) ]-> [ Out(<ske, skd>) ]
+
+/* ---------------- clave QKD (opcional) ---------------- */
+#ifdef QKD
+rule Qkd_setup:
+  [ Fr(~qid), Fr(~qk) ] --[ QkdKey(~qk) ]-> [ !Qkd(~qid, ~qk), Out(~qid) ]
+#else
+rule No_qkd:
+  [ ] --> [ !Qkd('none', 'none') ]
+#endif
+
+/* ---------------- cliente ---------------- */
+rule C1_client_hello:
+  let offered = <'S1', 'S2'>
+      m1 = <'QCE1', ~nc, offered, qid>
+  in
+  [ Fr(~nc), !Pk(S, pe, pd), !Qkd(qid, qk) ]
+  --[ ClientStart(S, ~nc) ]->
+  [ St_C1(S, pe, pd, m1, offered, qk), Out(m1) ]
+
+rule C2_client_finish:
+  let kpk = <pkx_e, pkm_e>
+      signed = h(<m1, suite, ns, kpk, h(<pe, pd>)>)
+      m2 = <suite, ns, kpk, <sg1, sg2>>
+      ct = <encx(~rx, pkx_e), encm(~rm, pkm_e)>
+      secret = <comb(~rm, ~rx, ct, kpk), qk>
+      th = h(<m1, m2, ct>)
+      mc = mac(kck(secret, th), <'client', th>)
+  in
+  [ St_C1(S, pe, pd, m1, offered, qk), In(<suite, ns, <pkx_e, pkm_e>, <sg1, sg2>>), Fr(~rx), Fr(~rm) ]
+  --[ Eq(vere(sg1, <'ctx', signed>, pe), true),
+      Eq(verd(sg2, <'ctx', signed>, pd), true),
+      ClientFinishSent(S, th, kc2s(secret, th)) ]->
+  [ St_C2(S, m1, m2, offered, suite, th, secret, mc), Out(<ct, mc>) ]
+
+rule C3_client_done:
+  let ck = kck(secret, th)
+  in
+  [ St_C2(S, m1, m2, offered, suite, th, secret, mc), In(ms) ]
+  --[ Eq(ms, mac(ck, <'server', th, mc>)),
+      ClientDone(S, th, kc2s(secret, th), ks2c(secret, th), offered, suite, m1, m2) ]->
+  [ ]
+
+/* ---------------- servidor ---------------- */
+rule S1_server_hello:
+  let m1 = <'QCE1', nc, offered, qid>
+      suite = pick(offered)
+      kpk = <pkx(~ex), pkm(~em)>
+      signed = h(<m1, suite, ~ns, kpk, h(<pe, pd>)>)
+      sig = <sige(<'ctx', signed>, ~ske), sigd(<'ctx', signed>, ~skd)>
+      m2 = <suite, ~ns, kpk, sig>
+  in
+  [ In(<'QCE1', nc, offered, qid>), Fr(~ns), Fr(~ex), Fr(~em),
+    !LTK(S, ~ske, ~skd), !Pk(S, pe, pd), !Qkd(qid, qk) ]
+  --[ ServerStart(S, m1, m2) ]->
+  [ St_S1(S, m1, m2, ~ex, ~em, qk, offered, suite), Out(m2) ]
+
+/* El estado St_S1 se consume: un único intento y la clave efímera desaparece */
+rule S2_server_done:
+  let kpk = <pkx(~ex), pkm(~em)>
+      ct = <ctx_, ctm_>
+      secret = <comb(decm(ctm_, ~em), decx(ctx_, ~ex), ct, kpk), qk>
+      th = h(<m1, m2, ct>)
+      ck = kck(secret, th)
+  in
+  [ St_S1(S, m1, m2, ~ex, ~em, qk, offered, suite), In(<<ctx_, ctm_>, mc>) ]
+  --[ Eq(mc, mac(ck, <'client', th>)),
+      ServerDone(S, th, kc2s(secret, th), offered, suite) ]->
+  [ Out(mac(ck, <'server', th, mc>)) ]
+
+/* ================= propiedades (sección 11 de la especificación) ================= */
+
+/* Sanidad: el protocolo puede completarse (si no, los demás lemas serían vacíos) */
+lemma executable:
+  exists-trace
+  "Ex S th k1 k2 o s m1 m2 #i #j. ServerDone(S, th, k1, o, s) @ i & ClientDone(S, th, k1, k2, o, s, m1, m2) @ j & i < j"
+
+/* Propiedad 2 y 3: secreto de las claves de sesión; y secreto hacia adelante: solo se permite
+   revelar la identidad del servidor DESPUÉS de que el cliente termine la sesión. */
+lemma secrecy_c2s:
+  "All S th k1 k2 o s m1 m2 #i. ClientDone(S, th, k1, k2, o, s, m1, m2) @ i
+     ==> (not (Ex #j. K(k1) @ j)) | (Ex #r. RevealLTK(S) @ r & r < i)"
+
+lemma secrecy_s2c:
+  "All S th k1 k2 o s m1 m2 #i. ClientDone(S, th, k1, k2, o, s, m1, m2) @ i
+     ==> (not (Ex #j. K(k2) @ j)) | (Ex #r. RevealLTK(S) @ r & r < i)"
+
+/* Propiedad 1: acuerdo inyectivo del cliente con el servidor fijado, sobre el mismo transcript y clave */
+lemma injective_agreement:
+  "All S th k1 k2 o s m1 m2 #i. ClientDone(S, th, k1, k2, o, s, m1, m2) @ i
+     ==> ( (Ex #j. ServerDone(S, th, k1, o, s) @ j & j < i
+              & not (Ex #l. ClientDone(S, th, k1, k2, o, s, m1, m2) @ l & not (#l = #i)))
+         | (Ex #r. RevealLTK(S) @ r & r < i) )"
+
+/* Propiedad 4: anti-degradación. Lo que el cliente ofreció y la suite elegida son lo que el servidor vio */
+lemma no_downgrade:
+  "All S th k1 k2 o s m1 m2 #i. ClientDone(S, th, k1, k2, o, s, m1, m2) @ i
+     ==> ( (Ex #j. ServerDone(S, th, k1, o, s) @ j & j < i)
+         | (Ex #r. RevealLTK(S) @ r & r < i) )"
+
+/* Documentación de un NO objetivo: el servidor puede completar un apretón sin que un cliente
+   honesto esté detrás (no hay autenticación del cliente). Este lema DEBE ser verdadero (existe la traza). */
+/* Papel de la FIRMA por separado: aunque ambos KEM estuvieran rotos, lo que el cliente aceptó como
+   ClientHello y ServerHello (suites, nonce, clave KEM efímera) lo emitió de verdad el servidor fijado.
+   Aquí NO interviene el MAC de confirmación: es lo que aporta la firma híbrida. */
+lemma signature_binds_hello:
+  "All S th k1 k2 o s m1 m2 #i. ClientDone(S, th, k1, k2, o, s, m1, m2) @ i
+     ==> ( (Ex #j. ServerStart(S, m1, m2) @ j & j < i)
+         | (Ex #r. RevealLTK(S) @ r & r < i) )"
+
+lemma client_is_not_authenticated:
+  exists-trace
+  "Ex S th k o s #i. ServerDone(S, th, k, o, s) @ i & not (Ex #j. ClientFinishSent(S, th, k) @ j)"
+
+end

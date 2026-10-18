@@ -1,0 +1,98 @@
+{
+  "version": "0.3.0-lab",
+  "release_id": "7af01d52f9163cce",
+  "state": "REVIEW_REQUIRED",
+  "gates": [
+    {
+      "gate": "G1-INTEGRIDAD",
+      "status": "pass",
+      "detail": "cadenas de registro íntegras (67 incidentes/eventos), lock coincide, umbrales no debilitados",
+      "evidence": {},
+      "seconds": 0.22
+    },
+    {
+      "gate": "G2-FUNCIONALIDAD",
+      "status": "pass",
+      "detail": "325 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "evidence": {},
+      "seconds": 23.44
+    },
+    {
+      "gate": "G3-SEGURIDAD",
+      "status": "pass",
+      "detail": "sin malos usos, sin secretos, mutación completa, dependencias limpias",
+      "evidence": {
+        "misuse": [],
+        "secrets": [],
+        "mutation": {
+          "total": 202,
+          "scored": 196,
+          "killed": 196,
+          "score": 1.0,
+          "survivors": [],
+          "declared_equivalent": [
+            "hs-direction-binding-off",
+            "keys-aad-ignores-generation",
+            "rel-path-check-off",
+            "tls-config-allows-tls12",
+            "prof-keybinding-off"
+          ],
+          "seconds": 878.7,
+          "canary_ok": true
+        },
+        "dependencies": {
+          "status": "limpia",
+          "vulnerabilities": [],
+          "checked": 3
+        }
+      },
+      "seconds": 879.87
+    },
+    {
+      "gate": "G4-REGRESION",
+      "status": "pass",
+      "detail": "20 incidentes históricos reproducidos y siguen corregidos",
+      "evidence": {
+        "checked": 20
+      },
+      "seconds": 14.2
+    },
+    {
+      "gate": "G5-INDEPENDENCIA",
+      "status": "skipped",
+      "detail": "sin declaración firmada del implementador para este código",
+      "evidence": {},
+      "seconds": 0.0
+    },
+    {
+      "gate": "G6-AUTORIZACION",
+      "status": "skipped",
+      "detail": "sin autorización humana firmada para este código exacto",
+      "evidence": {},
+      "seconds": 0.0
+    }
+  ],
+  "metrics": {
+    "tests_passed": 325,
+    "total_seconds": 917.7,
+    "incidents_total": 20,
+    "incidents_resolved": 20,
+    "recurring_patterns": [
+      "13 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
+      "5 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
+      "2 incidentes con causa 'configuracion': revisar el diseño, no solo el síntoma"
+    ]
+  },
+  "thresholds": {
+    "min_tests": 325,
+    "min_mutation_score": 1.0,
+    "max_open_high": 0,
+    "min_mutants": 195,
+    "max_declared_equivalent": 5
+  },
+  "claims_not_made": [
+    "no es una auditoría externa",
+    "no demuestra ausencia de vulnerabilidades",
+    "la resistencia cuántica depende de ML-KEM/ML-DSA (supuestos de dureza), no de este código"
+  ]
+}

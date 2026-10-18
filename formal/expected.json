@@ -1,0 +1,163 @@
+{
+  "tamarin": "1.12.0",
+  "configs": {
+    "base": {
+      "defines": [],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakX": {
+      "defines": [
+        "BREAKX"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakM": {
+      "defines": [
+        "BREAKM"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakE": {
+      "defines": [
+        "BREAKE"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakD": {
+      "defines": [
+        "BREAKD"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakXM": {
+      "defines": [
+        "BREAKX",
+        "BREAKM"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "falsified",
+        "secrecy_s2c": "falsified",
+        "injective_agreement": "falsified",
+        "no_downgrade": "falsified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakED": {
+      "defines": [
+        "BREAKE",
+        "BREAKD"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "falsified",
+        "secrecy_s2c": "falsified",
+        "injective_agreement": "falsified",
+        "no_downgrade": "falsified",
+        "signature_binds_hello": "falsified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakXE": {
+      "defines": [
+        "BREAKX",
+        "BREAKE"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "breakMD": {
+      "defines": [
+        "BREAKM",
+        "BREAKD"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "verified"
+      }
+    },
+    "qkd": {
+      "defines": [
+        "QKD"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "falsified"
+      }
+    },
+    "qkd_breakXM": {
+      "defines": [
+        "QKD",
+        "BREAKX",
+        "BREAKM"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "injective_agreement": "verified",
+        "no_downgrade": "verified",
+        "signature_binds_hello": "verified",
+        "client_is_not_authenticated": "falsified"
+      }
+    }
+  }
+}

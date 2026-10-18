@@ -1,0 +1,17 @@
+{
+  "unit": "ms/op (media)",
+  "python": "3.14.7",
+  "kem_keygen": 0.108,
+  "kem_encaps": 0.093,
+  "kem_decaps": 0.056,
+  "sig_sign": 0.616,
+  "sig_verify": 0.203,
+  "handshake_total": 1.072,
+  "sizes_bytes": {
+    "kem_public": 1216,
+    "kem_ciphertext": 1120,
+    "sig_public": 1984,
+    "signature": 3373
+  },
+  "nota": "mediciones de rendimiento; no sustentan ninguna afirmaci\u00f3n de seguridad"
+}

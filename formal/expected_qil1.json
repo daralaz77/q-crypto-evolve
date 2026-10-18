@@ -1,0 +1,101 @@
+{
+  "tamarin": "1.12.0",
+  "configs": {
+    "base": {
+      "defines": [],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "falsified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "verified",
+        "server_agreement": "verified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified"
+      }
+    },
+    "breakTLS": {
+      "defines": [
+        "BREAKTLS"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "falsified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "verified",
+        "server_agreement": "verified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified"
+      }
+    },
+    "revealQkd": {
+      "defines": [
+        "REVEALQKD"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "falsified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "verified",
+        "server_agreement": "verified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified"
+      }
+    },
+    "revealQkd_breakTLS": {
+      "defines": [
+        "REVEALQKD",
+        "BREAKTLS"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "verified",
+        "server_agreement": "verified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified"
+      }
+    },
+    "nobind": {
+      "defines": [
+        "NOBIND"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "falsified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "verified",
+        "server_agreement": "verified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified"
+      }
+    },
+    "nobind_breakTLS": {
+      "defines": [
+        "NOBIND",
+        "BREAKTLS"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "falsified",
+        "server_agreement": "falsified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified"
+      }
+    }
+  }
+}
