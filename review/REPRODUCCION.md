@@ -42,7 +42,7 @@ python3 -m venv .venv
 
 ```sh
 .venv/bin/python -m qce formal               # matriz de 11 configuraciones y 3 mutantes del modelo, frente a formal/expected.json
-# o bien, a mano:
+# QIL1 se ejecuta en el mismo comando (formal/qil1.spthy, formal/expected_qil1.json); a mano:
 cd formal && ./run_all.sh                    # imprime  configuración|lema|tipo|veredicto
 tamarin-prover qce1.spthy --prove -DBREAKX -DBREAKM   # una configuración concreta (prueba de que el secreto se rompe si caen ambos KEM)
 ```
@@ -59,17 +59,17 @@ Resultado esperado: `survivors: []`, con un mutante «canario» sin efecto que d
 
 ## 6. Resultados observados al reproducir desde cero
 
-Máquina: macOS (Apple Silicon), Python 3.14.7, `cryptography` 50.0.2, pytest 9.1.1, hypothesis 6.170.1, Tamarin 1.12.0, Maude 3.5.1. Todo desde el `.zip`, en un directorio vacío y con un entorno virtual nuevo.
+Máquina: macOS (Apple Silicon), Python 3.14.7, `cryptography` 50.0.2, OpenSSL 3.6.4 (Homebrew), Tamarin 1.12.0, Maude 3.5.1. Todo desde el `.zip`, en un directorio vacío y con un entorno virtual nuevo
+(paquete inmediatamente anterior a este texto: mismo código, solo cambia esta guía).
 
 | Paso | Resultado observado |
 |---|---|
-| §1 `shasum -a 256 -c MANIFEST.sha256` | todos los archivos `OK` (0 discrepancias) |
-| §3 `pytest` completo | **279 passed, 10 skipped**, ≈ 25 s (los 10 omitidos: 2 pruebas formales pesadas que exigen `QCE_FORMAL=1`, y 8 pruebas del propio empaquetado, que solo corren en el repositorio completo) |
-| §3 vectores oficiales NIST | 66 passed (65 casos de ACVP: 25 ML-KEM-768 keyGen, 25 ML-DSA-65 keyGen, 15 ML-DSA-65 sigVer; + 1 comprobación de que hay casos negativos) |
-| §3 especificación anclada | 6 passed |
-| §3 conformidad con el modelo | 11 passed |
-| §4 `python -m qce formal` | «modelo formal: veredictos y mutantes del modelo conformes a formal/expected.json», ≈ 92 s con 4 procesos en paralelo |
-| §5 `python -m qce mutate` | 140 mutantes: **135 detectados de 135 puntuables**, `survivors: []`, `canary_ok: true`, 4 declarados equivalentes (con su justificación en `qce/evolve/mutation.py`); ≈ 12 min con la máquina compartida con otras tareas |
+| §1 `shasum -a 256 -c MANIFEST.sha256` | 0 discrepancias |
+| §3 `pytest` completo | **389 passed, 11 skipped**, ≈ 52 s (omitidas: 3 pruebas formales pesadas que exigen `QCE_FORMAL=1` y 8 del propio empaquetado, que solo corren en el repositorio completo) |
+| §4 `python -m qce formal` | «modelo formal: veredictos y mutantes del modelo conformes…»: QCE1 (11 configuraciones, 3 mutantes) **y** QIL1 (8 configuraciones, 5 mutantes) |
+| §5 `python -m qce mutate` | **no reproducido desde el zip en esta ocasión** (≈ 25 min). Resultado en el repositorio completo: ~300 mutantes, todos los puntuables detectados, 5 equivalentes declarados con su justificación |
+
+Pruebas que dependen del entorno: el transporte PSK, SLH-DSA y la interoperabilidad con la herramienta `openssl` necesitan un OpenSSL ≥ 3.5 (se omiten o fallan cerrado si no está; ver `docs/TLS13_PSK_TRANSPORT.md`). Probado solo en macOS con Homebrew.
 
 Dos cosas que conviene saber: las pruebas de mutación y formales usan varios núcleos; y `pip-audit` (auditoría de dependencias) **no** forma parte de este paquete porque necesita red y la base pública de vulnerabilidades.
 
