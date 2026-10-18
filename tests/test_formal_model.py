@@ -48,3 +48,41 @@ def test_matrix_matches_a_fresh_tamarin_run():
 @pytestmark_model
 def test_model_mutants_are_detected():
     assert formal.check_model_mutants(ROOT) == []
+
+
+QIL = ROOT / "formal" / "qil1.spthy"
+needs_qil = pytest.mark.skipif(not QIL.exists(), reason="sin formal/qil1.spthy")
+
+
+@needs_qil
+def test_qil1_expected_verdicts_cover_every_lemma_and_encode_its_claims():
+    lemmas = set(re.findall(r"^lemma (\w+):", QIL.read_text(), re.M))
+    exp = json.loads((ROOT / "formal" / "expected_qil1.json").read_text())["configs"]
+    for name, cfg in exp.items():
+        assert set(cfg["verdicts"]) == lemmas, name
+        assert set(cfg["defines"]) <= {"BREAKTLS", "REVEALQKD", "NOBIND"}, name
+    V = {n: c["verdicts"] for n, c in exp.items()}
+    safety = [l for l in lemmas if l not in ("executable", "rogue_relay_reaches_done", "later_qkd_leak_exposes_past_session")]
+    for name, v in V.items():
+        for l in safety:
+            expected = "falsified" if (name.startswith("nobind") and "breakTLS" in name and not name.startswith("nobind_revealQkd")
+                                        and l in ("channel_agreement", "server_agreement")) or (name == "nobind_revealQkd_breakTLS" and l in ("channel_agreement", "server_agreement")) else "verified"
+            assert v[l] == expected, (name, l)
+    # la ligadura es lo que frena la retransmisión con certificado falso
+    assert V["breakTLS"]["rogue_relay_reaches_done"] == "falsified" and V["nobind_breakTLS"]["rogue_relay_reaches_done"] == "verified"
+    # límite medido (regresión del lema mal planteado): solo sin ligadura, con TLS roto y K filtrada después queda expuesta una sesión pasada
+    assert [n for n, v in V.items() if v["later_qkd_leak_exposes_past_session"] == "verified"] == ["nobind_revealQkd_breakTLS"]
+
+
+@needs_qil
+def test_the_past_session_leak_lemma_excludes_an_earlier_reveal():
+    """El lema se planteó mal una vez: la regla de revelar es repetible y bastaba revelar ANTES para que fuera trivialmente cierto."""
+    text = QIL.read_text()
+    block = text[text.index("lemma later_qkd_leak_exposes_past_session"):]
+    assert "not (Ex #r0. RevealQkd(kid) @ r0 & r0 < i)" in block.split("end")[0]
+
+
+@heavy
+def test_qil1_matrix_and_model_mutants_match_the_expected_verdicts():
+    assert formal.check_matrix(ROOT, model_name="qil1.spthy", expected_name="expected_qil1.json") == []
+    assert formal.check_model_mutants(ROOT, "qil1.spthy", formal.QIL1_MODEL_MUTANTS) == []
