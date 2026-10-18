@@ -1,4 +1,4 @@
-# Paquete de revisión externa — QCE1
+# Paquete de revisión externa — QCE1 y QIL1
 
 Gracias por mirar esto. Este paquete reúne todo lo necesario para revisar **un protocolo de apretón de manos híbrido poscuántico (QCE1)** sin tener que preguntar nada al autor.
 Se pide una revisión crítica: lo más útil es **encontrar lo que está mal**, no confirmar lo que está bien.
@@ -8,6 +8,13 @@ Se pide una revisión crítica: lo más útil es **encontrar lo que está mal**,
 Un apretón de manos de 4 mensajes entre un cliente y un servidor con **identidad fijada**. Intercambio de claves híbrido X25519 + ML-KEM-768 (KEM efímero del servidor),
 firma híbrida Ed25519 + ML-DSA-65 del servidor (deben verificar ambas), claves derivadas con HKDF-SHA256 sobre el hash del transcript, confirmación de clave con HMAC en
 ambos sentidos y una capa de registros AEAD con contador. Opcionalmente se mezcla una clave QKD. **No hay autenticación del cliente** (no objetivo declarado).
+
+## 1b. Qué es QIL1 (añadido 2026-10-17)
+
+Una **segunda composición propia**, independiente de QCE1: una capa interna con **clave QKD** que corre DENTRO de una conexión TLS 1.3 con `X25519MLKEM768` ya establecida, ligada a esa sesión
+(valor `tls-unique` + huella del certificado del servidor), con confirmación mutua por MAC y registros ChaCha20-Poly1305. Existe porque ningún TLS accesible desde Python permite una PSK externa en TLS 1.3.
+Archivos: `docs/QKD_LAYER_SPEC.md`, `docs/QKD_LAYER_FORMAL.md`, `docs/QKD_LAYER_CONFORMANCE.md`, `formal/qil1.spthy`, `qce/transport/qkd_layer.py`, `tests/test_qkd_layer.py`, `tests/test_qil_conformance.py`. También se incluyen
+`docs/TLS13_TRANSPORT.md` (transporte) y `docs/QKD_TLS_OPTIONS.md` (las tres opciones estudiadas). Preguntas específicas: sección E de `PREGUNTAS_ABIERTAS.md`. La clave QKD es **simulada**.
 
 ## 2. Estado y transparencia (léase antes de nada)
 
@@ -24,6 +31,7 @@ ambos sentidos y una capa de registros AEAD con contador. Opcionalmente se mezcl
 |---|---|---|
 | **A. Diseño** | ¿El protocolo cumple sus objetivos con el modelo de atacante declarado? ¿Hay ataques que el modelo no captura? | `docs/QCE1_SPEC.md`, `PREGUNTAS_ABIERTAS.md` |
 | **B. Modelo y conformidad** | ¿El modelo de Tamarin modela lo que dice? ¿Faltan propiedades (UKS, KCI, revelación de claves de sesión)? ¿La conformidad con el código es convincente? | `formal/qce1.spthy`, `docs/QCE1_FORMAL.md`, `docs/QCE1_CONFORMANCE.md` |
+| **D. QIL1** | ¿La ligadura a `tls-unique` es suficiente en TLS 1.3? ¿Falta algún lema (UKS con varios servidores, KCI)? ¿La reserva/liberación y la cota de un aborto del modelo son aceptables? | `docs/QKD_LAYER_SPEC.md`, `formal/qil1.spthy` |
 | **C. Código crítico** | Lectura de `qce/protocols/session.py`, `qce/pqc/hybrid.py`, `qce/symmetric/aead.py`, `qce/core/encoding.py` frente a la especificación | `qce/` |
 
 Si solo tiene tiempo para una cosa: **nivel A**, y dentro de él las preguntas 1 a 4 de `PREGUNTAS_ABIERTAS.md`.

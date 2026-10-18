@@ -37,6 +37,17 @@ Cada pregunta indica **dónde mirar**, **por qué importa** y **qué cambiaría 
 | 19 | Firma híbrida: Ed25519 firma `ctx ‖ 0x00 ‖ mensaje` y ML-DSA usa el parámetro de contexto nativo. ¿Separación de dominios suficiente y sin confusión entre esquemas? | `qce/pqc/hybrid.py` | Ataques entre protocolos |
 | 20 | El combinador `HKDF(ss_m ‖ ss_x, etiqueta ‖ ct ‖ pk)` vincula el texto cifrado completo y la clave pública del receptor. ¿Existe un resultado conocido (p. ej. de la literatura sobre combinadores de KEM) que lo respalde o lo contradiga? Compárelo con la construcción de X-Wing. | `qce/pqc/hybrid.py`, Spec §4.1 | IND-CCA del híbrido |
 
+## E. De QIL1 (capa interna con clave QKD sobre TLS 1.3; spec `docs/QKD_LAYER_SPEC.md` §10)
+
+| # | Pregunta | Dónde | Por qué importa | Si la respuesta es «no» |
+|---|---|---|---|---|
+| 21 | `tls-unique` (48 bytes en OpenSSL/TLS 1.3, no estándar; RFC 9266 no disponible en Python) como única ligadura: ¿hay un ataque de «triple apretón» u otro que lo invalide en TLS 1.3? | spec §3, §10.1 | De la ligadura depende que un certificado falso no sirva | Usar el exportador RFC 9266 o rediseñar |
+| 22 | `th` es sal y contexto a la vez y un mismo `K` produce tres claves con `info` distinto: ¿separación de dominios suficiente? | spec §4 | Separación de claves | Derivación con Extract/Expand separados |
+| 23 | El servidor reserva `K`, la consume al verificar al cliente y la libera si falla, con `HANDSHAKE_TIMEOUT`: ¿es aceptable la retención de hasta ese plazo? | spec §6 | Disponibilidad | Límite de tasa por origen |
+| 24 | El servidor recibe su huella de certificado como parámetro: ¿hay un camino en que use una huella distinta del certificado presentado? | spec §10.4 | Ligadura al certificado | Obtener la huella del propio socket |
+| 25 | El modelo acota los abortos a uno por clave para que Tamarin termine y solo tiene un servidor: ¿la cota invalida las conclusiones? ¿Hace falta UKS con varios servidores? | `docs/QKD_LAYER_FORMAL.md` §3, §5 | Cobertura del modelo | Ampliar el modelo con inducción o varios servidores |
+| 26 | `later_qkd_leak_exposes_past_session` muestra que la confidencialidad pasada ante una filtración de `K` descansa en que el valor de ligadura de TLS siga secreto: ¿es una garantía útil o engañosa? | `docs/QKD_LAYER_FORMAL.md` §3 | Lo que se puede prometer | Retirar la afirmación |
+
 ## D. Alcance que usted puede recortar o ampliar
 
 Si alguna de estas preguntas está fuera de su especialidad, déjela en blanco: es más útil una respuesta firme a tres preguntas que una opinión tibia a veinte.
