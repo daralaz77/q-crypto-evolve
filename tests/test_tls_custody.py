@@ -102,3 +102,23 @@ def test_keystore_retire_is_only_valid_from_active():
     ks.retire(kid)
     with pytest.raises(KeyStateError):
         ks.retire(kid)
+
+
+@needs
+def test_automatic_rotation_renews_before_expiry_retires_the_old_key_and_updates_the_server():
+    r = scenario("auto_rotation")
+    assert r["not_due"] is None                                   # con tiempo de sobra no rota
+    assert r["rotated_at_limit"] and r["serial_changed"] and r["echo2"] == "aloh"       # justo en el límite sí, y el servidor ya sirve el certificado nuevo
+    assert r["again_is_none"] and r["old_state"] == "RETIRED" and r["second_state"] == "RETIRED"   # recién rotada no vuelve a rotar; cada rotación retira la anterior
+    assert r["rotated_after_expiry"] and r["serial3_changed"] and r["echo3"] == "aloh"   # con la clave activa ya caducada también se recupera
+    assert r["from_nothing_serves"] and r["recovers_after_revoke"]                      # y sin ninguna clave activa (inicio o tras revocar) provisiona una
+
+
+@needs
+def test_a_revoked_certificate_is_rejected_by_clients_that_check_the_crl_and_a_missing_crl_fails_closed():
+    r = scenario("revocation_crl")
+    assert r["ok_before"] == "aloh"                               # con una CRL vacía el certificado sirve
+    assert r["revoked"] == "SSLCertVerificationError"             # revocado y listado: rechazado aunque el servidor siga ofreciéndolo
+    assert r["without_crl_still_accepted"] == "aloh"              # sin comprobar la CRL se acepta: por eso la comprobación es explícita (límite declarado)
+    assert r["foreign_crl"] == "SSLCertVerificationError"         # una CRL que no es de la CA del certificado = no hay CRL válida: falla cerrado
+    assert r["crl_entries"] == 1

@@ -48,6 +48,14 @@ def roundtrip(ca, port, msg=b"hola"):
     return out, serial
 
 
+def roundtrip_ctx(ctx, port, msg=b"hola"):
+    c = tls13.connect(ctx, "127.0.0.1", port, "localhost", timeout=5)
+    tls13.send_frame(c, msg)
+    out = tls13.recv_frame(c)
+    c.close()
+    return out.decode()
+
+
 def fails(fn):
     try:
         fn()
@@ -179,6 +187,44 @@ def run(name):
             raw = (d / "audit.jsonl").read_bytes()
             return {"der_hex_in_audit": der.hex().encode() in raw, "pem_in_audit": b"PRIVATE KEY" in raw, "events": len(audit.entries()),
                     "kinds": sorted({json.loads(e["body"])["event"] for e in audit.entries()})}
+        if name == "auto_rotation":
+            ks, cu, ca, ck, cc, clock = setup(d)
+            kid1 = cu.provision_with_lab_ca(ck, cc, "localhost", 3600)
+            srv = tls13.TlsServer(cu.server_context(), echo).start()
+            _, serial1 = roundtrip(ca, srv.port)
+            not_due = cu.rotate_if_due(ck, cc, "localhost", 3600, renew_before_s=600, server=srv)
+            clock.t += 3100                                              # quedan 500 s
+            kid2 = cu.rotate_if_due(ck, cc, "localhost", 3600, renew_before_s=500, server=srv)   # justo en el límite: rota
+            out2, serial2 = roundtrip(ca, srv.port)
+            again = cu.rotate_if_due(ck, cc, "localhost", 3600, renew_before_s=500, server=srv)
+            clock.t += 7200                                              # la clave activa ya caducó
+            kid3 = cu.rotate_if_due(ck, cc, "localhost", 3600, renew_before_s=500, server=srv)
+            out3, serial3 = roundtrip(ca, srv.port)
+            srv.close()
+            ks2, cu2, ca2, ck2, cc2, _ = setup(d / "vacio") if (d / "vacio").mkdir() is None else None   # custodia sin ninguna clave
+            first = cu2.rotate_if_due(ck2, cc2, "localhost", 3600, renew_before_s=500)
+            from_nothing_serves = first is not None and cu2.server_context(first) is not None and ks2.info(first).generation == 1
+            cu2.revoke(first, "prueba")                                  # y tras revocar la única activa también se recupera
+            after_revoke = cu2.rotate_if_due(ck2, cc2, "localhost", 3600, renew_before_s=500)
+            return {"from_nothing_serves": from_nothing_serves, "recovers_after_revoke": after_revoke is not None and after_revoke != first, "not_due": not_due, "rotated_at_limit": kid2 is not None and kid2 != kid1, "serial_changed": serial1 != serial2, "echo2": out2.decode(),
+                    "again_is_none": again is None, "old_state": ks.info(kid1).state.name, "second_state": ks.info(kid2).state.name,
+                    "rotated_after_expiry": kid3 is not None and kid3 not in (kid1, kid2), "serial3_changed": serial3 not in (serial1, serial2), "echo3": out3.decode()}
+        if name == "revocation_crl":
+            ks, cu, ca, ck, cc, _ = setup(d)
+            kid = cu.provision_with_lab_ca(ck, cc, "localhost", 3600)
+            srv = tls13.TlsServer(cu.server_context(), echo).start()     # el servidor sigue sirviendo el certificado aunque se revoque (atacante con la clave)
+            empty = pki.issue_crl(d, ck, cc, [], name="vacia.pem")
+            ok_before = roundtrip_ctx(tls13.client_context(ca, crl_file=empty), srv.port)
+            cu.revoke(kid, "clave comprometida")
+            crl = pki.issue_crl(d, ck, cc, cu.revoked_certificates(), name="crl.pem")
+            revoked = fails(lambda: roundtrip_ctx(tls13.client_context(ca, crl_file=crl), srv.port))
+            without_crl = roundtrip_ctx(tls13.client_context(ca), srv.port)
+            ca2, ck2, cc2 = pki.issue_ca(d / "otra") if (d / "otra").mkdir() is None else None
+            foreign_crl = pki.issue_crl(d / "otra", ck2, cc2, [], name="otra.pem")
+            wrong_ca_crl = fails(lambda: roundtrip_ctx(tls13.client_context(ca, crl_file=foreign_crl), srv.port))   # sin lista de SU CA: falla cerrado
+            srv.close()
+            return {"ok_before": ok_before, "revoked": revoked, "without_crl_still_accepted": without_crl, "foreign_crl": wrong_ca_crl,
+                    "crl_entries": len(cu.revoked_certificates())}
     raise SystemExit(f"escenario desconocido: {name}")
 
 

@@ -167,12 +167,17 @@ def server_context(certfile: str | Path, keyfile: str | Path, client_ca: str | P
     return ctx
 
 
-def client_context(ca_file: str | Path, client_cert: str | Path | None = None, client_key: str | Path | None = None) -> ssl.SSLContext:
-    """Cliente TLS 1.3 híbrido: verifica cadena y nombre, y confía SOLO en `ca_file` (nunca en el almacén del sistema)."""
+def client_context(ca_file: str | Path, client_cert: str | Path | None = None, client_key: str | Path | None = None,
+                   crl_file: str | Path | None = None) -> ssl.SSLContext:
+    """Cliente TLS 1.3 híbrido: verifica cadena y nombre, y confía SOLO en `ca_file` (nunca en el almacén del sistema).
+    Con `crl_file` comprueba la revocación del certificado del servidor y FALLA CERRADO si la lista falta, no corresponde a la CA o caducó."""
     require_hybrid_only()
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # check_hostname=True y CERT_REQUIRED por defecto
     ctx.minimum_version = ssl.TLSVersion.TLSv1_3
     ctx.load_verify_locations(str(ca_file))
+    if crl_file is not None:
+        ctx.load_verify_locations(str(crl_file))
+        ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
     ctx.options |= ssl.OP_NO_COMPRESSION
     if client_cert is not None:
         ctx.load_cert_chain(str(client_cert), str(client_key))

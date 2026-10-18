@@ -126,6 +126,29 @@ class TlsKeyCustody:
         self._store.retire(old)
         return new
 
+    def rotate_if_due(self, ca_key, ca_cert: x509.Certificate, name: str, ttl_s: float, renew_before_s: float, server: "tls13.TlsServer | None" = None) -> str | None:
+        """Rotación automática: si a la clave activa le queda menos de `renew_before_s` de vida (o no hay ninguna), emite una nueva, retira la anterior y,
+        si se da el servidor, le entrega el contexto nuevo. Devuelve el id nuevo o None si todavía no toca. Una clave ya caducada también se rota."""
+        try:
+            old = self.active_id()
+            remaining = self._store.info(old).not_after - self._clock()
+            if remaining > renew_before_s:
+                return None
+            new = self.rotate(ca_key, ca_cert, name, ttl_s)
+        except KeyStateError:
+            new = self.provision_with_lab_ca(ca_key, ca_cert, name, ttl_s)   # no hay activa o ya caducó: empezar de nuevo
+        if server is not None:
+            server.set_context(self.server_context(new))
+        return new
+
+    def certificate(self, key_id: str) -> x509.Certificate:
+        return x509.load_pem_x509_certificate((self._certs / f"{key_id}.pem").read_bytes())
+
+    def revoked_certificates(self) -> list[x509.Certificate]:
+        """Certificados de las claves REVOCADAS: lo que la CA debe publicar en su CRL."""
+        return [self.certificate(k) for k in self._store.all_ids()
+                if self._store.info(k).purpose is Purpose.TLS and self._store.info(k).state is State.REVOKED and (self._certs / f"{k}.pem").exists()]
+
     def revoke(self, key_id: str, reason: str, server: "tls13.TlsServer | None" = None) -> None:
         """Borra el secreto y, si se indica el servidor, deja de atender conexiones nuevas (las abiertas las cierra quien revoca)."""
         self._store.revoke(key_id, reason)

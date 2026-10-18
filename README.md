@@ -22,7 +22,7 @@ cd ~/Claude/q-crypto-evolve
 | `qce/symmetric` | AEAD con nonce por contador, ventana anti-repetición, HKDF |
 | `qce/key_management` | ciclo de vida, envelope, vault cifrado con anti-restauración |
 | `qce/protocols` | handshake `QCE1` (no revisado) y capa de registros |
-| `qce/transport` | **transporte recomendado**: TLS 1.3 con X25519MLKEM768 obligatorio, atestación y falla cerrado (`python -m qce tls-check`); `custody.py` guarda la clave del servidor en el KeyStore; `qkd_layer.py` = capa interna con clave QKD sobre TLS (QIL1, **NO REVISADA**, `docs/QKD_LAYER_SPEC.md`) |
+| `qce/transport` | **transporte recomendado**: TLS 1.3 con X25519MLKEM768 obligatorio, atestación y falla cerrado (`python -m qce tls-check`); `custody.py` guarda la clave del servidor en el KeyStore; `tls13_psk.py` = **ruta QKD recomendada**: TLS 1.3 estándar con PSK externa derivada de la clave QKD y X25519MLKEM768 (`docs/TLS13_PSK_TRANSPORT.md`; puente ctypes NO REVISADO); `qkd_layer.py` = capa interna con clave QKD sobre TLS (QIL1, **NO REVISADA**, `docs/QKD_LAYER_SPEC.md`) |
 | `qce/qkd` | contrato de adaptador, registro de dispositivos, simulador, broker de claves |
 | `qce/security` | escáner de secretos, malos usos (AST), auditoría de dependencias |
 | `qce/evolve` | mutación, puertas, máquina de estados, firmas de revisión/aprobación, demo |

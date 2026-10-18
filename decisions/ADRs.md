@@ -47,3 +47,9 @@ Consecuencias: cascada de dos cifrados, no combinador; depende de un valor de li
 ### ADR-8, adenda (2026-10-17) — reserva en lugar de consumo al recibir el HELLO
 El primer diseño consumía la clave al recibir el HELLO (modelo y código coherentes) y dejaba a cualquiera que conociera el identificador gastarla (T43). Decisión: el servidor **reserva** la clave, la **consume solo si el cliente la demuestra** y la **libera** si el apretón falla o caduca (`HANDSHAKE_TIMEOUT`). Para el broker se añadieron `hold`/`peek`/`release`.
 Coste: el modelo necesita una cota (un aborto por clave) para que Tamarin termine, y un atacante puede retener la clave hasta el plazo. Alternativa descartada: límite de tasa por IP (no impide el gasto con varias IP y no cambia la semántica de consumo).
+
+## ADR-9 — La ruta QKD recomendada es TLS 1.3 con PSK externa vía puente ctypes; QIL1 pasa a alternativa
+Decisión: usar la PSK externa de TLS 1.3 de OpenSSL (opción A de `docs/QKD_TLS_OPTIONS.md`) mediante `qce/transport/tls13_psk.py`, con la clave QKD derivada a PSK por HKDF. QIL1 (ADR-8) se conserva para pilas sin PSK externa.
+Por qué: el protocolo es estándar y de una implementación muy usada; lo propio queda reducido a un puente de FFI y a la preparación de la clave. Ventaja extra: no hay clave privada de larga duración ni certificados en esta ruta.
+Alternativas descartadas: `openssl s_server`/`s_client` como subprocesos (la PSK iría por la línea de órdenes, visible en `ps`); esperar a un `ssl` de Python con PSK (no hay fecha).
+Consecuencias: dependencia de la ruta de `libssl` ≥ 3.5; el puente es código delicado sin revisión; el `kid` es visible. HSM: no viable desde `ssl` de Python (ver `docs/TLS13_PSK_TRANSPORT.md` §5).

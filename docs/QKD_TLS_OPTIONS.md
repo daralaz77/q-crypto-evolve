@@ -54,3 +54,6 @@ Mezcla la clave en el calendario de claves y tiene modelo formal (la clave QKD a
 3. **C** no debe usarse en producción mientras no haya revisión externa.
 
 Lo que **no** se ha comprobado: la seguridad física de QKD, el comportamiento con un equipo QKD real (ETSI GS QKD 014), IKEv2/WireGuard, ni el rendimiento bajo carga.
+
+## Actualización (2026-10-17): la opción A ya está implementada
+Con un puente `ctypes` sobre el `libssl` de OpenSSL ≥ 3.5 la opción A funciona desde Python: TLS 1.3 estándar con PSK externa derivada de la clave QKD y `X25519MLKEM768`, atestiguado, con reserva de la clave y probado contra el cliente de terceros `openssl s_client`. Ver `docs/TLS13_PSK_TRANSPORT.md` y ADR-9. Es ahora la ruta recomendada; la opción B (QIL1) queda como alternativa. La advertencia sigue en pie: el puente es código nuestro sin revisión humana.

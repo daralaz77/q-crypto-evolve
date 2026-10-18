@@ -73,3 +73,14 @@ def sign_csr(ca_key, ca_cert: x509.Certificate, csr: x509.CertificateSigningRequ
             .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(minutes=1)).not_valid_after(now + dt.timedelta(days=days))
             .add_extension(san, critical=False).add_extension(x509.ExtendedKeyUsage([eku]), critical=False)
             .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True).sign(ca_key, hashes.SHA256()))
+
+
+def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[x509.Certificate], days: int = 1, name: str = "crl.pem") -> Path:
+    """Lista de revocación (CRL) de la CA de laboratorio con los certificados indicados."""
+    now = dt.datetime.now(UTC)
+    b = (x509.CertificateRevocationListBuilder().issuer_name(ca_cert.subject).last_update(now - dt.timedelta(minutes=1))
+         .next_update(now + dt.timedelta(days=days)))
+    for cert in revoked:
+        b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(cert.serial_number).revocation_date(now).build())
+    crl = b.sign(ca_key, hashes.SHA256())
+    return _write(directory / name, crl.public_bytes(serialization.Encoding.PEM), 0o644)

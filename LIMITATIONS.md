@@ -70,3 +70,10 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - Modelo Tamarin simbólico (`formal/qil1.spthy`): no cubre la capa de registros, la física de QKD, unknown-key-share con varios servidores ni KCI estricto, y **acota los abortos a uno por clave** para terminar. Hay conformidad por trazas (`docs/QKD_LAYER_CONFORMANCE.md`, 7 sesiones), no una prueba del código.
 - Sin secreto hacia adelante propio; sin HSM; la clave QKD es simulada (`os.urandom`), no hay hardware real.
 - Un tercero que conozca un identificador de clave ya no puede gastarla (reserva/liberación), pero puede retenerla hasta `HANDSHAKE_TIMEOUT`; sin límite de tasa por origen.
+
+## TLS 1.3 con PSK externa (`qce/transport/tls13_psk.py`) — puente NO REVISADO
+- Es la ruta QKD recomendada, pero el **puente `ctypes`** hacia `libssl` es código nuestro sin revisión humana (tipos C, callbacks, propiedad de `SSL_SESSION`); hubo ya un defecto real (cola de errores por hilo, corregido). Detalle en `docs/TLS13_PSK_TRANSPORT.md` §4.
+- Necesita OpenSSL ≥ 3.5 (falla cerrado si no); probado solo en macOS con Homebrew. El identificador de clave es visible en el ClientHello. Clave QKD simulada.
+- La corrección de OpenSSL/TLS 1.3 se asume; no se reprodujo su análisis formal.
+- Rotación automática: hay que llamar a `rotate_if_due` periódicamente (sin planificador). Revocación: CRL explícita (sin OCSP, sin distribución automática; sin `crl_file` el cliente no comprueba).
+- **Sigue sin haber HSM ni agente de claves** para la ruta con certificados (Python `ssl` exige la clave en el proceso); en la ruta PSK no existe clave privada de larga duración.
