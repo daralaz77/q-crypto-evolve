@@ -329,3 +329,46 @@ def test_inconsistent_qber_between_status_and_witnesses_is_rejected(tmp_path):
     with pytest.raises(QKDDeviceError) as e:
         broker.refill("L1")
     assert e.value.category is ErrorCategory.INVALID_RESPONSE and "no coinciden" in str(e.value)
+
+
+def test_hold_gives_material_without_consuming_and_release_returns_the_key_only_to_its_owner(tmp_path):
+    broker, *_, got = ready(tmp_path, consumers=("sess", "other"))
+    [kid] = got
+    secret = broker.hold("L1", "sess", kid)
+    assert len(secret) == 32 and broker.metadata(kid).state is KeyState.RESERVED
+    with pytest.raises(QKDDeviceError):
+        broker.hold("L1", "other", kid)                    # mientras está reservada nadie más la obtiene
+    with pytest.raises(QKDDeviceError):
+        broker.peek(kid, "other")                          # y otro consumidor no puede leerla
+    broker.release(kid, "other")                           # ni liberarla
+    assert broker.metadata(kid).state is KeyState.RESERVED
+    broker.release(kid, "sess")
+    assert broker.metadata(kid).state is KeyState.AVAILABLE and broker.hold("L1", "other", kid) == secret   # misma clave, otro consumidor
+    assert broker.consume(kid, "other") == secret and broker.metadata(kid).state is KeyState.CONSUMED
+
+
+def test_a_consumed_key_never_comes_back_through_release_or_hold(tmp_path):
+    broker, *_, got = ready(tmp_path)
+    [kid] = got
+    broker.hold("L1", "sess", kid)
+    broker.consume(kid, "sess")
+    broker.release(kid, "sess")
+    assert broker.metadata(kid).state is KeyState.CONSUMED
+    with pytest.raises(QKDDeviceError):
+        broker.hold("L1", "sess", kid)
+    with pytest.raises(QKDDeviceError):
+        broker.peek(kid, "sess")
+
+
+def test_peek_requires_a_reservation(tmp_path):
+    broker, *_, got = ready(tmp_path)
+    with pytest.raises(QKDDeviceError):
+        broker.peek(got[0], "sess")                        # disponible pero no reservada
+
+
+def test_hold_of_an_unknown_id_and_by_an_unauthorized_consumer_fail_closed(tmp_path):
+    broker, *_ = ready(tmp_path)
+    with pytest.raises(PolicyViolation):
+        broker.hold("L1", "intruso", "no-existe")
+    with pytest.raises(QKDDeviceError):
+        broker.hold("L1", "sess", "no-existe")

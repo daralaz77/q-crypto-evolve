@@ -67,6 +67,6 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 ## Capa interna QKD sobre TLS (QIL1, `qce/transport/qkd_layer.py`) — NO REVISADA
 - Composición propia escrita por instancias de Claude; ninguna persona experta la ha revisado. El paquete de revisión externa (`dist/`) es anterior y **no la incluye**.
 - Es una cascada (TLS por fuera, QIL1 por dentro), no una mezcla en el calendario de claves de TLS. La ligadura usa `tls-unique`, que en TLS 1.3 no es estándar (RFC 9266 no está disponible en Python).
-- Modelo Tamarin simbólico (`formal/qil1.spthy`): no cubre la capa de registros, la física de QKD, unknown-key-share ni KCI, y **no hay conformidad código-modelo** para QIL1.
+- Modelo Tamarin simbólico (`formal/qil1.spthy`): no cubre la capa de registros, la física de QKD, unknown-key-share con varios servidores ni KCI estricto, y **acota los abortos a uno por clave** para terminar. Hay conformidad por trazas (`docs/QKD_LAYER_CONFORMANCE.md`, 7 sesiones), no una prueba del código.
 - Sin secreto hacia adelante propio; sin HSM; la clave QKD es simulada (`os.urandom`), no hay hardware real.
-- Un tercero que conozca un identificador de clave puede gastarla (denegación de servicio); sin límite de tasa.
+- Un tercero que conozca un identificador de clave ya no puede gastarla (reserva/liberación), pero puede retenerla hasta `HANDSHAKE_TIMEOUT`; sin límite de tasa por origen.

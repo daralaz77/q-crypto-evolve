@@ -40,6 +40,9 @@ QIL1_MODEL_MUTANTS = {
     "clave_QKD_reutilizable": (
         [("QkdS(~kid, ~qk), !QkdAll", "!QkdS(~kid, ~qk), !QkdAll"), ("QkdS(kid, qk), Fr(~ns)", "!QkdS(kid, qk), Fr(~ns)")],
         [], ["key_single_use"]),
+    "clave_vuelve_a_estar_disponible_tras_completar": (
+        [("ServerDone(kid, th, kdf1(qk, th), kdf2(qk, th), b, ch) ]->\n  [ ]", "ServerDone(kid, th, kdf1(qk, th), kdf2(qk, th), b, ch) ]->\n  [ QkdS(kid, qk) ]")],
+        [], ["no_reuse_after_done"]),
     "claves_internas_sin_la_clave_QKD": (
         [("kdf1(qk, th)", "kdf1(th, th)"), ("kdf2(qk, th)", "kdf2(th, th)")], ["NOBIND", "BREAKTLS"], ["secrecy_c2s", "secrecy_s2c"]),
 }
@@ -49,8 +52,10 @@ def available() -> bool:
     return shutil.which("tamarin-prover") is not None
 
 
-def run_model(model: Path, defines: list[str], timeout: int = 600) -> dict[str, str]:
-    cmd = ["tamarin-prover", str(model), "--prove", *[f"-D{d}" for d in defines]]
+def run_model(model: Path, defines: list[str], timeout: int = 600, lemmas: list[str] | None = None) -> dict[str, str]:
+    """`lemmas` limita la prueba a esos lemas (los mutantes solo necesitan el que debe caer; evita lemas que con el defecto no terminan)."""
+    prove = [f"--prove={l}" for l in lemmas] if lemmas else ["--prove"]
+    cmd = ["tamarin-prover", str(model), *prove, *[f"-D{d}" for d in defines]]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout
     return dict(VERDICT.findall(out))
 
@@ -84,7 +89,7 @@ def check_model_mutants(root: Path, model_name: str = "qce1.spthy", mutants: dic
             with tempfile.TemporaryDirectory() as d:
                 p = Path(d) / "m.spthy"
                 p.write_text(text)
-                v = run_model(p, defines)
+                v = run_model(p, defines, lemmas=must_fail)
             for lemma in must_fail:
                 if v.get(lemma) != "falsified":
                     problems.append(f"{name}: el lema {lemma} debía caer y dio {v.get(lemma)!r} (el modelo no detecta este defecto)")

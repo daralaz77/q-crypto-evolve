@@ -197,6 +197,29 @@ class KeyBroker:
         self._log("key_consumed", key=key_reference, consumer=consumer)
         return secret
 
+    def hold(self, link_id: str, consumer: str, key_id: str) -> bytes:
+        """Reserva la clave `key_id` y entrega su material SIN consumirla: quien la usa decide después `consume` (éxito) o `release` (fallo).
+        Mientras esté reservada nadie más la obtiene; la reserva caduca con la clave."""
+        if key_id not in self._refs:
+            self._authorized(link_id, consumer)
+            self.refill(link_id, 1, key_id)
+        ref = self.reserve(link_id, consumer, key_id)
+        return self.peek(ref, consumer)
+
+    def peek(self, key_reference: str, consumer: str) -> bytes:
+        ref = self.metadata(key_reference)
+        if ref.state is not KeyState.RESERVED or ref.reserved_by != consumer:
+            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f"clave no reservada para este consumidor (estado {ref.state.value})")
+        self._guard(ref.peer_or_link_id)
+        return self._mat[key_reference].reveal()
+
+    def release(self, key_reference: str, consumer: str) -> None:
+        """Devuelve una clave reservada al conjunto disponible (el apretón que la reservó falló). Una clave ya consumida no vuelve."""
+        ref = self._refs.get(key_reference)
+        if ref is not None and ref.state is KeyState.RESERVED and ref.reserved_by == consumer:
+            ref.state, ref.reserved_by = KeyState.AVAILABLE, ""
+            self._log("key_released", key=key_reference, consumer=consumer)
+
     def take(self, link_id: str, consumer: str, key_id: str | None = None) -> tuple[bytes, bytes]:
         """(key_id, material) — para el ClientHello/ServerHandshake.qkd_lookup."""
         if key_id and key_id not in self._refs:  # extremo receptor: pide por key_ID (como en ETSI GS QKD 014)

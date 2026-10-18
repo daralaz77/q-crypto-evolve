@@ -66,11 +66,13 @@ el identificador o los nonces cambia todas las claves.
 El cliente verifica `ts` (comparación de tiempo constante) **antes** de enviar `tc`; si no coincide, se cierra sin enviar nada. El servidor verifica `tc` antes de abrir
 la capa. Tras un fallo en cualquier punto la conexión se descarta; el servidor **no** envía mensajes de error al par (sin oráculo).
 
-## 6. Servidor: consumo único
+## 6. Servidor: reserva, confirmación y liberación
 
-El servidor obtiene `K` llamando a una fuente `take_key(kid)` que **debe entregarla una sola vez** (`OneTimeKeys` en laboratorio; `broker_taker` con el `KeyBroker` real,
-que reserva y consume y falla cerrado ante política, cuarentena o consumidor no autorizado). La clave se consume al recibir un HELLO bien formado, **antes** de verificar
-nada (igual que el modelo, regla `S1_accept`). Un HELLO malformado no consume la clave. Si `take_key` devuelve nada, o `K` no cumple el rango, el apretón se aborta.
+El servidor obtiene `K` de una fuente con tres operaciones: `reserve(kid)` (entrega `K` o nada, y la marca como en uso: nadie más la obtiene), `commit(kid)` (la consume para siempre) y
+`release(kid)` (la devuelve). Reserva al recibir un HELLO bien formado (regla `S1_accept` del modelo); **consume solo si el cliente demuestra poseerla** (`S2_done`); la **libera** si el apretón
+falla o si el cliente no responde en `HANDSHAKE_TIMEOUT` segundos. Un HELLO malformado no toca la fuente. Si la fuente entrega material fuera de rango, se descarta (`commit`) y el apretón se aborta.
+Con el `KeyBroker` real (`BrokerSource`): `hold` (reserva y entrega sin consumir), `consume` y `release`; falla cerrado ante política, cuarentena o consumidor no autorizado.
+Consecuencias: quien solo conoce el identificador **no puede gastar la clave** (T43); un atacante que reserva y se queda callado la retiene como máximo `HANDSHAKE_TIMEOUT`; tras completar, la clave no vuelve a usarse.
 
 ## 7. Propiedades pretendidas (modelo `formal/qil1.spthy`, ver `docs/QKD_LAYER_FORMAL.md`)
 
@@ -79,7 +81,8 @@ nada (igual que el modelo, regla `S1_accept`). Un HELLO malformado no consume la
 3. **Ligadura al canal** (`channel_agreement`): lo que el cliente da por establecido, el servidor lo inició en **su misma sesión TLS** (mismo `bind` y mismo certificado).
    Con TLS roto, un atacante con certificado falso y retransmisión **no** logra completar; sin la ligadura (mutante `NOBIND`) sí (`rogue_relay_reaches_done`).
 4. **Autenticación del cliente por la clave** (`client_authenticated_by_qkd`).
-5. **Un solo uso** (`key_single_use`).
+5. **Reserva exclusiva y un solo uso** (`key_single_use`, `no_reuse_after_done`): dos apretones del servidor con la misma clave solo si el primero abortó y la devolvió; tras completar no hay más.
+6. **Límite medido** (`later_qkd_leak_exposes_past_session`, exists-trace): una filtración POSTERIOR de `K` no expone una sesión pasada mientras el valor de ligadura de TLS siga secreto; sí la expone si además TLS falla y no hay ligadura (`nobind_revealQkd_breakTLS`). Es decir, la confidencialidad pasada descansa en TLS y en `K` a la vez.
 
 Lo que el modelo **no** cubre: la capa de registros AEAD (§8), la física de QKD, la seguridad del propio TLS (se modela como un canal abstracto con un valor de ligadura y una huella),
 codificaciones y longitudes (los términos se tratan como inyectivos), canales laterales, denegación de servicio.
@@ -92,12 +95,10 @@ Máximo de `MAX_RECORDS` registros por dirección (`KeyStateError` al agotarse);
 
 ## 9. Límites y amenazas conocidas (no resueltas)
 
-- **Gasto de claves.** El identificador de clave no es secreto frente a quien rompa TLS; quien lo conozca y abra una sesión TLS (el servidor no autentica clientes) puede gastar esa clave
-  enviando un HELLO. No obtiene acceso, pero la clave se pierde (fail-closed). Mitigación parcial: identificadores no adivinables (los del `KeyBroker` son aleatorios) y viajan dentro de TLS.
+- **Retención de la clave.** Un atacante que conozca el identificador y reserve la clave sin completar la retiene hasta `HANDSHAKE_TIMEOUT`; en ese tiempo el cliente legítimo es rechazado. No hay límite de tasa por origen.
 - **Valor de ligadura no estándar.** `tls-unique` en TLS 1.3 no está especificado (RFC 9266 desaconseja usarlo así): es el único valor disponible en Python 3.14. Si otra pila lo calcula distinto, no interoperan.
 - **Cascada, no combinador.** Un atacante que rompa a la vez TLS **y** obtenga `K` rompe todo; QIL1 no añade protección contra quien robe `K` del dispositivo o del broker.
-- **Sin secreto hacia adelante propio.** Las claves de la capa dependen solo de `K` y nonces: si `K` se filtra más tarde, un registro capturado y descifrable en TLS (hoy o en el futuro) también cae.
-  El secreto hacia adelante lo aporta TLS (KEM efímero). `K` es de un solo uso y se borra en cuanto se deriva, en el mejor esfuerzo posible en Python.
+- **Sin secreto hacia adelante propio.** Las claves de la capa dependen de `K`, `th` y los nonces; `th` incluye el valor de ligadura de TLS. Si `K` se filtra más tarde pero TLS siguió siendo secreto, la sesión pasada no se expone (lema medido, §7.6); si TLS también se rompe (p. ej. con un ordenador cuántico futuro), cae. El secreto hacia adelante lo aporta TLS (KEM efímero). `K` es de un solo uso.
 - **Material en memoria.** Sin HSM; la clave y las derivadas viven en memoria del proceso (`LIMITATIONS.md`).
 - **QKD simulado.** El material de `K` proviene de un simulador (os.urandom); el enlace físico no está modelado ni probado.
 
@@ -105,7 +106,7 @@ Máximo de `MAX_RECORDS` registros por dirección (`KeyStateError` al agotarse);
 
 1. ¿Es aceptable `tls-unique` (48 bytes en OpenSSL/TLS 1.3, no estándar) como única ligadura, o hay un ataque de «triple apretón de manos» u otro que lo invalide en TLS 1.3?
 2. `th` es sal y contexto a la vez, y el mismo `K` produce tres claves con `info` distintos y salida de 32 bytes: ¿es suficiente separación de dominios?
-3. El servidor consume `K` antes de verificar al cliente (modelo y código lo hacen así para no dejar una ventana de reutilización): ¿es la mejor política frente al gasto de claves, o conviene reservar y liberar?
+3. El servidor reserva `K`, la consume solo al verificar al cliente y la libera si falla (§6): ¿la ventana de retención hasta `HANDSHAKE_TIMEOUT` es aceptable, o hace falta un límite de tasa por origen?
 4. La ligadura incluye la huella del certificado, pero el servidor la recibe como parámetro: ¿hay un camino en que el servidor use una huella distinta de la del certificado realmente presentado?
 5. ¿Falta un lema de *unknown-key-share*, de KCI o de revelación de claves de sesión?
 
@@ -127,6 +128,7 @@ QKD_KEY_MIN = 32
 QKD_KEY_MAX = 1024
 BIND_MIN = 12
 MAX_RECORDS = 4294967296
+HANDSHAKE_TIMEOUT = 10.0
 ```
 
 ## 12. Cómo se comprueba que esta especificación es fiel al código
@@ -134,5 +136,6 @@ MAX_RECORDS = 4294967296
 - `tests/test_qkd_layer.py::test_constants_table_matches_code` — la tabla de §11 frente a las constantes reales.
 - `tests/test_qkd_layer.py::test_independent_rederivation_matches_a_real_session` — ejecuta un apretón real sobre TLS 1.3 con una clave QKD de prueba y, **solo con las fórmulas de este documento**,
   recalcula `th`, las dos etiquetas y las claves, y descifra un registro con ChaCha20-Poly1305 directo.
+- `tests/test_qil_conformance.py` — trazas del código real con atacante activo contra los lemas y las guardas del modelo (`docs/QKD_LAYER_CONFORMANCE.md`).
 - Escenarios hostiles (clave equivocada, reutilización, MITM con certificado falso, HELLO malformado, manipulación, repetición, reflexión, reordenación): `tests/test_qkd_layer.py`.
-- Lo que **no** comprueba: que el modelo sea fiel a la realidad, ni propiedades de seguridad (para eso son el modelo y la revisión externa, que **no** ha ocurrido).
+- Lo que **no** comprueba: que el modelo sea fiel más allá de las trazas observadas, ni propiedades de seguridad (para eso son el modelo y la revisión externa, que **no** ha ocurrido).

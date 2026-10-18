@@ -40,9 +40,10 @@ class Lab:
 
     def handle(self, conn, peer):
         try:
-            layer = Q.server_layer(conn, self.store.take, self.cert_der)
+            layer = Q.server_layer(conn, self.store, self.cert_der)
             self.out["server"] = "ok"
             self.out["server_th"] = layer.transcript_hash.hex()
+            self.out["timeout_tras_capa"] = conn.gettimeout()
         except Exception as exc:  # noqa: BLE001
             self.out["server"] = type(exc).__name__
             return
@@ -67,6 +68,7 @@ def sc_honest():
     """Apretón real + eco; devuelve los datos crudos para que la prueba re-derive todo desde la especificación."""
     frames = []
     orig = tls13.send_frame
+    Q.HANDSHAKE_TIMEOUT = 3.0   # distinto del plazo del socket (10 s) para poder comprobar que se restaura
 
     def recording(sock, data):
         frames.append(bytes(data))
@@ -80,7 +82,7 @@ def sc_honest():
         reply = layer.read()
         time.sleep(0.2)
         out = {"reply": reply.decode(), "version": c.version(), "server": lab.out.get("server"),
-               "th_equal": layer.transcript_hash.hex() == lab.out.get("server_th"), "bind": c.get_channel_binding("tls-unique").hex(),
+               "th_equal": layer.transcript_hash.hex() == lab.out.get("server_th"), "timeout_tras_capa": lab.out.get("timeout_tras_capa"), "bind": c.get_channel_binding("tls-unique").hex(),
                "cert": lab.cert_der.hex(), "key": KEY.hex(), "key_id": KID.hex(), "frames": [f.hex() for f in frames],
                "th": layer.transcript_hash.hex()}
         c.close()
@@ -178,7 +180,7 @@ def sc_binding_checks():
     f = Fake()
     err(lambda: Q.client_layer(f, KID, KEY, rng=lambda n: b"\x07" * n))
     out["hello_enviado"] = f.sent[0][4:].hex() if f.sent else None
-    out["server_sin_binding"] = err(lambda: Q.server_layer(Fake(bind=None), Q.OneTimeKeys().take, b"c"))
+    out["server_sin_binding"] = err(lambda: Q.server_layer(Fake(bind=None), Q.OneTimeKeys(), b"c"))
     return out
 
 
@@ -253,6 +255,7 @@ def sc_bad_client_tag():
         c.close()
         time.sleep(0.3)
         out["servidor"] = lab.out.get("server")
+        out["clave_libre_tras_etiqueta_mala"] = KID in lab.store._keys and KID not in lab.store._reserved
         lab.store.add(KID, KEY)  # HELLO malformado: el servidor no debe ni consumir la clave
         c = lab.client()
         tls13.send_frame(c, b"QIL1\x00xx")
@@ -268,6 +271,7 @@ def sc_bad_client_tag():
             time.sleep(0.3)
             c.close()
             out[f"clave_{label}_servidor"] = lab.out.get("server")
+            out[f"clave_{label}_descartada"] = KID not in lab.store._keys
         lab.close()
     return out
 
@@ -298,9 +302,16 @@ def sc_broker():
         ba, bb = brokers
         ids = link.generate(2)
         lab = Lab(d)
-        lab.store = type("S", (), {"take": staticmethod(Q.broker_taker(bb, "L1", "qil"))})()
+        lab.store = Q.BrokerSource(bb, "L1", "qil")
         ba.refill("L1", 1, ids[0])
         kid, key = ba.take("L1", "qil", ids[0])
+        x = lab.client()   # atacante que conoce el id: reserva la clave en el broker, falla la etiqueta y la clave debe volver
+        tls13.send_frame(x, Q.encode_hello(ids[0].encode(), b"n" * 32))
+        tls13.recv_frame(x)
+        tls13.send_frame(x, bytes(32))
+        x.close()
+        time.sleep(0.4)
+        out["broker_tras_ataque"] = bb.status("L1")["keys"]
         c = lab.client()
         layer = Q.client_layer(c, kid if isinstance(kid, bytes) else kid.encode(), key)
         layer.write(b"con broker")
@@ -309,12 +320,12 @@ def sc_broker():
         time.sleep(0.2)
         out["servidor"] = lab.out.get("server")
         # el servidor ya consumió la clave: el mismo id no vuelve a salir del broker
-        out["reutilizar_id"] = Q.broker_taker(bb, "L1", "qil")(ids[0].encode())
-        out["id_desconocido"] = Q.broker_taker(bb, "L1", "qil")(b"no-existe")
-        out["id_no_ascii"] = Q.broker_taker(bb, "L1", "qil")(b"\xff\xfe")
-        out["consumidor_no_autorizado"] = Q.broker_taker(bb, "L1", "otro")(ids[1].encode())
+        out["reutilizar_id"] = Q.BrokerSource(bb, "L1", "qil").reserve(ids[0].encode())
+        out["id_desconocido"] = Q.BrokerSource(bb, "L1", "qil").reserve(b"no-existe")
+        out["id_no_ascii"] = Q.BrokerSource(bb, "L1", "qil").reserve(b"\xff\xfe")
+        out["consumidor_no_autorizado"] = Q.BrokerSource(bb, "L1", "otro").reserve(ids[1].encode())
         quarantined = link.generate(1, qber=0.4)[0]   # QBER de espionaje: el broker pone el enlace en cuarentena
-        out["enlace_en_cuarentena"] = Q.broker_taker(bb, "L1", "qil")(quarantined.encode())
+        out["enlace_en_cuarentena"] = Q.BrokerSource(bb, "L1", "qil").reserve(quarantined.encode())
         out["cuarentena_registrada"] = bool(bb.status("L1")["blocked"])
         lab.close()
     return out
@@ -368,13 +379,194 @@ def sc_bad_accept():
     return out
 
 
+def sc_no_burn():
+    """Quien conoce el id pero no la clave no puede gastarla: tras su intento fallido, el cliente legítimo completa; y solo una vez."""
+    out = {}
+    with tempfile.TemporaryDirectory() as td:
+        lab = Lab(Path(td))
+        c = lab.client()
+        tls13.send_frame(c, Q.encode_hello(KID, b"n" * 32))
+        tls13.recv_frame(c)
+        tls13.send_frame(c, bytes(32))   # etiqueta sin la clave
+        c.close()
+        time.sleep(0.3)
+        out["atacante"] = lab.out.get("server")
+        lab.out.clear()
+        c = lab.client()
+        layer = Q.client_layer(c, KID, KEY)
+        layer.write(b"legitimo")
+        out["legitimo"] = layer.read().decode()
+        c.close()
+        time.sleep(0.2)
+        out["servidor_legitimo"] = lab.out.get("server")
+        lab.out.clear()
+        c = lab.client()
+        out["segundo_uso"] = err(lambda: Q.client_layer(c, KID, KEY))
+        c.close()
+        time.sleep(0.2)
+        out["segundo_uso_servidor"] = lab.out.get("server")
+        lab.close()
+    return out
+
+
+def sc_stall():
+    """Un atacante que reserva la clave y se queda parado la retiene solo hasta HANDSHAKE_TIMEOUT; luego el cliente legítimo completa."""
+    out = {}
+    Q.HANDSHAKE_TIMEOUT = 1.0
+    with tempfile.TemporaryDirectory() as td:
+        lab = Lab(Path(td))
+        a = lab.client()
+        tls13.send_frame(a, Q.encode_hello(KID, b"n" * 32))
+        tls13.recv_frame(a)   # el servidor reservó la clave y espera la etiqueta
+        c = lab.client()
+        out["durante_la_reserva"] = err(lambda: Q.client_layer(c, KID, KEY))
+        c.close()
+        time.sleep(1.8)       # el servidor abandona al atacante y libera la clave
+        lab.out.clear()
+        c = lab.client()
+        layer = Q.client_layer(c, KID, KEY)
+        layer.write(b"tras caducar")
+        out["despues"] = layer.read().decode()
+        a.close()
+        c.close()
+        lab.close()
+    return out
+
+
+def sc_conformance():
+    """Sesiones reales con un atacante activo, observadas desde fuera (mensajes) y en la frontera de la fuente de claves (reserve/commit/release).
+    El análisis (qce/evolve/qil_conformance.py) las convierte en eventos del modelo con código independiente."""
+    reg, log, cur = {}, {}, {"name": None}
+    orig_send, orig_recv = tls13.send_frame, tls13.recv_frame
+
+    def send(sock, data):
+        r = reg.get(id(sock))
+        if r:
+            log[r[0]][r[1]]["sent"].append(bytes(data).hex())
+        return orig_send(sock, data)
+
+    def recv(sock, *a, **k):
+        data = orig_recv(sock, *a, **k)
+        r = reg.get(id(sock))
+        if r:
+            log[r[0]][r[1]]["recv"].append(data.hex())
+        return data
+    tls13.send_frame, tls13.recv_frame = send, recv
+
+    class Spy(Q.OneTimeKeys):
+        calls = []
+
+        def reserve(self, k):
+            r = super().reserve(k)
+            self.calls.append(("reserve", bytes(k).hex(), r is not None))
+            return r
+
+        def commit(self, k):
+            super().commit(k)
+            self.calls.append(("commit", bytes(k).hex(), True))
+
+        def release(self, k):
+            super().release(k)
+            self.calls.append(("release", bytes(k).hex(), True))
+
+    keys = {b"kid-%d" % i: bytes([i]) * 32 for i in range(1, 5)}
+    sessions = []
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        ca, ck, cc = pki.issue_ca(d)
+        cert, key = pki.issue_leaf(d, ck, cc, "localhost", server=True)
+        cert_der = ssl_pem_to_der(cert)
+        spy = Spy(dict(keys))
+
+        def handler(conn, peer):
+            name = cur["name"]
+            reg[id(conn)] = (name, "server")
+            L = log[name]["server"]
+            L["bind"], L["cert"] = conn.get_channel_binding("tls-unique").hex(), cert_der.hex()
+            spy.calls = []
+            try:
+                Q.server_layer(conn, spy, cert_der)
+                L["outcome"] = "ok"
+            except Exception as exc:  # noqa: BLE001
+                L["outcome"] = type(exc).__name__
+            L["calls"] = list(spy.calls)
+        srv = tls13.TlsServer(tls13.server_context(cert, key), handler).start()
+        ctx = tls13.client_context(ca)
+
+        def new(name, kid, ckey):
+            cur["name"] = name
+            log[name] = {"client": {"sent": [], "recv": [], "outcome": None, "bind": "", "cert": ""},
+                         "server": {"sent": [], "recv": [], "outcome": None, "bind": "", "cert": "", "calls": []}}
+            return {"name": name, "kid": kid.hex(), "key": ckey.hex(), "server_keys": {k.hex(): v.hex() for k, v in keys.items()} if not sessions else {}}
+
+        def finish(s):
+            time.sleep(0.5)
+            s["client"], s["server"] = log[s["name"]]["client"], log[s["name"]]["server"]
+            sessions.append(s)
+
+        def honest(name, kid, ckey):
+            s = new(name, kid, ckey)
+            c = tls13.connect(ctx, "127.0.0.1", srv.port, "localhost", timeout=5)
+            reg[id(c)] = (name, "client")
+            L = log[name]["client"]
+            L["bind"], L["cert"] = c.get_channel_binding("tls-unique").hex(), c.getpeercert(binary_form=True).hex()
+            L["outcome"] = err(lambda: Q.client_layer(c, kid, ckey))
+            c.close()
+            finish(s)
+
+        def raw_attacker(name, kid, hello, tag):
+            s = new(name, kid, bytes(32))
+            c = tls13.connect(ctx, "127.0.0.1", srv.port, "localhost", timeout=5)   # sin registrar: el atacante no es un cliente honesto
+            orig_send(c, hello)
+            if tag is not None:
+                orig_recv(c)
+                orig_send(c, tag)
+            c.close()
+            finish(s)
+
+        honest("1-honesto", b"kid-1", keys[b"kid-1"])
+        honest("2-reutilizacion", b"kid-1", keys[b"kid-1"])
+        raw_attacker("3-atacante-etiqueta-falsa", b"kid-2", Q.encode_hello(b"kid-2", b"n" * 32), bytes(32))
+        honest("4-legitimo-tras-ataque", b"kid-2", keys[b"kid-2"])
+        raw_attacker("5-hello-mal-formado", b"kid-3", b"QIL1\x00xx", None)
+        honest("6-clave-equivocada-del-cliente", b"kid-4", bytes(32))
+        # 7) MITM con certificado falso aceptado por el cliente; retransmite hacia el servidor real
+        s = new("7-mitm-certificado-falso", b"kid-3", keys[b"kid-3"])
+        rd = d / "r"
+        rd.mkdir()
+        rca, rk, rc = pki.issue_ca(rd)
+        rcert, rkey = pki.issue_leaf(rd, rk, rc, "localhost", server=True)
+
+        def mitm(conn, peer):
+            up = tls13.connect(ctx, "127.0.0.1", srv.port, "localhost", timeout=5)
+            try:
+                orig_send(up, orig_recv(conn))
+                orig_send(conn, orig_recv(up))
+                orig_send(up, orig_recv(conn))
+            except Exception:  # noqa: BLE001
+                pass
+            up.close()
+        m = tls13.TlsServer(tls13.server_context(rcert, rkey), mitm).start()
+        c = tls13.connect(tls13.client_context(rca), "127.0.0.1", m.port, "localhost", timeout=5)
+        reg[id(c)] = (s["name"], "client")
+        L = log[s["name"]]["client"]
+        L["bind"], L["cert"] = c.get_channel_binding("tls-unique").hex(), c.getpeercert(binary_form=True).hex()
+        L["outcome"] = err(lambda: Q.client_layer(c, b"kid-3", keys[b"kid-3"]))
+        c.close()
+        finish(s)
+        m.close()
+        srv.close()
+    tls13.send_frame, tls13.recv_frame = orig_send, orig_recv
+    return sessions
+
+
 def sc_constants():
     names = ("VERSION TH_LABEL INFO_CONF INFO_C2S INFO_S2C REC_AAD_LABEL ROLE_CLIENT ROLE_SERVER NONCE_LEN TAG_LEN KEY_ID_MAX QKD_KEY_MIN "
-             "QKD_KEY_MAX BIND_MIN MAX_RECORDS").split()
+             "QKD_KEY_MAX BIND_MIN MAX_RECORDS HANDSHAKE_TIMEOUT").split()
     return {n: (getattr(Q, n).decode() if isinstance(getattr(Q, n), bytes) else getattr(Q, n)) for n in names} | {"MAX_PLAINTEXT": Q.MAX_PLAINTEXT, "MAX_FRAME": tls13.MAX_FRAME}
 
 
-SCEN = {"nonce_freshness": sc_nonce_freshness, "bad_accept": sc_bad_accept, "constants": sc_constants, "honest": sc_honest, "reuse_and_wrong_key": sc_reuse_and_wrong_key, "rogue_mitm": sc_rogue_mitm, "binding_checks": sc_binding_checks,
+SCEN = {"conformance": sc_conformance, "no_burn": sc_no_burn, "stall": sc_stall, "nonce_freshness": sc_nonce_freshness, "bad_accept": sc_bad_accept, "constants": sc_constants, "honest": sc_honest, "reuse_and_wrong_key": sc_reuse_and_wrong_key, "rogue_mitm": sc_rogue_mitm, "binding_checks": sc_binding_checks,
         "hello_parsing": sc_hello_parsing, "bad_client_tag": sc_bad_client_tag, "records": sc_records, "broker": sc_broker}
 
 if __name__ == "__main__":

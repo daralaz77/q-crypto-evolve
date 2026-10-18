@@ -43,3 +43,7 @@ Decisión: aplicar la clave QKD dentro del canal TLS (opción B de `docs/QKD_TLS
 Por qué: la opción A (PSK externa en TLS 1.3) no existe en `ssl` de Python 3.14. Es una composición propia: **no está revisada por ninguna persona** y no sustituye a la opción A cuando una pila la soporte.
 Alternativas descartadas: reutilizar QCE1 (reintroduce un handshake propio completo) y mezclar la clave QKD en la sal de TLS (imposible desde Python).
 Consecuencias: cascada de dos cifrados, no combinador; depende de un valor de ligadura no estándar en TLS 1.3; sin secreto hacia adelante propio. El modelo formal muestra que sin la ligadura un certificado falso con retransmisión sí funciona.
+
+### ADR-8, adenda (2026-10-17) — reserva en lugar de consumo al recibir el HELLO
+El primer diseño consumía la clave al recibir el HELLO (modelo y código coherentes) y dejaba a cualquiera que conociera el identificador gastarla (T43). Decisión: el servidor **reserva** la clave, la **consume solo si el cliente la demuestra** y la **libera** si el apretón falla o caduca (`HANDSHAKE_TIMEOUT`). Para el broker se añadieron `hold`/`peek`/`release`.
+Coste: el modelo necesita una cota (un aborto por clave) para que Tamarin termine, y un atacante puede retener la clave hasta el plazo. Alternativa descartada: límite de tasa por IP (no impide el gasto con varias IP y no cambia la semántica de consumo).

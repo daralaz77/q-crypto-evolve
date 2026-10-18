@@ -36,6 +36,7 @@ QKD_KEY_MAX = 1024
 BIND_MIN = 12               # tls-unique de TLS 1.3 en OpenSSL mide 48 bytes; menos de 12 no es un valor de ligadura creíble
 MAX_RECORDS = 1 << 32       # límite de registros por dirección (el contador es el nonce); más allá hay que abrir otra sesión
 MAX_PLAINTEXT = tls13.MAX_FRAME - 16
+HANDSHAKE_TIMEOUT = 10.0   # segundos que el servidor mantiene una clave reservada esperando al cliente
 
 
 def _lp(x: bytes) -> bytes:
@@ -150,52 +151,94 @@ def client_layer(sock, key_id: bytes, qkd_key: bytes, rng: Callable[[int], bytes
     return Layer(sock, _expand(qkd_key, th, INFO_C2S), _expand(qkd_key, th, INFO_S2C), th)
 
 
-def server_layer(sock, take_key: Callable[[bytes], bytes | None], server_cert_der: bytes,
-                 rng: Callable[[int], bytes] = os.urandom) -> Layer:
-    """Servidor: `take_key(key_id)` DEBE entregar la clave una sola vez (o None). Se consume al recibir el HELLO, antes de verificar nada
-    (igual que el modelo): un HELLO con un id válido gasta la clave aunque el cliente no la tenga (ver LIMITATIONS: gasto de claves)."""
+def server_layer(sock, source, server_cert_der: bytes, rng: Callable[[int], bytes] = os.urandom) -> Layer:
+    """Servidor. `source` ofrece `reserve(kid) -> clave | None`, `commit(kid)` y `release(kid)`: la clave se RESERVA al recibir un HELLO bien
+    formado, se CONSUME solo si el cliente demuestra poseerla, y se LIBERA si el apretón falla o caduca (`HANDSHAKE_TIMEOUT`). Así quien solo
+    conoce el identificador no puede gastar la clave (T43); el consumo único se mantiene para todo apretón completado (modelo: `key_single_use`)."""
     bind = _binding(sock)
     fp = cert_fingerprint(server_cert_der)
-    key_id, nc = decode_hello(tls13.recv_frame(sock))
-    qkd_key = take_key(key_id)
-    if qkd_key is None:
-        raise AuthenticationFailure("clave QKD desconocida o ya consumida")
-    _check_key(qkd_key)
-    ns = rng(NONCE_LEN)
-    th = transcript_hash(bind, fp, key_id, nc, ns)
-    conf = _expand(qkd_key, th, INFO_CONF)
-    ts = _mac(conf, ROLE_SERVER + th)
-    tls13.send_frame(sock, ns + ts)
-    tc = tls13.recv_frame(sock)
-    if not hmac.compare_digest(tc, _mac(conf, ROLE_CLIENT + th + ts)):
-        raise AuthenticationFailure("el cliente no demostró conocer la clave QKD ligada a esta sesión TLS")
-    return Layer(sock, _expand(qkd_key, th, INFO_S2C), _expand(qkd_key, th, INFO_C2S), th)
+    previous = sock.gettimeout()
+    sock.settimeout(HANDSHAKE_TIMEOUT)
+    try:
+        key_id, nc = decode_hello(tls13.recv_frame(sock))
+        qkd_key = source.reserve(key_id)
+        if qkd_key is None:
+            raise AuthenticationFailure("clave QKD desconocida, reservada o ya consumida")
+        try:
+            _check_key(qkd_key)
+        except PolicyViolation:
+            source.commit(key_id)  # material fuera de rango: inservible, se descarta
+            raise
+        try:
+            ns = rng(NONCE_LEN)
+            th = transcript_hash(bind, fp, key_id, nc, ns)
+            conf = _expand(qkd_key, th, INFO_CONF)
+            ts = _mac(conf, ROLE_SERVER + th)
+            tls13.send_frame(sock, ns + ts)
+            tc = tls13.recv_frame(sock)
+            if not hmac.compare_digest(tc, _mac(conf, ROLE_CLIENT + th + ts)):
+                raise AuthenticationFailure("el cliente no demostró conocer la clave QKD ligada a esta sesión TLS")
+        except BaseException:
+            source.release(key_id)
+            raise
+        source.commit(key_id)
+        layer = Layer(sock, _expand(qkd_key, th, INFO_S2C), _expand(qkd_key, th, INFO_C2S), th)
+    finally:
+        sock.settimeout(previous)
+    return layer
 
 
 class OneTimeKeys:
-    """Almacén de laboratorio de claves de un solo uso (hilo-seguro). En un despliegue real la fuente es el KeyBroker (`broker_taker`)."""
+    """Almacén de laboratorio de claves de un solo uso (hilo-seguro) con reserva. En un despliegue real la fuente es el KeyBroker (`BrokerSource`)."""
 
     def __init__(self, keys: dict[bytes, bytes] | None = None) -> None:
-        self._keys, self._lock = dict(keys or {}), threading.Lock()
+        self._keys, self._reserved, self._lock = dict(keys or {}), set(), threading.Lock()
 
     def add(self, key_id: bytes, key: bytes) -> None:
         with self._lock:
             self._keys[bytes(key_id)] = bytes(key)
 
-    def take(self, key_id: bytes) -> bytes | None:
+    def reserve(self, key_id: bytes) -> bytes | None:
+        kid = bytes(key_id)
         with self._lock:
-            return self._keys.pop(bytes(key_id), None)
+            if kid in self._reserved or kid not in self._keys:
+                return None
+            self._reserved.add(kid)
+            return self._keys[kid]
+
+    def commit(self, key_id: bytes) -> None:
+        with self._lock:
+            self._keys.pop(bytes(key_id), None)
+            self._reserved.discard(bytes(key_id))
+
+    def release(self, key_id: bytes) -> None:
+        with self._lock:
+            self._reserved.discard(bytes(key_id))
+
+    def take(self, key_id: bytes) -> bytes | None:
+        """Entrega única inmediata (lado cliente o pruebas): reserva y consume."""
+        key = self.reserve(key_id)
+        if key is not None:
+            self.commit(key_id)
+        return key
 
 
-def broker_taker(broker, link_id: str, consumer: str) -> Callable[[bytes], bytes | None]:
-    """Adapta el KeyBroker (reserva + consumo único, política, cuarentena) a la firma `take_key` del servidor. Cualquier fallo del broker = sin clave."""
-    from ..qkd.contract import QKDDeviceError
-    from ..core.errors import QKDAnomaly
+class BrokerSource:
+    """Adapta el KeyBroker (reserva, consumo único, política, cuarentena) a la fuente del servidor. Cualquier fallo del broker = sin clave."""
 
-    def take(key_id: bytes) -> bytes | None:
+    def __init__(self, broker, link_id: str, consumer: str) -> None:
+        self._b, self._link, self._consumer = broker, link_id, consumer
+
+    def reserve(self, key_id: bytes) -> bytes | None:
+        from ..qkd.contract import QKDDeviceError
+        from ..core.errors import QKDAnomaly
         try:
-            _, material = broker.take(link_id, consumer, key_id.decode("ascii"))
+            return self._b.hold(self._link, self._consumer, key_id.decode("ascii"))
         except (QKDDeviceError, QKDAnomaly, PolicyViolation, UnicodeDecodeError):
             return None
-        return material
-    return take
+
+    def commit(self, key_id: bytes) -> None:
+        self._b.consume(key_id.decode("ascii"), self._consumer)
+
+    def release(self, key_id: bytes) -> None:
+        self._b.release(key_id.decode("ascii"), self._consumer)

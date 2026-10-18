@@ -12,7 +12,9 @@
         "channel_agreement": "verified",
         "server_agreement": "verified",
         "client_authenticated_by_qkd": "verified",
-        "key_single_use": "verified"
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
       }
     },
     "breakTLS": {
@@ -28,7 +30,9 @@
         "channel_agreement": "verified",
         "server_agreement": "verified",
         "client_authenticated_by_qkd": "verified",
-        "key_single_use": "verified"
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
       }
     },
     "revealQkd": {
@@ -44,7 +48,9 @@
         "channel_agreement": "verified",
         "server_agreement": "verified",
         "client_authenticated_by_qkd": "verified",
-        "key_single_use": "verified"
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
       }
     },
     "revealQkd_breakTLS": {
@@ -61,7 +67,9 @@
         "channel_agreement": "verified",
         "server_agreement": "verified",
         "client_authenticated_by_qkd": "verified",
-        "key_single_use": "verified"
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
       }
     },
     "nobind": {
@@ -77,7 +85,9 @@
         "channel_agreement": "verified",
         "server_agreement": "verified",
         "client_authenticated_by_qkd": "verified",
-        "key_single_use": "verified"
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
       }
     },
     "nobind_breakTLS": {
@@ -94,7 +104,48 @@
         "channel_agreement": "falsified",
         "server_agreement": "falsified",
         "client_authenticated_by_qkd": "verified",
-        "key_single_use": "verified"
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
+      }
+    },
+    "nobind_revealQkd": {
+      "defines": [
+        "NOBIND",
+        "REVEALQKD"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "falsified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "verified",
+        "server_agreement": "verified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "falsified"
+      }
+    },
+    "nobind_revealQkd_breakTLS": {
+      "defines": [
+        "NOBIND",
+        "REVEALQKD",
+        "BREAKTLS"
+      ],
+      "verdicts": {
+        "executable": "verified",
+        "rogue_relay_reaches_done": "verified",
+        "secrecy_c2s": "verified",
+        "secrecy_s2c": "verified",
+        "agreement": "verified",
+        "channel_agreement": "falsified",
+        "server_agreement": "falsified",
+        "client_authenticated_by_qkd": "verified",
+        "key_single_use": "verified",
+        "no_reuse_after_done": "verified",
+        "later_qkd_leak_exposes_past_session": "verified"
       }
     }
   }

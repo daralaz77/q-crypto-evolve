@@ -48,7 +48,7 @@ def test_constants_table_matches_code():
 
 def test_every_constant_in_the_table_is_used_by_the_rederivation_or_a_scenario():
     used = {"VERSION", "TH_LABEL", "INFO_CONF", "INFO_C2S", "INFO_S2C", "REC_AAD_LABEL", "ROLE_CLIENT", "ROLE_SERVER", "NONCE_LEN", "TAG_LEN",
-            "KEY_ID_MAX", "QKD_KEY_MIN", "QKD_KEY_MAX", "BIND_MIN", "MAX_RECORDS"}
+            "KEY_ID_MAX", "QKD_KEY_MIN", "QKD_KEY_MAX", "BIND_MIN", "MAX_RECORDS", "HANDSHAKE_TIMEOUT"}
     assert set(spec_constants()) == used
 
 
@@ -59,6 +59,7 @@ def lp(x: bytes) -> bytes:
 def test_independent_rederivation_matches_a_real_session():
     c, S = scenario("honest"), spec_constants()
     assert c["version"] == "TLSv1.3" and c["server"] == "ok" and c["th_equal"] and c["reply"] == "dkq aloh"
+    assert c["timeout_tras_capa"] == 10                                  # el plazo del apretón se restaura al terminar
     hello, accept, confirm, rec_c2s, rec_s2c = (bytes.fromhex(f) for f in c["frames"][-5:])
     key, kid, bind, cert = (bytes.fromhex(c[k]) for k in ("key", "key_id", "bind", "cert"))
     # HELLO: "QIL1" ‖ len(kid) ‖ kid ‖ nc
@@ -97,9 +98,10 @@ def test_key_is_single_use_and_wrong_or_unknown_keys_are_rejected():
 
 def test_server_rejects_a_client_tag_made_without_the_key_and_a_malformed_hello_does_not_burn_the_key():
     r = scenario("bad_client_tag")
-    assert r["accept_len"] == 64 and r["servidor"] == "AuthenticationFailure"
+    assert r["accept_len"] == 64 and r["servidor"] == "AuthenticationFailure" and r["clave_libre_tras_etiqueta_mala"] is True
     assert r["hello_malformado_servidor"] == "MalformedMessage" and r["clave_sigue_disponible"] is True
-    assert r["clave_corta_servidor"] == r["clave_larga_servidor"] == "PolicyViolation"    # la fuente entrega material fuera de rango
+    assert r["clave_corta_servidor"] == r["clave_larga_servidor"] == "PolicyViolation"
+    assert r["clave_corta_descartada"] is True and r["clave_larga_descartada"] is True    # la fuente entrega material fuera de rango
 
 
 def test_rogue_certificate_mitm_cannot_complete_the_layer():
@@ -142,8 +144,20 @@ def test_record_layer_rejects_tampering_replay_reflection_reordering_and_other_s
 def test_integration_with_the_key_broker_consumes_once_and_fails_closed():
     r = scenario("broker")
     assert r["eco"] == "rekorb noc" and r["servidor"] == "ok"
+    assert r["broker_tras_ataque"] == {"AVAILABLE": 1}   # el atacante no gastó la clave: sigue disponible (y la otra, sin pedir)
     assert r["reutilizar_id"] is None and r["id_desconocido"] is None and r["id_no_ascii"] is None and r["consumidor_no_autorizado"] is None
     assert r["enlace_en_cuarentena"] is None and r["cuarentena_registrada"] is True       # QBER de espionaje: sin clave y con el enlace bloqueado
+
+
+def test_a_third_party_who_knows_the_key_id_cannot_burn_the_key():
+    r = scenario("no_burn")
+    assert r["atacante"] == "AuthenticationFailure" and r["legitimo"] == "omitigel" and r["servidor_legitimo"] == "ok"
+    assert r["segundo_uso"] != "ok" and r["segundo_uso_servidor"] == "AuthenticationFailure"   # el consumo único se mantiene tras completar
+
+
+def test_a_stalled_attacker_holds_the_reservation_only_until_the_handshake_timeout():
+    r = scenario("stall")
+    assert r["durante_la_reserva"] != "ok" and r["despues"] == "racudac sart"
 
 
 def test_nonces_are_fresh_in_every_session():

@@ -128,6 +128,17 @@ rule S1_accept:
   [ St_S1(tid, b, ch, kid, qk, th, ts), ToC(tid, <~ns, ts>) ]
 #endif
 
+/* COTA DEL MODELO: como mucho UN aborto por clave. Sin esta cota Tamarin no termina (reserva→aborto→reserva…). Es una limitación declarada:
+   los lemas de reserva se prueban para claves que abortan 0 o 1 vez, no para un número arbitrario de abortos. */
+restriction AtMostOneAbortPerKey:
+  "All kid t1 t2 #i #j. ServerAbort(kid, t1) @ i & ServerAbort(kid, t2) @ j ==> #i = #j"
+
+/* El servidor RESERVA la clave al aceptar el HELLO (S1_accept consume el hecho lineal) y la DEVUELVE si el apretón falla o caduca */
+rule S_abort:
+  [ St_S1(tid, b, ch, kid, qk, th, ts) ]
+  --[ ServerAbort(kid, th) ]->
+  [ QkdS(kid, qk) ]
+
 rule S2_done:
   let tag_c = mac(kdfc(qk, th), <'client', th, ts>)
   in
@@ -178,8 +189,20 @@ lemma client_authenticated_by_qkd:
   "All kid th k1 k2 b ch #i. ServerDone(kid, th, k1, k2, b, ch) @ i
      ==> (Ex nc #j. ClientStart(kid, nc) @ j & j < i) | (Ex #r. RevealQkd(kid) @ r)"
 
-/* Un solo uso: dos apretones del servidor con el mismo id de clave son imposibles */
+/* Reserva exclusiva: dos apretones del servidor con el mismo id solo si el primero abortó (y devolvió la clave) entre medias */
 lemma key_single_use:
-  "All kid th1 th2 b1 c1 b2 c2 #i #j. ServerStart(kid, th1, b1, c1) @ i & ServerStart(kid, th2, b2, c2) @ j ==> #i = #j"
+  "All kid t1 t2 b1 c1 b2 c2 #i #j. ServerStart(kid, t1, b1, c1) @ i & ServerStart(kid, t2, b2, c2) @ j & i < j
+     ==> Ex #a. ServerAbort(kid, t1) @ a & i < a & a < j"
+
+/* Consumo único: tras completar un apretón la clave no vuelve a usarse */
+lemma no_reuse_after_done:
+  "All kid th k1 k2 b ch t2 b2 c2 #i #j. ServerDone(kid, th, k1, k2, b, ch) @ i & ServerStart(kid, t2, b2, c2) @ j ==> j < i"
+
+/* LÍMITE (exists-trace, se espera falso salvo que TLS también falle): ¿una filtración POSTERIOR de la clave QKD expone una sesión pasada?
+   En una sesión honesta el valor de ligadura es secreto, así que hace falta romper también TLS (o quitar la ligadura). */
+lemma later_qkd_leak_exposes_past_session:
+  exists-trace
+  "Ex kid th k1 k2 b ch #i #r #j. ClientDone(kid, th, k1, k2, b, ch) @ i & RevealQkd(kid) @ r & i < r & K(k1) @ j
+     & not (Ex #r0. RevealQkd(kid) @ r0 & r0 < i)"
 
 end
