@@ -152,9 +152,9 @@ class SlhDsaPrivateKey:
         try:
             if c.EVP_DigestSignInit_ex(mctx, None, None, None, None, pkey, params) != 1:
                 raise PolicyViolation("falló la preparación de la firma")
-            sig, n = ctypes.create_string_buffer(SIG_LEN), sz(SIG_LEN)
+            sig, n, expected = ctypes.create_string_buffer(SIG_LEN), sz(SIG_LEN), SIG_LEN
             msg = ctypes.create_string_buffer(bytes(message), max(len(message), 1))
-            if c.EVP_DigestSign(mctx, sig, ctypes.byref(n), msg, len(message)) != 1 or n.value != SIG_LEN:
+            if c.EVP_DigestSign(mctx, sig, ctypes.byref(n), msg, len(message)) != 1 or n.value != expected:
                 raise PolicyViolation("falló la firma")
             return sig.raw[:SIG_LEN]
         finally:

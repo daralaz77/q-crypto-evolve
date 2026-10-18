@@ -240,7 +240,7 @@ MUTANTS = [
     M("slh-context-limit-off", "qce/pqc/slhdsa.py", (("len(context) > CONTEXT_MAX:", "False:"),), "SLH-DSA: límite de contexto"),
     M("slh-context-limit-boundary", "qce/pqc/slhdsa.py", (("len(context) > CONTEXT_MAX:", "len(context) >= CONTEXT_MAX:"),), "SLH-DSA: límite de contexto inclusivo"),
     M("slh-deterministic-ignored", "qce/pqc/slhdsa.py", (("    if deterministic:\n        det = ctypes.c_int(1)", "    if False:\n        det = ctypes.c_int(1)"),), "SLH-DSA: modo determinista"),
-    M("slh-sign-length-unchecked", "qce/pqc/slhdsa.py", (("c.EVP_DigestSign(mctx, sig, ctypes.byref(n), msg, len(message)) != 1 or n.value != SIG_LEN", "c.EVP_DigestSign(mctx, sig, ctypes.byref(n), msg, len(message)) != 1"),), "SLH-DSA: longitud de la firma producida"),
+    M("slh-sign-length-unchecked", "qce/pqc/slhdsa.py", (("c.EVP_DigestSign(mctx, sig, ctypes.byref(n), msg, len(message)) != 1 or n.value != expected", "c.EVP_DigestSign(mctx, sig, ctypes.byref(n), msg, len(message)) != 1"),), "SLH-DSA: longitud de la firma producida"),
     M("slh-from-bytes-length-off", "qce/pqc/slhdsa.py", (("        if len(sk) != SK_LEN:\n            raise MalformedMessage", "        if False:\n            raise MalformedMessage"),), "SLH-DSA: longitud de la clave privada"),
     M("slh-public-part-wrong", "qce/pqc/slhdsa.py", (("return cls(sk, bytes(sk[PK_LEN:]))", "return cls(sk, bytes(sk[:PK_LEN]))"),), "SLH-DSA: parte pública de la privada"),
     M("slh-export-length-unchecked", "qce/pqc/slhdsa.py", (("or n.value != size:", ":"),), "SLH-DSA: longitud al exportar"),
