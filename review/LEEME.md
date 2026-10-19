@@ -57,6 +57,9 @@ Si solo tiene tiempo para una cosa: **nivel A**, y dentro de él las preguntas 1
 Use `PLANTILLA_INFORME.md`. Basta con texto; si prefiere comentar sobre los archivos, también vale. Se agradece distinguir **hallazgo confirmado**, **sospecha** y **pregunta**.
 Si encuentra algo grave, avísenos por el canal acordado antes de publicarlo: **[CONTACTO — a completar por quien envía el paquete]**.
 
+## 6b. Si quiere firmar
+Las puertas de revisión independiente (G5) y autorización (G6) solo se abren con una declaración **firmada por una persona**. Hay una ceremonia por línea de órdenes que crea la clave en su máquina (fuera del repositorio): véase `GUIA_PARA_ENVIAR.md` §5.
+
 ## 7. Integridad del paquete
 
 `MANIFEST.sha256` lista el SHA-256 de cada archivo. `python -m qce review-package --verify <paquete.zip>` (o `shasum -a 256 -c MANIFEST.sha256`) lo comprueba.

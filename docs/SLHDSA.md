@@ -11,7 +11,11 @@ Tamaños; firma válida; manipulación de mensaje, firma (cuatro posiciones), cl
 **verificación cruzada con la herramienta `openssl` en los dos sentidos** (nuestra firma la verifica `openssl pkeyutl -verify` con una clave pública en SubjectPublicKeyInfo estándar, y la firma de `openssl pkeyutl -sign` la verifica nuestro código);
 falla cerrado sin OpenSSL ≥ 3.5 o si la biblioteca devuelve longitudes erróneas.
 
+## Vectores oficiales NIST ACVP (ejecutados 2026-10-19)
+`tests/vectors/acvp_slhdsa_subset.json` (procedencia, commit upstream y SHA-256 de los archivos originales dentro del propio JSON): **keyGen 10/10** (con las semillas oficiales `skSeed‖skPrf‖pkSeed` por `SlhDsaPrivateKey.from_seed`;
+la clave privada y la pública coinciden byte a byte) y **sigVer 14/14** (externa, pura, con contexto: 2 firmas válidas y 12 inválidas, todas con el veredicto oficial).
+
 ## Qué NO se comprueba
-- **Los vectores oficiales NIST ACVP de SLH-DSA no se han ejecutado** (no se descargaron: habría que traerlos de un repositorio público). La verificación cruzada usa la misma biblioteca por otra interfaz: demuestra que el puente y la codificación
-  estándar son coherentes, no que OpenSSL cumpla FIPS 205. **Pendiente:** correr los vectores ACVP como se hizo con ML-KEM y ML-DSA.
-- Seguridad de memoria del puente, canales laterales, y que la clave privada (64 bytes) vive en la memoria del proceso.
+- **No se ejecutaron** los vectores de `sigGen` (exigen inyectar el aleatorio de la firma, que la API no expone), ni los de `preHash`, ni los de la interfaz interna, ni los otros 11 conjuntos de parámetros: solo `SLH-DSA-SHA2-128s`.
+- Los vectores verifican a OpenSSL (y la codificación del puente), no al puente en sí frente a fallos de memoria ni canales laterales.
+- La clave privada (64 bytes) vive en la memoria del proceso. `from_seed` es solo para pruebas y réplica: con una semilla no aleatoria la clave no es segura.

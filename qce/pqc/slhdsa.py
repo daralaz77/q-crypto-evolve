@@ -19,6 +19,7 @@ ALGORITHM = "SLH-DSA-SHA2-128s"
 PK_LEN = 32
 SK_LEN = 64
 SIG_LEN = 7856
+SEED_LEN = 48   # SK.seed ‖ SK.prf ‖ PK.seed (3·n, n = 16)
 CONTEXT_MAX = 255
 
 vp, cp, sz, ci = ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int
@@ -31,7 +32,7 @@ class OSSL_PARAM(ctypes.Structure):
 
 
 _SIGS = [("EVP_PKEY_CTX_new_from_name", vp, [vp, cp, cp]), ("EVP_PKEY_CTX_free", None, [vp]), ("EVP_PKEY_keygen_init", ci, [vp]),
-         ("EVP_PKEY_keygen", ci, [vp, ctypes.POINTER(vp)]), ("EVP_PKEY_free", None, [vp]),
+         ("EVP_PKEY_keygen", ci, [vp, ctypes.POINTER(vp)]), ("EVP_PKEY_free", None, [vp]), ("EVP_PKEY_CTX_set_params", ci, [vp, ctypes.POINTER(OSSL_PARAM)]),
          ("EVP_PKEY_get_octet_string_param", ci, [vp, cp, vp, sz, ctypes.POINTER(sz)]),
          ("EVP_PKEY_fromdata_init", ci, [vp]), ("EVP_PKEY_fromdata", ci, [vp, ctypes.POINTER(vp), ci, ctypes.POINTER(OSSL_PARAM)]),
          ("EVP_MD_CTX_new", vp, []), ("EVP_MD_CTX_free", None, [vp]),
@@ -124,6 +125,28 @@ class SlhDsaPrivateKey:
         try:
             if not ctx or c.EVP_PKEY_keygen_init(ctx) != 1 or c.EVP_PKEY_keygen(ctx, ctypes.byref(pkey)) != 1 or not pkey:
                 raise PolicyViolation("falló la generación de clave SLH-DSA")
+            return cls(_get(c, pkey, b"priv", SK_LEN), _get(c, pkey, b"pub", PK_LEN))
+        finally:
+            if pkey:
+                c.EVP_PKEY_free(pkey)
+            if ctx:
+                c.EVP_PKEY_CTX_free(ctx)
+
+    @classmethod
+    def from_seed(cls, seed: bytes) -> "SlhDsaPrivateKey":
+        """Generación DETERMINISTA a partir de las tres semillas de FIPS 205 (SK.seed ‖ SK.prf ‖ PK.seed). Solo para vectores de prueba y réplica de claves:
+        con una semilla que no sea aleatoria y secreta la clave no es segura."""
+        if not isinstance(seed, (bytes, bytearray)) or len(seed) != SEED_LEN:
+            raise MalformedMessage(f"la semilla SLH-DSA mide {SEED_LEN} bytes")
+        c = _crypto()
+        ctx = c.EVP_PKEY_CTX_new_from_name(None, ALGORITHM.encode(), None)
+        pkey = vp()
+        p, keep = _octets(b"seed", bytes(seed))
+        params = (OSSL_PARAM * 2)(p, OSSL_PARAM(None, 0, None, 0, 0))
+        try:
+            if not ctx or c.EVP_PKEY_keygen_init(ctx) != 1 or c.EVP_PKEY_CTX_set_params(ctx, params) != 1 \
+                    or c.EVP_PKEY_keygen(ctx, ctypes.byref(pkey)) != 1 or not pkey:
+                raise PolicyViolation("falló la generación de clave SLH-DSA a partir de la semilla")
             return cls(_get(c, pkey, b"priv", SK_LEN), _get(c, pkey, b"pub", PK_LEN))
         finally:
             if pkey:

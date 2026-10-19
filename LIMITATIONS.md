@@ -14,7 +14,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - **El handshake `QCE1` es una composición propia** (inspirada en la idea de KEMTLS / X-Wing, **no es** ninguno de ellos y
   **no ha sido revisada por criptógrafos**). Para producción se recomienda TLS 1.3 con el grupo híbrido estándar
   `X25519MLKEM768` (OpenSSL ≥ 3.5) o un protocolo con revisión pública. Ver `decisions/ADRs.md` (ADR-3).
-- Vectores oficiales NIST ACVP: keyGen de ML-KEM-768 (25) y ML-DSA-65 (25) y sigVer de ML-DSA-65 (15, con casos negativos).
+- Vectores oficiales NIST ACVP: keyGen de ML-KEM-768 (25) y ML-DSA-65 (25), sigVer de ML-DSA-65 (15, con casos negativos) y, de SLH-DSA-SHA2-128s, keyGen (10) y sigVer externa pura (14, 12 negativos).
   **No hay vectores de encapsulación/desencapsulación** (la API no permite aleatoriedad fija) ni de ML-DSA sigGen.
   Estos vectores prueban la conformidad de la biblioteca, no la seguridad de la composición de este proyecto.
 - Verificación formal **solo simbólica y solo del diseño** (Tamarin, `docs/QCE1_FORMAL.md`): sin modelo computacional, sin capa de registros, sin conformidad modelo-código y sin revisión humana experta. Sin medición de canales laterales. El código Python de control no es de tiempo constante;
@@ -80,4 +80,4 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 
 ## Adaptador ETSI GS QKD 014 y SLH-DSA
 - El adaptador 014 (`docs/ETSI014_ADAPTER.md`) **no se ha probado con ningún KME real**, solo con un emulador que es simulación. La interfaz solo entrega claves: la garantía es la confianza en el operador del KME y en la ficha aprobada, nunca física. Una clave por petición; sin extensiones de fabricantes.
-- SLH-DSA (`docs/SLHDSA.md`) usa el `libcrypto` del sistema por un puente `ctypes` NO REVISADO; los vectores oficiales ACVP de SLH-DSA **no se han ejecutado**; no está integrada en el apretón ni en las declaraciones firmadas.
+- SLH-DSA (`docs/SLHDSA.md`) usa el `libcrypto` del sistema por un puente `ctypes` NO REVISADO; los vectores oficiales ACVP de SLH-DSA-SHA2-128s sí se ejecutaron (keyGen 10/10, sigVer externa pura 14/14; no sigGen ni preHash ni otros conjuntos de parámetros); no está integrada en el apretón ni en las declaraciones firmadas.

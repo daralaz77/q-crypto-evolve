@@ -136,3 +136,46 @@ def test_a_library_that_reports_a_wrong_length_makes_the_primitive_fail_closed(m
     monkeypatch.setattr(S, "_crypto", lambda: Lying(real, "EVP_PKEY_get_octet_string_param", 4))
     with pytest.raises(PolicyViolation):
         S.SlhDsaPrivateKey.generate()
+
+
+# ---- vectores oficiales NIST ACVP (usnistgov/ACVP-Server) --------------------------------------------------------------
+import json
+from pathlib import Path
+
+ACVP = json.loads((Path(__file__).parent / "vectors" / "acvp_slhdsa_subset.json").read_text())
+
+
+def test_acvp_subset_declares_its_provenance_and_scope():
+    assert ACVP["source"].startswith("https://github.com/usnistgov/ACVP-Server") and ACVP["parameterSet"] == "SLH-DSA-SHA2-128s"
+    assert len(ACVP["commit_upstream_al_recuperar"]) == 40 and all(len(h) == 64 for h in ACVP["sha256_original_files"].values())
+    assert len(ACVP["keygen"]) == 10 and len(ACVP["sigver"]) == 14
+    assert sum(1 for c in ACVP["sigver"] if c["testPassed"]) == 2 and sum(1 for c in ACVP["sigver"] if not c["testPassed"]) == 12   # hay casos negativos
+
+
+@needs
+@pytest.mark.parametrize("c", ACVP["keygen"], ids=lambda c: f"keygen-{c['tcId']}")
+def test_keygen_from_the_official_seeds_matches_fips205(c):
+    k = S.SlhDsaPrivateKey.from_seed(bytes.fromhex(c["skSeed"] + c["skPrf"] + c["pkSeed"]))
+    assert k.private_bytes().hex().upper() == c["sk"].upper() and k.public_bytes().hex().upper() == c["pk"].upper()
+
+
+@needs
+@pytest.mark.parametrize("c", ACVP["sigver"], ids=lambda c: f"sigver-{c['tcId']}-{'valida' if c['testPassed'] else 'invalida'}")
+def test_signature_verification_matches_fips205_for_valid_and_invalid_signatures(c):
+    args = (bytes.fromhex(c["pk"]), bytes.fromhex(c["message"]), bytes.fromhex(c["signature"]), bytes.fromhex(c["context"]))
+    if c["testPassed"]:
+        S.slhdsa_verify(*args)
+    else:
+        with pytest.raises((AuthenticationFailure, MalformedMessage)):
+            S.slhdsa_verify(*args)
+
+
+@needs
+def test_seeded_generation_is_deterministic_and_validates_its_input(key):
+    seed = bytes(range(S.SEED_LEN))
+    a, b = S.SlhDsaPrivateKey.from_seed(seed), S.SlhDsaPrivateKey.from_seed(seed)
+    assert a.private_bytes() == b.private_bytes() != S.SlhDsaPrivateKey.from_seed(bytes(S.SEED_LEN)).private_bytes()
+    S.slhdsa_verify(a.public_bytes(), b"m", a.sign(b"m"))
+    for bad in (seed[:-1], seed + b"x", b"", None, "x" * S.SEED_LEN):
+        with pytest.raises(MalformedMessage):
+            S.SlhDsaPrivateKey.from_seed(bad)

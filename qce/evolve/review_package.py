@@ -19,6 +19,7 @@ TOP = {  # archivo del repositorio → ruta dentro del paquete
     "review/LEEME.md": "LEEME.md",
     "review/PREGUNTAS_ABIERTAS.md": "PREGUNTAS_ABIERTAS.md",
     "review/REPRODUCCION.md": "REPRODUCCION.md",
+    "review/GUIA_PARA_ENVIAR.md": "GUIA_PARA_ENVIAR.md",
     "review/PLANTILLA_INFORME.md": "PLANTILLA_INFORME.md",
     "docs/QCE1_SPEC.md": "docs/QCE1_SPEC.md",
     "docs/QCE1_FORMAL.md": "docs/QCE1_FORMAL.md",

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -29,6 +30,22 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("bench", help="mediciones de rendimiento (no son argumento de seguridad)")
     sub.add_parser("release", help="congela un snapshot verificable del código (NO lo marca estable)")
     sub.add_parser("status", help="incidentes, tareas y última evaluación")
+    idp = sub.add_parser("identity", help="ceremonia de firma humana: crear y registrar la identidad de quien revisa o autoriza (G5/G6)")
+    idsub = idp.add_subparsers(dest="idcmd", required=True)
+    n = idsub.add_parser("new", help="crea la clave privada (archivo 0600 FUERA del repositorio) y muestra la pública")
+    n.add_argument("name")
+    n.add_argument("--dir", default="~/.qce-keys")
+    r = idsub.add_parser("register", help="registra la clave pública con un rol (no aprueba nada)")
+    r.add_argument("--role", required=True, choices=("reviewer", "approver"))
+    r.add_argument("--identity", required=True)
+    r.add_argument("--pub", required=True, help="hexadecimal o ruta de un archivo con la clave pública")
+    sg = sub.add_parser("sign", help="firma una declaración sobre un código exacto (G5 reviewer / G6 approver); exige terminal interactiva")
+    sg.add_argument("--role", required=True, choices=("reviewer", "approver"))
+    sg.add_argument("--signer", required=True)
+    sg.add_argument("--key", required=True)
+    sg.add_argument("--verdict", choices=("accept", "reject"), required=True)
+    sg.add_argument("--release-id", default=None)
+    sg.add_argument("--notes", default="")
     a = ap.parse_args(argv)
 
     if a.cmd == "test":
@@ -96,6 +113,39 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "bench":
         return bench()
+    if a.cmd == "identity":
+        from .evolve import ceremony
+        from .core.errors import QCEError
+        try:
+            if a.idcmd == "new":
+                path, pub = ceremony.new_identity(ROOT, Path(a.dir), a.name)
+                print(f"clave privada: {path}  (permisos 0600; GUÁRDALA tú, nunca en el repositorio ni se la des a un agente)\nhuella: {ceremony.fingerprint(pub)}\nclave pública:\n{pub.hex()}")
+            else:
+                fp = ceremony.register(ROOT, a.role, a.identity, ceremony.parse_public(a.pub))
+                print(f"registrada {a.identity!r} como {a.role} (huella {fp}). Esto NO aprueba nada; confirma la huella por otro canal y haz commit de trust/registry.json.")
+            return 0
+        except (QCEError, OSError) as exc:
+            print(f"error: {exc}")
+            return 1
+    if a.cmd == "sign":
+        from .evolve import ceremony
+        from .core.errors import QCEError
+        if not sys.stdin.isatty() and os.environ.get("QCE_ALLOW_NONINTERACTIVE_SIGN") != "1":
+            print("firmar exige una terminal interactiva: una declaración humana no se automatiza")
+            return 2
+        try:
+            rid = a.release_id or ceremony.current_release_id(ROOT)
+            if sys.stdin.isatty():
+                print(f"Vas a firmar como {a.signer!r} ({a.role}) el veredicto {a.verdict!r} sobre el código release_id={rid}.")
+                if input(f"Escribe tu identidad ({a.signer}) para confirmar: ").strip() != a.signer:
+                    print("no confirmado")
+                    return 2
+            p = ceremony.sign(ROOT, Path(a.key), a.role, a.signer, rid, a.verdict, a.notes)
+            print(f"firmado: {p}\nCualquier cambio posterior de código invalida esta firma (cambia el release_id).")
+            return 0
+        except (QCEError, OSError) as exc:
+            print(f"error: {exc}")
+            return 1
     if a.cmd == "status":
         from .learning.ledger import Ledger
         L = Ledger(ROOT / "learning" / "incidents.jsonl")

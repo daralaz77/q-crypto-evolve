@@ -23,6 +23,7 @@ cd ~/Claude/q-crypto-evolve
 | `qce/key_management` | ciclo de vida, envelope, vault cifrado con anti-restauración |
 | `qce/protocols` | handshake `QCE1` (no revisado) y capa de registros |
 | `qce/qkd/etsi014.py` | adaptador de ETSI GS QKD 014 (KME) + emulador (simulación): `docs/ETSI014_ADAPTER.md` |
+| `qce/evolve/ceremony.py` | ceremonia de firma humana G5/G6 (`python -m qce identity new|register`, `python -m qce sign`): `review/GUIA_PARA_ENVIAR.md` §5 |
 | `qce/pqc/slhdsa.py` | SLH-DSA-SHA2-128s por el `libcrypto` del sistema: `docs/SLHDSA.md` |
 | `qce/transport` | **transporte recomendado**: TLS 1.3 con X25519MLKEM768 obligatorio, atestación y falla cerrado (`python -m qce tls-check`); `custody.py` guarda la clave del servidor en el KeyStore; `tls13_psk.py` = **ruta QKD recomendada**: TLS 1.3 estándar con PSK externa derivada de la clave QKD y X25519MLKEM768 (`docs/TLS13_PSK_TRANSPORT.md`; puente ctypes NO REVISADO); `qkd_layer.py` = capa interna con clave QKD sobre TLS (QIL1, **NO REVISADA**, `docs/QKD_LAYER_SPEC.md`) |
 | `qce/qkd` | contrato de adaptador, registro de dispositivos, simulador, broker de claves |

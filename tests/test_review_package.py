@@ -11,7 +11,7 @@ from qce.security import scanners
 ROOT = Path(__file__).resolve().parent.parent
 needs_repo = pytest.mark.skipif(not (ROOT / "review" / "LEEME.md").exists(), reason="solo en el repositorio completo (no dentro del propio paquete)")
 
-REQUIRED = {"LEEME.md", "PREGUNTAS_ABIERTAS.md", "REPRODUCCION.md", "PLANTILLA_INFORME.md", "docs/QCE1_SPEC.md", "docs/QCE1_FORMAL.md",
+REQUIRED = {"LEEME.md", "PREGUNTAS_ABIERTAS.md", "REPRODUCCION.md", "GUIA_PARA_ENVIAR.md", "qce/evolve/ceremony.py", "tests/test_ceremony.py", "PLANTILLA_INFORME.md", "docs/QCE1_SPEC.md", "docs/QCE1_FORMAL.md",
             "docs/QCE1_CONFORMANCE.md", "formal/qce1.spthy", "formal/expected.json", "LIMITATIONS.md", "THREAT_MODEL.md",
             "docs/QKD_LAYER_SPEC.md", "formal/qil1.spthy", "formal/expected_qil1.json", "qce/transport/qkd_layer.py", "tests/test_qil_conformance.py",
             "qce/protocols/session.py", "qce/pqc/hybrid.py", "tests/test_conformance.py", "requirements.lock", "requirements-test.lock",
