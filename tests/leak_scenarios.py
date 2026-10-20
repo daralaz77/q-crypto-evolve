@@ -23,6 +23,8 @@ class Reusable(OneTimeKeys):
 
 
 def rss_mb():
+    if os.path.exists("/proc/self/statm"):   # Linux: sin depender de `ps` (los contenedores mínimos no lo traen)
+        return int(open("/proc/self/statm").read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / (1 << 20)
     return int(subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True).stdout) / 1024
 
 

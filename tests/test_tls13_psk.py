@@ -1,5 +1,6 @@
 """TLS 1.3 estándar con PSK externa (derivada de la clave QKD) y X25519MLKEM768, por el puente ctypes de qce/transport/tls13_psk.py."""
 import os
+import socket
 import subprocess
 import threading
 import time
@@ -362,3 +363,18 @@ def test_every_ssl_object_is_freed_on_success_and_on_every_failure_path(monkeypa
     balanced = wait(lambda: cnt.n["SSL_CTX_new"] == cnt.n["SSL_CTX_free"] and cnt.n["SSL_new"] == cnt.n["SSL_free"], 6.0)
     assert balanced, dict(cnt.n)
     assert cnt.n["SSL_CTX_new"] >= 9 and cnt.n["SSL_new"] >= 9
+
+
+@needs_lib
+def test_both_ends_disable_nagle_so_the_lockstep_handshake_does_not_stall_on_delayed_acks():
+    """Sin TCP_NODELAY el apretón (mensajes pequeños en lockstep) tardaba ≈ 40 ms por ida y vuelta en Linux: 21 apretones/s en lugar de ≈ 600/s."""
+    seen = {}
+
+    def h(conn):
+        seen["server"] = conn._sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+    store, srv = serve(handler=h)
+    c = client(srv)
+    assert c._sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
+    assert wait(lambda: "server" in seen) and seen["server"] != 0
+    c.close()
+    srv.close()

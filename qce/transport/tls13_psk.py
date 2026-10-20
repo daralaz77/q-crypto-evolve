@@ -268,9 +268,18 @@ def _attest(conn: PskTlsConnection, suite: str) -> None:
         raise PolicyViolation("la conexión no cumple lo exigido: " + ", ".join(problems))
 
 
+def _nodelay(sock: socket.socket) -> None:
+    """Sin retraso de Nagle: el apretón intercambia mensajes pequeños en lockstep y, con ACK retardado, cada ida y vuelta costaba ≈ 40 ms en Linux (21 apretones/s frente a ≈ 600/s)."""
+    try:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except OSError:
+        pass
+
+
 def connect(sock: socket.socket, identity: bytes, qkd_key: bytes, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE) -> PskTlsConnection:
     """Cliente. `sock` ya está conectado por TCP. La clave QKD ya viene consumida de su broker (un solo uso)."""
     _check_suite(suite)
+    _nodelay(sock)
     psk = prepare_psk(qkd_key, identity)
     lib = _load()
     l, _ = lib
@@ -304,6 +313,7 @@ def accept(sock: socket.socket, source, timeout: float = HANDSHAKE_TIMEOUT, suit
     """Servidor. `source` ofrece reserve/commit/release (qce.qkd.sources): la clave se reserva al ver el identificador, se consume solo si el apretón
     termina y se libera si falla o caduca. `conn.identity` es el identificador de la clave usada."""
     _check_suite(suite)
+    _nodelay(sock)
     lib = _load()
     l, _ = lib
     ctx = _new_ctx(lib, True, suite)

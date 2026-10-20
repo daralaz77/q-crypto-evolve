@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 
 from ..core.errors import AuthenticationFailure, QCEError
@@ -64,8 +65,12 @@ def load_key(path: Path) -> HybridSigPrivateKey:
 
 def parse_public(text: str) -> bytes:
     text = text.strip()
-    if Path(text).expanduser().is_file():
-        text = Path(text).expanduser().read_text().strip()
+    if not re.fullmatch(r"[0-9a-fA-F]+", text):   # lo hexadecimal nunca es una ruta (y una cadena de 4 KB como ruta falla en Linux con «nombre demasiado largo»)
+        try:
+            if Path(text).expanduser().is_file():
+                text = Path(text).expanduser().read_text().strip()
+        except OSError:
+            raise QCEError("la clave pública no es hexadecimal ni un archivo legible") from None
     try:
         pub = bytes.fromhex(text)
     except ValueError:

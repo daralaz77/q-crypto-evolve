@@ -158,3 +158,16 @@ def test_a_statement_that_does_not_verify_after_signing_is_not_kept(proj, tmp_pa
     assert not list((proj / "reviews").glob("*.json"))                      # no queda una declaración inservible
     ceremony.sign(proj, key, "reviewer", "ana", RID, "reject")                 # un rechazo no se autoverifica como aceptación
     assert len(list((proj / "reviews").glob("*.json"))) == 1
+
+
+def test_a_hexadecimal_string_is_never_read_as_a_file_even_if_a_file_with_that_name_exists(proj, tmp_path, monkeypatch):
+    _, pub = ceremony.new_identity(proj, tmp_path / "claves", "ana")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "abcd").write_text(pub.hex())              # un archivo llamado como una cadena hexadecimal corta
+    with pytest.raises(QCEError, match="longitud"):
+        ceremony.parse_public("abcd")                      # es hexadecimal (y corta): no se abre el archivo
+    f = tmp_path / "ana.pub"
+    f.write_text(pub.hex())
+    assert ceremony.parse_public("ana.pub") == pub          # lo que no es hexadecimal sí se trata como ruta
+    with pytest.raises(QCEError, match="hexadecimal ni un archivo"):
+        ceremony.parse_public("x" * 5000)                    # ruta imposible (nombre demasiado largo): error limpio, no OSError
