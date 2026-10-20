@@ -1,0 +1,10 @@
+# Configuración de la biblioteca PKCS#11 de Google Cloud KMS (libkmsp11.so). NO PROBADO por nosotros.
+# Se localiza con la variable KMS_PKCS11_CONFIG; el archivo solo puede ser escribible por su dueño (chmod 600).
+# Campos según la guía de usuario de kmsp11 leída el 2026-10-20; confirma contra la versión que descargues.
+tokens:
+  - key_ring: "projects/TU_PROYECTO/locations/us-central1/keyRings/qce-lab"
+    label: "qce-lab"          # el «token» que se nombra en la URI PKCS#11
+rpc_timeout_secs: 30
+refresh_interval_secs: 0      # 0 = las claves se leen una vez al iniciar
+require_fips_mode: false      # ponerlo a true solo si el entorno lo soporta (no probado)
+allow_software_keys: false    # SOLO claves con protección HSM

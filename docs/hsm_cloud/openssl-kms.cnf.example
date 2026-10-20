@@ -1,0 +1,15 @@
+# Configuración de OpenSSL SOLO para el laboratorio con Google Cloud KMS. NO PROBADO.
+# Sustituye las dos rutas. `pkcs11-module-quirks = no-deinit` evita el SIGSEGV del fork (INC-0027) con módulos que no toleran ser descargados.
+openssl_conf = openssl_init
+[openssl_init]
+providers = provider_sect
+[provider_sect]
+default = default_sect
+pkcs11 = pkcs11_sect
+[default_sect]
+activate = 1
+[pkcs11_sect]
+module = /opt/qce-hsm/lib/pkcs11.so
+pkcs11-module-path = /opt/kmsp11/libkmsp11.so
+pkcs11-module-quirks = no-deinit
+activate = 1

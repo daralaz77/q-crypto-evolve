@@ -89,3 +89,6 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 
 ## FIPS 140-3 / CNSA 2.0
 - **No se puede afirmar** FIPS 140-3 ni CNSA 2.0 (`docs/FIPS_140_3.md`, solo análisis, nada ejecutado: este equipo no tiene proveedor FIPS). Razones: no hay módulo OpenSSL validado con ML-KEM (3.5.8 está en revisión del CMVP, 2026-10-20); el híbrido lleva X25519, que NIST no propone aprobar; ML-KEM-768/ML-DSA-65 no son los parámetros de CNSA 2.0 (1024/87); QCE1/QIL1 son protocolos propios; el código usa ChaCha20-Poly1305 y scrypt. Varios datos del análisis están marcados como no re-verificados.
+
+## HSM en la nube (kit preparado, NO probado)
+- `docs/hsm_cloud/` prepara la prueba con Google Cloud KMS (protección HSM) + una VM Linux amd64: la biblioteca PKCS#11 de Google solo existe para Linux y Windows, no macOS. **No se ha ejecutado contra Google**: solo la lógica de `verify_kms.py` se probó con SoftHSM. Riesgos abiertos: si la clave pública `RSA_SIGN_PSS` sirve como certificado TLS, compatibilidad con `pkcs11-provider`, latencia por apretón y `fork`. Está fuera de las puertas a propósito.
