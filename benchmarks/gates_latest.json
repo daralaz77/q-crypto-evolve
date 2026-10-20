@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "19c8381df907ef5a",
+  "release_id": "5a170d4ead2e7a8e",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -8,14 +8,14 @@
       "status": "pass",
       "detail": "cadenas de registro íntegras (83 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.21
+      "seconds": 0.23
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "509 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "514 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 80.13
+      "seconds": 82.97
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -37,7 +37,7 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 3153.8,
+          "seconds": 3260.4,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,7 +46,7 @@
           "checked": 3
         }
       },
-      "seconds": 3155.11
+      "seconds": 3262.24
     },
     {
       "gate": "G4-REGRESION",
@@ -55,7 +55,7 @@
       "evidence": {
         "checked": 28
       },
-      "seconds": 17.54
+      "seconds": 17.68
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -73,8 +73,8 @@
     }
   ],
   "metrics": {
-    "tests_passed": 509,
-    "total_seconds": 3253.0,
+    "tests_passed": 514,
+    "total_seconds": 3363.1,
     "incidents_total": 28,
     "incidents_resolved": 28,
     "recurring_patterns": [
