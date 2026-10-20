@@ -90,3 +90,17 @@ def test_reviewer_docs_state_the_authorship_and_the_missing_human_review():
     leeme = (ROOT / "review" / "LEEME.md").read_text()
     assert "Toda la autoría es de instancias de Claude" in leeme and "no es** una revisión humana independiente" in leeme
     assert "[CONTACTO" in leeme  # el contacto lo pone una persona; no se inventa
+
+
+@needs_repo
+def test_package_carries_every_test_vector_file_and_every_file_the_tests_read(built):
+    """La reproducción desde cero destapó que faltaba un archivo de vectores: ninguno de los datos que leen las pruebas puede quedar fuera del paquete."""
+    names = set(zipfile.ZipFile(built[0]).namelist())
+    for f in (ROOT / "tests" / "vectors").glob("*.json"):
+        assert f"tests/vectors/{f.name}" in names, f.name
+    import re
+    for test in (ROOT / "tests").glob("test_*.py"):
+        for m in re.finditer(r'"(vectors/[\w.-]+|formal/[\w.-]+|docs/[\w.-]+)"', test.read_text()):
+            rel = m.group(1) if m.group(1).startswith(("formal/", "docs/")) else "tests/" + m.group(1)
+            if (ROOT / rel).exists():
+                assert rel in names, f"{test.name} lee {rel} y no está en el paquete"

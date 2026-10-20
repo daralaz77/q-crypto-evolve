@@ -49,6 +49,7 @@ TOP = {  # archivo del repositorio → ruta dentro del paquete
     "pytest.ini": "pytest.ini",
     "gates.json": "gates.json",
     "tests/vectors/acvp_subset.json": "tests/vectors/acvp_subset.json",
+    "tests/vectors/acvp_slhdsa_subset.json": "tests/vectors/acvp_slhdsa_subset.json",
 }
 TREES = ("qce", "tests")  # solo *.py; nunca __pycache__
 
