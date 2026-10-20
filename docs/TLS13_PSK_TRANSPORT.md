@@ -31,7 +31,7 @@ la atestación exige el grupo pedido). Con `X25519` no hay protección frente a 
 cuando el servidor no ofrece el híbrido (falla cerrado). Y la suite exige AES-128-GCM-SHA256 en estas pruebas porque la PSK externa de GnuTLS va ligada a SHA-256.
 
 ## 3c. Segunda implementación del HÍBRIDO: Mozilla NSS (2026-10-20)
-NSS 3.125 (`tstclnt`, `selfserv`, `certutil`; código distinto de OpenSSL y de GnuTLS) **sí trae X25519MLKEM768** y acepta PSK externa, así que contrasta lo que GnuTLS no podía. `tests/test_interop_nss.py` (6 pruebas) y el escenario `nss` de `tests/test_hsm_tls.py` comprueban:
+NSS 3.125 (`tstclnt`, `selfserv`, `certutil`; código distinto de OpenSSL y de GnuTLS) **sí trae X25519MLKEM768** y acepta PSK externa, así que contrasta lo que GnuTLS no podía. `tests/test_interop_nss.py` (11 pruebas) y el escenario `nss` de `tests/test_hsm_tls.py` comprueban:
 - **Híbrido + PSK externa:** un cliente NSS completa el apretón con nuestro servidor con grupo `X25519MLKEM768`, TLS 1.3 y la PSK derivada de la clave QKD; lo atestigua nuestro servidor (identidad, grupo, suite, versión), NSS recibe la respuesta cifrada y la clave se consume.
 - **La derivación queda fijada:** la PSK que recibe NSS se calcula en la prueba con HKDF-SHA256 directo, no con `prepare_psk`; se comprobó que cambiar la etiqueta de dominio hace fallar la prueba (con `prepare_psk` en los dos lados no habría detectado nada).
 - **PSK o identidad equivocadas:** NSS y nuestro servidor rechazan y la clave del servidor no se gasta.
@@ -39,11 +39,13 @@ NSS 3.125 (`tstclnt`, `selfserv`, `certutil`; código distinto de OpenSSL y de G
 - **Híbrido con certificados:** nuestro cliente TLS completa TLS 1.3 con un `selfserv` que solo ofrece `x25519mlkem768`.
 - **Servidor con la clave en el HSM:** NSS verifica la cadena y la firma hecha por el token (SoftHSM) y negocia el híbrido; sin confiar en la CA, NSS rechaza el certificado (`unknown ca`), es decir, de verdad lo verifica.
 
+- **Nuestro cliente PSK contra un servidor NSS:** `selfserv` NO sirve (no aplica la PSK externa en el servidor: autentica por certificado aunque se le dé una PSK, incluso frente a `tstclnt`; se probó con la configuración por defecto, solo la suite AES-128 y un cliente que no puede usar el certificado, y en los tres casos no usó la PSK). Por eso hay un servidor mínimo sobre la propia biblioteca NSS, `tests/helpers/nss_psk_server.c` (~100 líneas, se compila al vuelo con `cc`), que añade la PSK al socket aceptado. Resultado: nuestro cliente completa TLS 1.3 con `X25519MLKEM768` y AES-128-GCM-SHA256, y **NSS informa que autenticó por PSK** (`ssl_auth_psk`), no por certificado; con clave o identidad equivocadas NSS rechaza; y un NSS que solo ofrece X25519 no consigue que nuestro cliente por defecto baje de grupo.
+
 **Límites medidos:**
-- `selfserv` exige un certificado y, teniéndolo, autentica con él aunque se le dé una PSK (también frente a `tstclnt`). **No sirve para probar NUESTRO CLIENTE PSK contra un servidor NSS**: ese sentido de la PSK externa solo está contrastado con GnuTLS (con X25519) y con OpenSSL.
+- El servidor de prueba necesita un certificado configurado (NSS no ofrece suites TLS 1.3 sin él); lo que se comprueba es que NSS **elige la PSK**, no el certificado. Es un ayudante de prueba escrito por nosotros sobre la biblioteca de NSS: la implementación independiente es NSS, no el ayudante.
 - La PSK externa de NSS va ligada a SHA-256, como la de OpenSSL y GnuTLS: con nuestra suite por defecto (AES-256-GCM-SHA384) NSS no completa el apretón y la clave no se gasta (se prueba). La interoperabilidad con NSS exige `TLS_AES_128_GCM_SHA256`.
-- Python 3.14 no expone el grupo negociado por conexión en el cliente con certificados: en esa prueba el híbrido se deduce de que NSS solo ofrecía ese grupo y nuestro contexto solo lo acepta.
-- Las pruebas se saltan solas sin NSS (en Linux las herramientas `tstclnt`/`selfserv` normalmente no vienen empaquetadas). Probado solo en macOS con Homebrew.
+- Python 3.14 no expone el grupo negociado por conexión en el cliente con certificados: en esa prueba el híbrido se deduce de que NSS solo ofrecía ese grupo y nuestro contexto solo lo acepta. En el cliente PSK sí se atestigua el grupo.
+- Las pruebas se saltan solas sin NSS, sin compilador o sin cabeceras de NSS (en Linux las herramientas `tstclnt`/`selfserv` normalmente no vienen empaquetadas). Probado solo en macOS con Homebrew.
 
 ## 4. Límites
 - **El puente `ctypes` es código nuestro y delicado** (tipos C, tiempos de vida de los callbacks, propiedad de `SSL_SESSION`). Una revisión humana debería mirarlo antes de producción.

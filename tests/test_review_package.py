@@ -98,6 +98,8 @@ def test_package_carries_every_test_vector_file_and_every_file_the_tests_read(bu
     names = set(zipfile.ZipFile(built[0]).namelist())
     for f in (ROOT / "tests" / "vectors").glob("*.json"):
         assert f"tests/vectors/{f.name}" in names, f.name
+    for f in (ROOT / "tests" / "helpers").glob("*"):                      # ayudantes que las pruebas compilan o ejecutan (no son *.py)
+        assert f"tests/helpers/{f.name}" in names, f.name
     import re
     for test in (ROOT / "tests").glob("test_*.py"):
         for m in re.finditer(r'"(vectors/[\w.-]+|formal/[\w.-]+|docs/[\w.-]+)"', test.read_text()):

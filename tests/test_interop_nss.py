@@ -6,11 +6,15 @@ Qué contrasta con NSS (las herramientas `tstclnt` y `selfserv` de NSS ≥ 3.125
   · el híbrido con certificados en el otro sentido: nuestro cliente TLS contra `selfserv` de NSS, y la negativa a usar un NSS que solo ofrece X25519.
 La ruta con la clave en el HSM está en `tests/test_hsm_tls.py` (escenario `nss`).
 
+  · el SENTIDO CONTRARIO de la PSK (nuestro cliente PSK contra un servidor NSS) con un servidor mínimo escrito sobre la biblioteca NSS (`tests/helpers/nss_psk_server.c`, se compila al vuelo):
+    `selfserv` NO sirve para eso porque no aplica la PSK externa en el servidor (autentica por certificado aunque se le dé una PSK, incluso frente a `tstclnt`; se probó con
+    varias variantes). El ayudante añade la PSK al socket ACEPTADO y NSS informa de que autenticó por PSK (`ssl_auth_psk`), no por certificado.
+
 LÍMITES, medidos y no supuestos:
-  · `selfserv` exige un certificado y, teniéndolo, autentica con él aunque se le dé una PSK (incluso frente a `tstclnt`), así que NO sirve para probar NUESTRO CLIENTE PSK
-    contra un servidor NSS: ese sentido de la PSK externa solo está contrastado con GnuTLS (X25519) y con OpenSSL.
-  · La PSK externa de NSS va ligada a SHA-256, como la de OpenSSL y GnuTLS: con nuestra suite por defecto (AES-256-GCM-SHA384) NSS no completa el apretón (se prueba).
+  · el ayudante necesita un certificado configurado (NSS no ofrece suites TLS 1.3 sin él); lo que se comprueba es que NSS ELIGE la PSK;
+  · la PSK externa de NSS va ligada a SHA-256, como la de OpenSSL y GnuTLS: con nuestra suite por defecto (AES-256-GCM-SHA384) NSS no completa el apretón (se prueba).
 """
+import atexit
 import json
 import os
 import shutil
@@ -158,6 +162,119 @@ def cert_client(pem, port):
     r = subprocess.run([sys.executable, "-c", CERT_CLIENT, str(pem), str(port)], capture_output=True, text=True, timeout=60, env=env, cwd=ROOT)
     assert r.returncode == 0, r.stderr[-600:]
     return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+HELPER_SRC = Path(__file__).resolve().parent / "helpers" / "nss_psk_server.c"
+_helper_cache: dict = {}
+
+
+def nss_flags():
+    """Banderas de compilación contra NSS/NSPR: pkg-config si existe, y si no las rutas de Homebrew (la mutación corre con un PATH mínimo)."""
+    pc = shutil.which("pkg-config")
+    if pc:
+        r = subprocess.run([pc, "--cflags", "--libs", "nss", "nspr"], capture_output=True, text=True)
+        if r.returncode == 0:
+            return r.stdout.split()
+    for nss, nspr in (("/opt/homebrew/opt/nss", "/opt/homebrew/opt/nspr"), ("/usr/local/opt/nss", "/usr/local/opt/nspr")):
+        if os.path.exists(f"{nss}/include/nss/ssl.h") and os.path.exists(f"{nspr}/include/nspr/nspr.h"):
+            return [f"-I{nss}/include/nss", f"-I{nspr}/include/nspr", f"-L{nss}/lib", f"-L{nspr}/lib", "-lssl3", "-lnss3", "-lnssutil3", "-lnspr4", f"-Wl,-rpath,{nss}/lib", f"-Wl,-rpath,{nspr}/lib"]
+    return None
+
+
+def helper_binary():
+    """Compila una vez el servidor mínimo sobre NSS; None si no hay compilador o cabeceras de NSS."""
+    if "bin" not in _helper_cache:
+        cc, flags, out = shutil.which("cc") or "/usr/bin/cc", nss_flags(), None
+        if flags and os.path.exists(cc) and HELPER_SRC.exists():
+            d = tempfile.mkdtemp(prefix="qce-nss-")
+            atexit.register(shutil.rmtree, d, True)
+            r = subprocess.run([cc, "-O1", "-o", f"{d}/nss_psk_server", str(HELPER_SRC), *flags], capture_output=True, text=True, timeout=120)
+            out = f"{d}/nss_psk_server" if r.returncode == 0 else None
+        _helper_cache["bin"] = out
+    return _helper_cache["bin"]
+
+
+def start_nss_psk_server(tmp: Path, mode: str, psk=None, label=KID.decode()):
+    """Devuelve (proceso, puerto). `mode`: hibrido | x25519 (el único grupo que ofrece el servidor NSS)."""
+    binary = helper_binary()
+    if not binary:
+        pytest.skip("sin compilador o sin cabeceras de NSS para el servidor de prueba")
+    db = nss_db(tmp, "psrv")
+    seed = tmp / "pseed"
+    seed.write_bytes(os.urandom(64))
+    subprocess.run([CERTUTIL, "-S", "-d", db, "-n", "srv", "-s", "CN=localhost", "-x", "-t", "CTu,Cu,Cu", "-v", "12", "-g", "2048", "-Z", "SHA256", "-z", str(seed)],
+                   check=True, capture_output=True, timeout=120)
+    port = free_port()
+    proc = subprocess.Popen([binary, str(port), psk or psk_hex(), label, mode, "1", db, "srv"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout.readline().strip() == "READY"
+    return proc, port
+
+
+def finish(proc):
+    try:
+        out, _ = proc.communicate(timeout=20)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, _ = proc.communicate()
+    lines = [ln for ln in out.splitlines() if ln.startswith("{")]
+    return json.loads(lines[-1]) if lines else None
+
+
+@needs
+def test_our_psk_client_completes_the_hybrid_handshake_with_an_nss_server_that_authenticates_by_psk():
+    with tempfile.TemporaryDirectory() as td:
+        proc, port = start_nss_psk_server(Path(td), "hibrido")
+        c = P.connect_tcp("127.0.0.1", port, KID, KEY, timeout=8, suite=SUITE)         # grupo por defecto: el híbrido
+        assert (c.version, c.group, c.cipher) == ("TLSv1.3", "X25519MLKEM768", SUITE)
+        c._write_all(b"ping", 5)
+        assert c._read_exact(4, 5) == b"gnip"
+        c.close()
+        seen = finish(proc)                                                              # lo que informa NSS, la OTRA implementación
+        assert seen == {"ok": True, "version": 0x0304, "group": 4588, "suite": 0x1301, "auth": 9, "kea": 8, "read": 4}   # TLS 1.3, mlkem768x25519, AES-128-GCM-SHA256, autenticación por PSK
+
+
+@needs
+def test_nss_server_rejects_our_client_with_a_wrong_psk_or_identity():
+    for kind in ("clave", "identidad"):
+        with tempfile.TemporaryDirectory() as td:
+            proc, port = start_nss_psk_server(Path(td), "hibrido")
+            key, kid = (bytes(32), KID) if kind == "clave" else (KEY, b"otro-id")
+            with pytest.raises((AuthenticationFailure, MalformedMessage, PolicyViolation)):
+                P.connect_tcp("127.0.0.1", port, kid, key, timeout=8, suite=SUITE)
+            seen = finish(proc)
+            assert seen is None or seen["ok"] is False or seen["auth"] != 9, (kind, seen)   # nunca una sesión autenticada por PSK
+
+
+@needs
+def test_our_default_hybrid_client_does_not_downgrade_to_a_classical_group_with_an_nss_server():
+    with tempfile.TemporaryDirectory() as td:
+        proc, port = start_nss_psk_server(Path(td), "x25519")                           # NSS solo ofrece X25519
+        with pytest.raises((AuthenticationFailure, MalformedMessage, PolicyViolation)):
+            P.connect_tcp("127.0.0.1", port, KID, KEY, timeout=8, suite=SUITE)
+        seen = finish(proc)
+        assert seen is None or seen["ok"] is False                                       # y NSS no llegó a completar una sesión
+
+
+@needs
+def test_our_psk_client_interoperates_with_nss_in_the_classical_group_only_when_asked_explicitly():
+    with tempfile.TemporaryDirectory() as td:
+        proc, port = start_nss_psk_server(Path(td), "x25519")
+        c = P.connect_tcp("127.0.0.1", port, KID, KEY, timeout=8, suite=SUITE, group="X25519")
+        assert (c.version, c.group) == ("TLSv1.3", "x25519")                           # sin protección poscuántica: solo para interoperar
+        c._write_all(b"ping", 5)
+        assert c._read_exact(4, 5) == b"gnip"
+        c.close()
+        assert finish(proc)["auth"] == 9
+
+
+@needs
+def test_with_our_default_sha384_suite_nss_psk_server_cannot_complete():
+    with tempfile.TemporaryDirectory() as td:
+        proc, port = start_nss_psk_server(Path(td), "hibrido")
+        with pytest.raises((AuthenticationFailure, MalformedMessage, PolicyViolation)):
+            P.connect_tcp("127.0.0.1", port, KID, KEY, timeout=8, suite=P.CIPHERSUITE)    # AES-256-GCM-SHA384: la PSK de NSS es SHA-256
+        seen = finish(proc)
+        assert seen is None or seen["ok"] is False or seen["auth"] != 9
 
 
 def nss_server(tmp: Path, groups: str):

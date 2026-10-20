@@ -35,6 +35,7 @@ TOP = {  # archivo del repositorio → ruta dentro del paquete
     "docs/ETSI014_ADAPTER.md": "docs/ETSI014_ADAPTER.md",
     "docs/SLHDSA.md": "docs/SLHDSA.md",
     "docs/HSM.md": "docs/HSM.md",
+    "docs/FIPS_140_3.md": "docs/FIPS_140_3.md",
     "docs/hsm_lab/setup.sh": "docs/hsm_lab/setup.sh",
     "docs/hsm_lab/issue_cert.py": "docs/hsm_lab/issue_cert.py",
     "docs/SUPPLY_CHAIN.md": "docs/SUPPLY_CHAIN.md",
@@ -53,6 +54,7 @@ TOP = {  # archivo del repositorio → ruta dentro del paquete
     "gates.json": "gates.json",
     "tests/vectors/acvp_subset.json": "tests/vectors/acvp_subset.json",
     "tests/vectors/acvp_slhdsa_subset.json": "tests/vectors/acvp_slhdsa_subset.json",
+    "tests/helpers/nss_psk_server.c": "tests/helpers/nss_psk_server.c",
 }
 TREES = ("qce", "tests")  # solo *.py; nunca __pycache__
 
