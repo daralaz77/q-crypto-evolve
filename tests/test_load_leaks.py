@@ -49,8 +49,8 @@ def test_1500_failing_handshakes_leak_nothing_either_and_none_succeeds():
 @needs
 def test_concurrent_clients_all_succeed_and_nothing_is_left_behind():
     r = scenario("concurrent")
-    assert r["ok_total"] == r["workers"] * r["per_worker"] == 960
-    assert r["after"]["fds"] == r["before"]["fds"] and r["after"]["rss_mb"] - r["before"]["rss_mb"] < 10.0
+    assert r["ok_per_round"] == [960, 960, 960] and r["ok_total"] == 4 * 960
+    no_growth(r)       # tras calentar, tres rondas más de 16 hilos × 60 apretones no hacen crecer memoria, descriptores ni hilos
 
 
 @needs

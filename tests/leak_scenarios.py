@@ -72,27 +72,32 @@ def sc_failing_handshakes():
 def sc_concurrent():
     keys = {b"k%d" % i: bytes([i + 1]) * 32 for i in range(16)}
     srv = P.PskServer(Reusable(keys), echo, timeout=10).start()
-    results, lock = [], threading.Lock()
 
-    def worker(kid):
-        good = 0
-        for _ in range(60):
-            try:
-                c = P.connect_tcp("127.0.0.1", srv.port, kid, keys[kid], timeout=10)
-                c.send_frame(kid)
-                good += c.recv_frame() == kid[::-1]
-                c.close()
-            except (QCEError, OSError):
-                pass
-        with lock:
-            results.append(good)
+    def round_():
+        results, lock = [], threading.Lock()
+
+        def worker(kid):
+            good = 0
+            for _ in range(60):
+                try:
+                    c = P.connect_tcp("127.0.0.1", srv.port, kid, keys[kid], timeout=10)
+                    c.send_frame(kid)
+                    good += c.recv_frame() == kid[::-1]
+                    c.close()
+                except (QCEError, OSError):
+                    pass
+            with lock:
+                results.append(good)
+        ts = [threading.Thread(target=worker, args=(k,)) for k in keys]
+        [t.start() for t in ts]
+        [t.join(120) for t in ts]
+        return sum(results)
+    first_ok = round_()                      # ronda de calentamiento: los hilos crean sus arenas de malloc y sus pilas, que NO son una fuga
     before = snapshot()
-    ts = [threading.Thread(target=worker, args=(k,)) for k in keys]
-    [t.start() for t in ts]
-    [t.join(120) for t in ts]
+    ok = [round_() for _ in range(3)]        # rondas medidas: una fuga real seguiría creciendo en cada una
     after = snapshot()
     srv.close()
-    return {"workers": len(keys), "per_worker": 60, "ok_total": sum(results), "before": before, "after": after}
+    return {"workers": len(keys), "per_worker": 60, "ok_total": first_ok + sum(ok), "ok_per_round": ok, "before": before, "after": after}
 
 
 def sc_slhdsa():
