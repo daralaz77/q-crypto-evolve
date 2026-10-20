@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 VERSION = "0.3.0-lab"
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="qce", description="Q-Crypto Evolve (laboratorio)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("test", help="batería completa (pytest)")
@@ -48,129 +48,179 @@ def main(argv: list[str] | None = None) -> int:
     sg.add_argument("--verdict", choices=("accept", "reject"), required=True)
     sg.add_argument("--release-id", default=None)
     sg.add_argument("--notes", default="")
-    a = ap.parse_args(argv)
+    return ap
 
-    if a.cmd == "test":
-        return subprocess.call([sys.executable, "-m", "pytest"], cwd=ROOT)
-    if a.cmd == "scan":
-        from .security import scanners as s
-        mis, sec, dep = s.scan_misuse(ROOT), s.scan_secrets(ROOT), s.audit_dependencies(ROOT)
-        print(json.dumps({"misuse": [f.__dict__ for f in mis], "secrets": [f.__dict__ for f in sec], "dependencies": dep}, indent=2))
-        return int(bool(mis or sec or dep["status"] != "limpia"))
-    if a.cmd == "mutate":
-        from .evolve.mutation import run_mutants
-        r = run_mutants(ROOT)
-        print(json.dumps({k: v for k, v in r.items() if k != "detail"}, indent=2))
-        return int(bool(r["survivors"]))
-    if a.cmd == "gates":
-        from .evolve import gates
-        rep = gates.evaluate(ROOT, version=VERSION, run_mutation=not a.fast, run_dep_audit=not a.fast)
-        for gt in rep["gates"]:
-            print(f"{gt['gate']:<20} {gt['status']:<8} {gt['detail'][:150]}")
-        print(f"\nESTADO: {rep['state']}   release_id={rep['release_id']}   métricas={rep['metrics']}")
-        (ROOT / "benchmarks").mkdir(exist_ok=True)
-        (ROOT / "benchmarks" / "gates_latest.json").write_text(json.dumps(rep, indent=2, ensure_ascii=False))
-        return 0 if rep["state"] in ("VERIFIED", "RELEASE_APPROVED") else 1
-    if a.cmd == "demo":
-        from .evolve import demo
-        r = demo.run(ROOT, ROOT / "benchmarks")
-        print("\n".join(r["log"]))
-        print(f"\nDEMO {'COMPLETA' if r['all_ok'] else 'CON FALLOS'}: {sum(c['ok'] for c in r['checks'])}/{len(r['checks'])} comprobaciones · {r['timings_s']}")
-        return 0 if r["all_ok"] else 1
-    if a.cmd == "release":
-        from .recovery import release as rel
-        m = rel.build_manifest(ROOT, VERSION, {"nota": "snapshot sin aprobar"}, ["ver LIMITATIONS.md"],
-                               dict(l.split("==") for l in (ROOT / "requirements.lock").read_text().split()))
-        d = rel.save_release(ROOT, m)
-        print(f"snapshot {m['release_id']} en {d}\nPara marcarlo ESTABLE hace falta tu aprobación explícita (rel.mark_stable).")
-        return 0
-    if a.cmd == "formal":
-        from .evolve import formal
-        if not formal.available():
-            print("tamarin-prover no está instalado (brew install tamarin-prover/tap/tamarin-prover): verificación formal NO ejecutada")
-            return 2
-        problems = (formal.check_matrix(ROOT) + formal.check_model_mutants(ROOT)
-                    + formal.check_matrix(ROOT, model_name="qil1.spthy", expected_name="expected_qil1.json")
-                    + formal.check_model_mutants(ROOT, "qil1.spthy", formal.QIL1_MODEL_MUTANTS))
-        print("\n".join(problems) or "modelo formal: veredictos y mutantes del modelo conformes a formal/expected.json")
+
+def _cmd_test(a: argparse.Namespace) -> int:
+    return subprocess.call([sys.executable, "-m", "pytest"], cwd=ROOT)
+
+
+def _cmd_scan(a: argparse.Namespace) -> int:
+    from .security import scanners as s
+    mis, sec, dep = s.scan_misuse(ROOT), s.scan_secrets(ROOT), s.audit_dependencies(ROOT)
+    print(json.dumps({"misuse": [f.__dict__ for f in mis], "secrets": [f.__dict__ for f in sec], "dependencies": dep}, indent=2))
+    return int(bool(mis or sec or dep["status"] != "limpia"))
+
+
+def _cmd_mutate(a: argparse.Namespace) -> int:
+    from .evolve.mutation import run_mutants
+    r = run_mutants(ROOT)
+    print(json.dumps({k: v for k, v in r.items() if k != "detail"}, indent=2))
+    return int(bool(r["survivors"]))
+
+
+def _cmd_gates(a: argparse.Namespace) -> int:
+    from .evolve import gates
+    rep = gates.evaluate(ROOT, version=VERSION, run_mutation=not a.fast, run_dep_audit=not a.fast)
+    for gt in rep["gates"]:
+        print(f"{gt['gate']:<20} {gt['status']:<8} {gt['detail'][:150]}")
+    print(f"\nESTADO: {rep['state']}   release_id={rep['release_id']}   métricas={rep['metrics']}")
+    (ROOT / "benchmarks").mkdir(exist_ok=True)
+    (ROOT / "benchmarks" / "gates_latest.json").write_text(json.dumps(rep, indent=2, ensure_ascii=False))
+    return 0 if rep["state"] in ("VERIFIED", "RELEASE_APPROVED") else 1
+
+
+def _cmd_demo(a: argparse.Namespace) -> int:
+    from .evolve import demo
+    r = demo.run(ROOT, ROOT / "benchmarks")
+    print("\n".join(r["log"]))
+    print(f"\nDEMO {'COMPLETA' if r['all_ok'] else 'CON FALLOS'}: {sum(c['ok'] for c in r['checks'])}/{len(r['checks'])} comprobaciones · {r['timings_s']}")
+    return 0 if r["all_ok"] else 1
+
+
+def _cmd_release(a: argparse.Namespace) -> int:
+    from .recovery import release as rel
+    m = rel.build_manifest(ROOT, VERSION, {"nota": "snapshot sin aprobar"}, ["ver LIMITATIONS.md"],
+                           dict(l.split("==") for l in (ROOT / "requirements.lock").read_text().split()))
+    d = rel.save_release(ROOT, m)
+    print(f"snapshot {m['release_id']} en {d}\nPara marcarlo ESTABLE hace falta tu aprobación explícita (rel.mark_stable).")
+    return 0
+
+
+def _cmd_formal(a: argparse.Namespace) -> int:
+    from .evolve import formal
+    if not formal.available():
+        print("tamarin-prover no está instalado (brew install tamarin-prover/tap/tamarin-prover): verificación formal NO ejecutada")
+        return 2
+    problems = (formal.check_matrix(ROOT) + formal.check_model_mutants(ROOT)
+                + formal.check_matrix(ROOT, model_name="qil1.spthy", expected_name="expected_qil1.json")
+                + formal.check_model_mutants(ROOT, "qil1.spthy", formal.QIL1_MODEL_MUTANTS))
+    print("\n".join(problems) or "modelo formal: veredictos y mutantes del modelo conformes a formal/expected.json")
+    return int(bool(problems))
+
+
+def _cmd_review_package(a: argparse.Namespace) -> int:
+    from .evolve import review_package as rpk
+    if a.verify:
+        problems = rpk.verify(Path(a.verify))
+        print("\n".join(problems) or "paquete íntegro: todos los archivos coinciden con MANIFEST.sha256")
         return int(bool(problems))
-    if a.cmd == "review-package":
-        from .evolve import review_package as rpk
-        if a.verify:
-            problems = rpk.verify(Path(a.verify))
-            print("\n".join(problems) or "paquete íntegro: todos los archivos coinciden con MANIFEST.sha256")
-            return int(bool(problems))
-        path, digest = rpk.build(ROOT, ROOT / a.out)
-        print(f"{path}\nSHA-256 del zip: {digest}\n(el manifiesto NO está firmado: comunica este hash por otro canal)")
+    path, digest = rpk.build(ROOT, ROOT / a.out)
+    print(f"{path}\nSHA-256 del zip: {digest}\n(el manifiesto NO está firmado: comunica este hash por otro canal)")
+    return 0
+
+
+def _cmd_supply_chain(a: argparse.Namespace) -> int:
+    from .evolve import supply_chain as sc
+    if a.check:
+        problems = sc.check(ROOT)
+        print("\n".join(problems) or "cadena de suministro coherente: lock, hashes y SBOM coinciden")
+        return int(bool(problems))
+    try:
+        done = sc.generate(ROOT, VERSION)
+    except Exception as exc:  # noqa: BLE001  (red caída, PyPI cambia, etc.: se declara, no se inventa)
+        print(f"no se pudo generar (necesita red de solo lectura hacia pypi.org): {type(exc).__name__}: {exc}")
+        return 2
+    print("generados requirements.hashes.txt y sbom.cdx.json para:", ", ".join(done))
+    return 0
+
+
+def _cmd_tls_check(a: argparse.Namespace) -> int:
+    from .transport import tls13  # lo primero: debe fijar OPENSSL_CONF antes de que se importe `cryptography`
+    try:
+        tls13.require_hybrid_only()
+    except tls13.TransportMisconfigured as exc:
+        print(f"TRANSPORTE NO GARANTIZADO: {exc}")
+        return 2
+    import ssl
+    print(f"atestación OK · {ssl.OPENSSL_VERSION} · grupo único {tls13.HYBRID_GROUP} · TLS ≥ 1.3 · sin reanudación · cliente: cadena y nombre obligatorios")
+    return 0
+
+
+def _cmd_bench(a: argparse.Namespace) -> int:
+    return bench()
+
+
+def _cmd_identity(a: argparse.Namespace) -> int:
+    from .evolve import ceremony
+    from .core.errors import QCEError
+    try:
+        if a.idcmd == "new":
+            path, pub = ceremony.new_identity(ROOT, Path(a.dir), a.name)
+            print(f"clave privada: {path}  (permisos 0600; GUÁRDALA tú, nunca en el repositorio ni se la des a un agente)\nhuella: {ceremony.fingerprint(pub)}\nclave pública:\n{pub.hex()}")
+        else:
+            fp = ceremony.register(ROOT, a.role, a.identity, ceremony.parse_public(a.pub))
+            print(f"registrada {a.identity!r} como {a.role} (huella {fp}). Esto NO aprueba nada; confirma la huella por otro canal y haz commit de trust/registry.json.")
         return 0
-    if a.cmd == "supply-chain":
-        from .evolve import supply_chain as sc
-        if a.check:
-            problems = sc.check(ROOT)
-            print("\n".join(problems) or "cadena de suministro coherente: lock, hashes y SBOM coinciden")
-            return int(bool(problems))
-        try:
-            done = sc.generate(ROOT, VERSION)
-        except Exception as exc:  # noqa: BLE001  (red caída, PyPI cambia, etc.: se declara, no se inventa)
-            print(f"no se pudo generar (necesita red de solo lectura hacia pypi.org): {type(exc).__name__}: {exc}")
-            return 2
-        print("generados requirements.hashes.txt y sbom.cdx.json para:", ", ".join(done))
+    except (QCEError, OSError) as exc:
+        print(f"error: {exc}")
+        return 1
+
+
+def _cmd_sign(a: argparse.Namespace) -> int:
+    from .evolve import ceremony
+    from .core.errors import QCEError
+    if not sys.stdin.isatty() and os.environ.get("QCE_ALLOW_NONINTERACTIVE_SIGN") != "1":
+        print("firmar exige una terminal interactiva: una declaración humana no se automatiza")
+        return 2
+    try:
+        rid = a.release_id or ceremony.current_release_id(ROOT)
+        if sys.stdin.isatty():
+            print(f"Vas a firmar como {a.signer!r} ({a.role}) el veredicto {a.verdict!r} sobre el código release_id={rid}.")
+            who = a.signer
+            typed = input(f"Escribe tu identidad ({who}) para confirmar: ").strip()
+            if typed != who:
+                print("no confirmado")
+                return 2
+        p = ceremony.sign(ROOT, Path(a.key), a.role, a.signer, rid, a.verdict, a.notes)
+        print(f"firmado: {p}\nCualquier cambio posterior de código invalida esta firma (cambia el release_id).")
         return 0
-    if a.cmd == "tls-check":
-        from .transport import tls13  # lo primero: debe fijar OPENSSL_CONF antes de que se importe `cryptography`
-        try:
-            tls13.require_hybrid_only()
-        except tls13.TransportMisconfigured as exc:
-            print(f"TRANSPORTE NO GARANTIZADO: {exc}")
-            return 2
-        import ssl
-        print(f"atestación OK · {ssl.OPENSSL_VERSION} · grupo único {tls13.HYBRID_GROUP} · TLS ≥ 1.3 · sin reanudación · cliente: cadena y nombre obligatorios")
-        return 0
-    if a.cmd == "bench":
-        return bench()
-    if a.cmd == "identity":
-        from .evolve import ceremony
-        from .core.errors import QCEError
-        try:
-            if a.idcmd == "new":
-                path, pub = ceremony.new_identity(ROOT, Path(a.dir), a.name)
-                print(f"clave privada: {path}  (permisos 0600; GUÁRDALA tú, nunca en el repositorio ni se la des a un agente)\nhuella: {ceremony.fingerprint(pub)}\nclave pública:\n{pub.hex()}")
-            else:
-                fp = ceremony.register(ROOT, a.role, a.identity, ceremony.parse_public(a.pub))
-                print(f"registrada {a.identity!r} como {a.role} (huella {fp}). Esto NO aprueba nada; confirma la huella por otro canal y haz commit de trust/registry.json.")
-            return 0
-        except (QCEError, OSError) as exc:
-            print(f"error: {exc}")
-            return 1
-    if a.cmd == "sign":
-        from .evolve import ceremony
-        from .core.errors import QCEError
-        if not sys.stdin.isatty() and os.environ.get("QCE_ALLOW_NONINTERACTIVE_SIGN") != "1":
-            print("firmar exige una terminal interactiva: una declaración humana no se automatiza")
-            return 2
-        try:
-            rid = a.release_id or ceremony.current_release_id(ROOT)
-            if sys.stdin.isatty():
-                print(f"Vas a firmar como {a.signer!r} ({a.role}) el veredicto {a.verdict!r} sobre el código release_id={rid}.")
-                who = a.signer
-                typed = input(f"Escribe tu identidad ({who}) para confirmar: ").strip()
-                if typed != who:
-                    print("no confirmado")
-                    return 2
-            p = ceremony.sign(ROOT, Path(a.key), a.role, a.signer, rid, a.verdict, a.notes)
-            print(f"firmado: {p}\nCualquier cambio posterior de código invalida esta firma (cambia el release_id).")
-            return 0
-        except (QCEError, OSError) as exc:
-            print(f"error: {exc}")
-            return 1
-    if a.cmd == "status":
-        from .learning.ledger import Ledger
-        L = Ledger(ROOT / "learning" / "incidents.jsonl")
-        for i in L.all():
-            print(i["incident_id"], i.get("status"), i.get("severity"), i.get("confidence"), "—", i.get("symptom", "")[:80])
-        print("patrones recurrentes:", L.patterns() or "ninguno")
-        return 0
-    return 2
+    except (QCEError, OSError) as exc:
+        print(f"error: {exc}")
+        return 1
+
+
+def _cmd_status(a: argparse.Namespace) -> int:
+    from .learning.ledger import Ledger
+    L = Ledger(ROOT / "learning" / "incidents.jsonl")
+    for i in L.all():
+        print(i["incident_id"], i.get("status"), i.get("severity"), i.get("confidence"), "—", i.get("symptom", "")[:80])
+    print("patrones recurrentes:", L.patterns() or "ninguno")
+    return 0
+
+
+COMMANDS = {
+    "test": _cmd_test,
+    "scan": _cmd_scan,
+    "mutate": _cmd_mutate,
+    "gates": _cmd_gates,
+    "demo": _cmd_demo,
+    "release": _cmd_release,
+    "formal": _cmd_formal,
+    "review-package": _cmd_review_package,
+    "supply-chain": _cmd_supply_chain,
+    "tls-check": _cmd_tls_check,
+    "bench": _cmd_bench,
+    "identity": _cmd_identity,
+    "sign": _cmd_sign,
+    "status": _cmd_status,
+}
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = _build_parser().parse_args(argv)
+    handler = COMMANDS.get(a.cmd)
+    return handler(a) if handler else 2
 
 
 def bench() -> int:
