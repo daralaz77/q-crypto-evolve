@@ -378,3 +378,24 @@ def test_both_ends_disable_nagle_so_the_lockstep_handshake_does_not_stall_on_del
     assert wait(lambda: "server" in seen) and seen["server"] != 0
     c.close()
     srv.close()
+
+
+@needs_lib
+def test_closing_a_connection_closes_its_socket_at_once_on_both_ends_without_waiting_for_the_garbage_collector():
+    """Determinista: la detección de fugas de descriptores no puede depender de cuándo el recolector libere el objeto."""
+    seen = {}
+
+    def h(conn):
+        seen["srv"] = conn._sock
+        echo(conn)
+    store, srv = serve(handler=h)
+    c = client(srv)
+    sock = c._sock
+    assert sock.fileno() != -1
+    c.send_frame(b"ab")
+    c.recv_frame()
+    c.close()
+    assert sock.fileno() == -1                                             # cerrado en el acto, no al recoger la basura
+    assert wait(lambda: "srv" in seen and seen["srv"].fileno() == -1)
+    c.close()                                                              # cerrar dos veces no falla
+    srv.close()

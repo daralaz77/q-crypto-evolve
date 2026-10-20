@@ -31,6 +31,8 @@ from ..core.errors import AuthenticationFailure, MalformedMessage, PolicyViolati
 GROUP = "X25519MLKEM768"
 CIPHERSUITE = "TLS_AES_256_GCM_SHA384"
 CIPHER_ID = b"\x13\x02"          # TLS_AES_256_GCM_SHA384: su hash (SHA-384) es el de los binders de la PSK
+GROUPS = ("X25519MLKEM768", "X25519")   # el segundo SOLO para interoperar con pilas sin híbrido (p. ej. GnuTLS 3.8): no protege frente a un ordenador cuántico
+REPORTED_GROUP_NAME = {"X25519MLKEM768": "X25519MLKEM768", "X25519": "x25519"}   # cómo informa OpenSSL (SSL_get0_group_name) cada grupo permitido
 SUITES = {"TLS_AES_256_GCM_SHA384": b"\x13\x02", "TLS_AES_128_GCM_SHA256": b"\x13\x01"}   # la segunda solo por interoperabilidad (la PSK de otras herramientas va ligada a SHA-256)
 TLS13 = 0x0304
 PSK_INFO = b"QCE/TLS13-PSK/1"
@@ -219,19 +221,24 @@ class PskTlsConnection:
         self._keep.clear()
 
 
+def _check_group(group: str) -> None:
+    if group not in GROUPS:
+        raise PolicyViolation(f"grupo no permitido: {group!r}")
+
+
 def _check_suite(suite: str) -> bytes:
     if suite not in SUITES:
         raise PolicyViolation(f"suite no permitida: {suite!r}")
     return SUITES[suite]
 
 
-def _new_ctx(lib, server: bool, suite: str):
+def _new_ctx(lib, server: bool, suite: str, group: str = GROUP):
     l, _ = lib
     ctx = l.SSL_CTX_new((l.TLS_server_method if server else l.TLS_client_method)())
     if not ctx:
         raise PskTransportUnavailable("no se pudo crear el contexto TLS")
     ok = l.SSL_CTX_ctrl(ctx, 123, TLS13, None) == 1 and l.SSL_CTX_ctrl(ctx, 124, TLS13, None) == 1   # mínimo y máximo = TLS 1.3
-    groups = ctypes.create_string_buffer(GROUP.encode())
+    groups = ctypes.create_string_buffer(group.encode())
     ok = ok and l.SSL_CTX_ctrl(ctx, 92, 0, ctypes.cast(groups, vp)) == 1                              # SSL_CTRL_SET_GROUPS_LIST: solo el híbrido
     ok = ok and l.SSL_CTX_set_ciphersuites(ctx, suite.encode()) == 1
     ok = ok and l.SSL_CTX_set_num_tickets(ctx, 0) == 1                                                    # sin reanudación
@@ -252,12 +259,12 @@ def _session(lib, ssl_p, psk: bytes, suite: str):
     return s if ok else None
 
 
-def _attest(conn: PskTlsConnection, suite: str) -> None:
+def _attest(conn: PskTlsConnection, suite: str, group: str = GROUP) -> None:
     """Tras el apretón se comprueba lo realmente negociado; cualquier discrepancia cierra la conexión (falla cerrado)."""
     problems = []
     if conn.version != "TLSv1.3":
         problems.append(f"versión {conn.version!r}")
-    if conn.group != GROUP:
+    if conn.group != REPORTED_GROUP_NAME[group]:
         problems.append(f"grupo {conn.group!r}")
     if conn.cipher != suite:
         problems.append(f"suite {conn.cipher!r}")
@@ -276,14 +283,16 @@ def _nodelay(sock: socket.socket) -> None:
         pass
 
 
-def connect(sock: socket.socket, identity: bytes, qkd_key: bytes, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE) -> PskTlsConnection:
+def connect(sock: socket.socket, identity: bytes, qkd_key: bytes, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE,
+            group: str = GROUP) -> PskTlsConnection:
     """Cliente. `sock` ya está conectado por TCP. La clave QKD ya viene consumida de su broker (un solo uso)."""
     _check_suite(suite)
+    _check_group(group)
     _nodelay(sock)
     psk = prepare_psk(qkd_key, identity)
     lib = _load()
     l, _ = lib
-    ctx = _new_ctx(lib, False, suite)
+    ctx = _new_ctx(lib, False, suite, group)
     ident_buf = ctypes.create_string_buffer(bytes(identity), len(identity))
 
     def use(ssl_p, md, idp, idl, out):
@@ -302,21 +311,22 @@ def connect(sock: socket.socket, identity: bytes, qkd_key: bytes, timeout: float
     conn = PskTlsConnection(lib, sock, ssl_p, ctx, [cb, ident_buf], identity)
     try:
         conn._io(lambda: l.SSL_connect(ssl_p), timeout, "apretón")
-        _attest(conn, suite)
+        _attest(conn, suite, group)
     except BaseException:
         conn.close()
         raise
     return conn
 
 
-def accept(sock: socket.socket, source, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE) -> PskTlsConnection:
+def accept(sock: socket.socket, source, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE, group: str = GROUP) -> PskTlsConnection:
     """Servidor. `source` ofrece reserve/commit/release (qce.qkd.sources): la clave se reserva al ver el identificador, se consume solo si el apretón
     termina y se libera si falla o caduca. `conn.identity` es el identificador de la clave usada."""
     _check_suite(suite)
+    _check_group(group)
     _nodelay(sock)
     lib = _load()
     l, _ = lib
-    ctx = _new_ctx(lib, True, suite)
+    ctx = _new_ctx(lib, True, suite, group)
     state = {"id": None, "psk": None}
 
     def find(ssl_p, ident_p, idlen, out):
@@ -349,7 +359,7 @@ def accept(sock: socket.socket, source, timeout: float = HANDSHAKE_TIMEOUT, suit
     try:
         conn._io(lambda: l.SSL_accept(ssl_p), timeout, "apretón")
         conn.identity = state["id"] or b""
-        _attest(conn, suite)
+        _attest(conn, suite, group)
         if state["id"] is None:
             raise PolicyViolation("apretón completado sin clave reservada")
     except BaseException:
@@ -365,8 +375,8 @@ class PskServer:
     """Servidor de laboratorio con un hilo por conexión: `handler(conn)` recibe la conexión ya atestiguada (el id de clave está en `conn.identity`)."""
 
     def __init__(self, source, handler: Callable[[PskTlsConnection], None], host: str = "127.0.0.1", port: int = 0, timeout: float = HANDSHAKE_TIMEOUT,
-                 suite: str = CIPHERSUITE) -> None:
-        self._source, self._handler, self._timeout, self._suite = source, handler, timeout, suite
+                 suite: str = CIPHERSUITE, group: str = GROUP) -> None:
+        self._source, self._handler, self._timeout, self._suite, self._group = source, handler, timeout, suite, group
         self._ls = socket.socket()
         self._ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._ls.bind((host, port))
@@ -390,7 +400,7 @@ class PskServer:
 
     def _one(self, raw: socket.socket) -> None:
         try:
-            conn = accept(raw, self._source, self._timeout, self._suite)
+            conn = accept(raw, self._source, self._timeout, self._suite, self._group)
         except (QCEError, OSError, TimeoutError):
             self.failed_handshakes += 1
             raw.close()
@@ -407,10 +417,11 @@ class PskServer:
         self._ls.close()
 
 
-def connect_tcp(host: str, port: int, identity: bytes, qkd_key: bytes, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE) -> PskTlsConnection:
+def connect_tcp(host: str, port: int, identity: bytes, qkd_key: bytes, timeout: float = HANDSHAKE_TIMEOUT, suite: str = CIPHERSUITE,
+                group: str = GROUP) -> PskTlsConnection:
     raw = socket.create_connection((host, port), timeout=timeout)
     try:
-        return connect(raw, identity, qkd_key, timeout, suite)
+        return connect(raw, identity, qkd_key, timeout, suite, group)
     except BaseException:
         raw.close()
         raise

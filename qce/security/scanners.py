@@ -55,6 +55,7 @@ SECRET_ALLOW = {
     ("tests/test_tooling.py", "secret:pem-private-key"): "secreto FALSO plantado para probar el escáner",
     ("tests/test_tooling.py", "secret:generic-secret-assign"): "secreto FALSO plantado para probar el escáner",
     ("trust/", "secret:long-hex-literal"): "claves PÚBLICAS de revisores/aprobadores",
+    ("sbom.cdx.json", "secret:long-hex-literal"): "hashes SHA-256 PÚBLICOS de archivos publicados en PyPI (SBOM); autorizada por el usuario el 2026-10-20",
     ("reviews/", "secret:long-hex-literal"): "firmas públicas de declaraciones de revisión",
     ("benchmarks/", "secret:long-hex-literal"): "informes generados (hashes de release)",
 }

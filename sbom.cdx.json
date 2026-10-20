@@ -1,0 +1,99 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "pkg:pypi/cffi@2.1.1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT-0"
+          }
+        }
+      ],
+      "name": "cffi",
+      "properties": [
+        {
+          "name": "qce:pypi-artifact-sha256-count",
+          "value": "100"
+        }
+      ],
+      "purl": "pkg:pypi/cffi@2.1.1",
+      "type": "library",
+      "version": "2.1.1"
+    },
+    {
+      "bom-ref": "pkg:pypi/cryptography@50.0.2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Apache-2.0 OR BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "cryptography",
+      "properties": [
+        {
+          "name": "qce:pypi-artifact-sha256-count",
+          "value": "59"
+        }
+      ],
+      "purl": "pkg:pypi/cryptography@50.0.2",
+      "type": "library",
+      "version": "50.0.2"
+    },
+    {
+      "bom-ref": "pkg:pypi/pycparser@3.11",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d875f09c3507d00e1aba0eecc6dcadc1352f30fff09dc6bff2f1c2935e97c2bc"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "pycparser",
+      "properties": [
+        {
+          "name": "qce:pypi-artifact-sha256-count",
+          "value": "2"
+        }
+      ],
+      "purl": "pkg:pypi/pycparser@3.11",
+      "type": "library",
+      "version": "3.11"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "name": "q-crypto-evolve",
+      "type": "application",
+      "version": "0.3.0-lab"
+    },
+    "properties": [
+      {
+        "name": "qce:scope",
+        "value": "dependencias de ejecuci\u00f3n fijadas en requirements.lock (no las de prueba)"
+      }
+    ]
+  },
+  "serialNumber": "urn:uuid:8f7be0a7-5ce2-51b8-9e67-3e294051d44f",
+  "specVersion": "1.5",
+  "version": 1
+}

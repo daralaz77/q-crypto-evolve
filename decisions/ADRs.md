@@ -62,3 +62,8 @@ Consecuencia: probado solo contra un emulador (simulación declarada); ningún K
 ## ADR-11 — La firma humana tiene una ceremonia propia, y es lo único que puede abrir G5/G6
 Decisión: `identity new/register` y `sign` (`qce/evolve/ceremony.py`): la persona crea su clave fuera del repositorio, la registra (sin que eso apruebe nada) y firma una declaración ligada al `release_id`; la CLI exige terminal interactiva. Ninguna parte de la ceremonia la ejecuta un agente con una clave que sea suya.
 Por qué: las puertas dependían de una API de Python sin interfaz de uso, así que en la práctica nadie podía firmar. Límite: el registro de confianza sigue en el repositorio (LIMITATIONS.md) y la variable de entorno de pruebas existe; la defensa es confirmar la huella por otro canal.
+
+## ADR-12 — Cadena de suministro: hashes de dependencias y SBOM, con una excepción autorizada del escáner de secretos
+Decisión: `requirements.hashes.txt` (SHA-256 de todos los archivos publicados) y `sbom.cdx.json` (CycloneDX 1.5 determinista) junto al lock, coherencia comprobada en G1 (`qce/evolve/supply_chain.py`).
+El escáner de secretos marcaba los hashes públicos del SBOM; tocar el escáner es nivel 3, así que se preguntó al usuario (2026-10-20), que **autorizó una excepción explícita** (`sbom.cdx.json`, regla `long-hex-literal`) frente a guardar el SBOM en XML para que el escáner no lo leyera.
+Consecuencia: el escáner sigue revisando todo lo demás; la excepción queda escrita con su motivo en `SECRET_ALLOW`. Probado con una instalación limpia `--require-hashes` y una alterada rechazada (`docs/SUPPLY_CHAIN.md`).

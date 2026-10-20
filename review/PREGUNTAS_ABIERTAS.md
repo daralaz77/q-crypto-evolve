@@ -48,6 +48,8 @@ Cada pregunta indica **dónde mirar**, **por qué importa** y **qué cambiaría 
 | 25 | El modelo acota los abortos a uno por clave para que Tamarin termine y solo tiene un servidor: ¿la cota invalida las conclusiones? ¿Hace falta UKS con varios servidores? | `docs/QKD_LAYER_FORMAL.md` §3, §5 | Cobertura del modelo | Ampliar el modelo con inducción o varios servidores |
 | 26 | `later_qkd_leak_exposes_past_session` muestra que la confidencialidad pasada ante una filtración de `K` descansa en que el valor de ligadura de TLS siga secreto: ¿es una garantía útil o engañosa? | `docs/QKD_LAYER_FORMAL.md` §3 | Lo que se puede prometer | Retirar la afirmación |
 
+| 27 | El parámetro `group="X25519"` del puente PSK existe solo para interoperar con pilas sin híbrido. ¿Es aceptable tener esa vía en el código, aun con lista cerrada y atestación, o debería vivir solo en las pruebas? | `qce/transport/tls13_psk.py` | Superficie de degradación | Quitar el parámetro y probar la interoperabilidad con una pila que traiga el híbrido |
+
 ## D. Alcance que usted puede recortar o ampliar
 
 Si alguna de estas preguntas está fuera de su especialidad, déjela en blanco: es más útil una respuesta firme a tres preguntas que una opinión tibia a veinte.

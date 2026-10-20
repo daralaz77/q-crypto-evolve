@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     rp = sub.add_parser("review-package", help="construye (o verifica) el paquete de revisión externa de QCE1")
     rp.add_argument("--verify", metavar="ZIP", help="verifica un paquete existente en vez de construir")
     rp.add_argument("--out", default="dist", help="carpeta de salida (por defecto dist/)")
+    sc = sub.add_parser("supply-chain", help="hashes de dependencias (requirements.hashes.txt) y SBOM CycloneDX (sbom.cdx.json)")
+    sc.add_argument("--check", action="store_true", help="solo comprobar la coherencia con requirements.lock (sin red)")
     sub.add_parser("tls-check", help="atestación del transporte TLS 1.3 con X25519MLKEM768 obligatorio (falla cerrado)")
     sub.add_parser("bench", help="mediciones de rendimiento (no son argumento de seguridad)")
     sub.add_parser("release", help="congela un snapshot verificable del código (NO lo marca estable)")
@@ -100,6 +102,19 @@ def main(argv: list[str] | None = None) -> int:
             return int(bool(problems))
         path, digest = rpk.build(ROOT, ROOT / a.out)
         print(f"{path}\nSHA-256 del zip: {digest}\n(el manifiesto NO está firmado: comunica este hash por otro canal)")
+        return 0
+    if a.cmd == "supply-chain":
+        from .evolve import supply_chain as sc
+        if a.check:
+            problems = sc.check(ROOT)
+            print("\n".join(problems) or "cadena de suministro coherente: lock, hashes y SBOM coinciden")
+            return int(bool(problems))
+        try:
+            done = sc.generate(ROOT, VERSION)
+        except Exception as exc:  # noqa: BLE001  (red caída, PyPI cambia, etc.: se declara, no se inventa)
+            print(f"no se pudo generar (necesita red de solo lectura hacia pypi.org): {type(exc).__name__}: {exc}")
+            return 2
+        print("generados requirements.hashes.txt y sbom.cdx.json para:", ", ".join(done))
         return 0
     if a.cmd == "tls-check":
         from .transport import tls13  # lo primero: debe fijar OPENSSL_CONF antes de que se importe `cryptography`

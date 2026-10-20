@@ -194,8 +194,27 @@ MUTANTS = [
     M("qkdd-firmware-review-off", "qce/qkd/devices.py", (("if new_firmware != r.firmware_version:", "if False:"),), "firmware nuevo exige revisión"),
     M("qkdd-reenroll-off", "qce/qkd/devices.py", (("if device_id in self._d:", "if False:"),), "sin re-alta silenciosa"),
     M("qkdc-secret-repr", "qce/qkd/contract.py", (('return "<KeyMaterial [REDACTED]>"', 'return "<KeyMaterial %s>" % self._b.hex()'),), "secreto fuera de repr"),
-    M('psk-nodelay-client-off', 'qce/transport/tls13_psk.py', (('    _check_suite(suite)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)', '    _check_suite(suite)\n    psk = prepare_psk(qkd_key, identity)'),), 'PSK: TCP_NODELAY (cliente)'),
-    M('psk-nodelay-server-off', 'qce/transport/tls13_psk.py', (('    _check_suite(suite)\n    _nodelay(sock)\n    lib = _load()', '    _check_suite(suite)\n    lib = _load()'),), 'PSK: TCP_NODELAY (servidor)'),
+    M('sc-g1-check-skipped', 'qce/evolve/gates.py', (('        problems += supply_chain.check(root)   # hashes de dependencias y SBOM coherentes con el lock (sin red)\n', ''),), 'cadena de suministro: G1 la comprueba'),
+    M('sc-hash-pattern-loose', 'qce/evolve/supply_chain.py', (('SHA = re.compile(r"^[0-9a-f]{64}$")', 'SHA = re.compile(r"^[0-9a-f]+$")'),), 'cadena de suministro: SHA-256 de 64 hex'),
+    M('sc-missing-hashes-ignored', 'qce/evolve/supply_chain.py', (('            if name not in got:\n                problems.append(f"{name} no tiene hashes")', '            if name not in got:\n                pass'),), 'cadena de suministro: todo paquete con hashes'),
+    M('sc-version-mismatch-ignored', 'qce/evolve/supply_chain.py', (('            elif got[name][0] != ver:', '            elif False:'),), 'cadena de suministro: misma versión que el lock'),
+    M('sc-empty-hashes-allowed', 'qce/evolve/supply_chain.py', (('            elif not got[name][1] or not all(SHA.match(h) for h in got[name][1]):', '            elif not all(SHA.match(h) for h in got[name][1]):'),), 'cadena de suministro: al menos un hash'),
+    M('sc-extra-package-allowed', 'qce/evolve/supply_chain.py', (('            if name not in lock:\n                problems.append(f"{name} tiene hashes pero no está en el lock")', '            if name not in lock:\n                pass'),), 'cadena de suministro: sin paquetes de más'),
+    M('sc-sbom-mismatch-ignored', 'qce/evolve/supply_chain.py', (('        if comps != lock:', '        if False:'),), 'cadena de suministro: SBOM = lock'),
+    M('sc-parser-accepts-options', 'qce/evolve/supply_chain.py', (('            if not p.startswith("--hash=sha256:"):\n                raise QCEError', '            if False:\n                raise QCEError'),), 'cadena de suministro: solo --hash=sha256'),
+    M('sc-pypi-name-unvalidated', 'qce/evolve/supply_chain.py', (('    if not LOCK_LINE.match(f"{name}=={version}"):', '    if False:'),), 'cadena de suministro: nombre validado antes de armar la URL'),
+    M('sc-sbom-nondeterministic', 'qce/evolve/supply_chain.py', (('uuid.uuid5(uuid.NAMESPACE_URL, json.dumps(body, sort_keys=True))', 'uuid.uuid4()'),), 'cadena de suministro: SBOM determinista'),
+    M('sc-hashes-drop-wheels', 'qce/evolve/supply_chain.py', (('        hs = sorted({h for _, h in meta["files"]})', '        hs = sorted({h for f, h in meta["files"] if f.endswith(".tar.gz")}) or sorted({h for _, h in meta["files"]})[:1]'),), 'cadena de suministro: todos los archivos publicados'),
+    M('sc-empty-pypi-response-accepted', 'qce/evolve/supply_chain.py', (('    if not files:\n        raise QCEError', '    if False:\n        raise QCEError'),), 'cadena de suministro: PyPI sin archivos'),
+    M('psk-group-allowlist-off', 'qce/transport/tls13_psk.py', (('    if group not in GROUPS:\n        raise PolicyViolation', '    if False:\n        raise PolicyViolation'),), 'PSK: grupos permitidos'),
+    M('psk-group-attest-uses-default', 'qce/transport/tls13_psk.py', (('    if conn.group != REPORTED_GROUP_NAME[group]:\n        problems.append', '    if conn.group != REPORTED_GROUP_NAME[GROUP]:\n        problems.append'),), 'PSK: se atestigua el grupo pedido'),
+    M('psk-group-context-ignored', 'qce/transport/tls13_psk.py', (('groups = ctypes.create_string_buffer(group.encode())', 'groups = ctypes.create_string_buffer(GROUP.encode())'),), 'PSK: el grupo pedido llega al contexto'),
+    M('psk-group-client-unchecked', 'qce/transport/tls13_psk.py', (('    _check_suite(suite)\n    _check_group(group)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)', '    _check_suite(suite)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)'),), 'PSK: el cliente valida el grupo'),
+    M('psk-group-server-unchecked', 'qce/transport/tls13_psk.py', (('    _check_suite(suite)\n    _check_group(group)\n    _nodelay(sock)\n    lib = _load()', '    _check_suite(suite)\n    _nodelay(sock)\n    lib = _load()'),), 'PSK: el servidor valida el grupo'),
+    M('psk-default-group-classical', 'qce/transport/tls13_psk.py', (('GROUP = "X25519MLKEM768"', 'GROUP = "X25519"'),), 'PSK: el grupo por defecto es el híbrido'),
+    M('psk-groups-allow-more', 'qce/transport/tls13_psk.py', (('GROUPS = ("X25519MLKEM768", "X25519")', 'GROUPS = ("X25519MLKEM768", "X25519", "X448")'),), 'PSK: solo dos grupos permitidos'),
+    M('psk-nodelay-client-off', 'qce/transport/tls13_psk.py', (('    _check_group(group)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)', '    _check_group(group)\n    psk = prepare_psk(qkd_key, identity)'),), 'PSK: TCP_NODELAY (cliente)'),
+    M('psk-nodelay-server-off', 'qce/transport/tls13_psk.py', (('    _check_group(group)\n    _nodelay(sock)\n    lib = _load()', '    _check_group(group)\n    lib = _load()'),), 'PSK: TCP_NODELAY (servidor)'),
     M('cer-parse-public-path-first', 'qce/evolve/ceremony.py', (('    if not re.fullmatch(r"[0-9a-fA-F]+", text):', '    if True:'),), 'ceremonia: lo hexadecimal no es una ruta'),
     M('psk-leak-ssl-not-freed', 'qce/transport/tls13_psk.py', (('        self._l.SSL_free(self._ssl)\n', '        pass\n'),), 'PSK: se libera SSL (fugas de memoria)'),
     M('psk-leak-ctx-not-freed', 'qce/transport/tls13_psk.py', (('        self._l.SSL_CTX_free(self._ctx)\n', '        pass\n'),), 'PSK: se libera SSL_CTX (fugas de memoria)'),
@@ -288,9 +307,9 @@ MUTANTS = [
     M("psk-ident-min-boundary", "qce/transport/tls13_psk.py", (('not 1 <= len(identity) <= IDENT_MAX:\n        raise MalformedMessage', 'not 1 < len(identity) <= IDENT_MAX:\n        raise MalformedMessage'),), "PSK: id mínimo inclusivo"),
     M("psk-ident-max-boundary", "qce/transport/tls13_psk.py", (('not 1 <= len(identity) <= IDENT_MAX:\n        raise MalformedMessage', 'not 1 <= len(identity) < IDENT_MAX:\n        raise MalformedMessage'),), "PSK: id máximo inclusivo"),
     M("psk-length-short", "qce/transport/tls13_psk.py", (('PSK_LEN = 32', 'PSK_LEN = 16'),), "PSK: 32 bytes"),
-    M("psk-attest-skipped", "qce/transport/tls13_psk.py", (('        _attest(conn, suite)\n    except BaseException:\n        conn.close()\n        raise\n    return conn', '    except BaseException:\n        conn.close()\n        raise\n    return conn'),), "PSK: atestación del cliente"),
-    M("psk-attest-server-skipped", "qce/transport/tls13_psk.py", (('        _attest(conn, suite)\n        if state["id"] is None:', '        if state["id"] is None:'),), "PSK: atestación del servidor"),
-    M("psk-attest-group-off", "qce/transport/tls13_psk.py", (('    if conn.group != GROUP:', '    if False:'),), "PSK: grupo híbrido atestiguado"),
+    M("psk-attest-skipped", "qce/transport/tls13_psk.py", (('        _attest(conn, suite, group)\n    except BaseException:\n        conn.close()\n        raise\n    return conn', '    except BaseException:\n        conn.close()\n        raise\n    return conn'),), "PSK: atestación del cliente"),
+    M("psk-attest-server-skipped", "qce/transport/tls13_psk.py", (('        _attest(conn, suite, group)\n        if state["id"] is None:', '        if state["id"] is None:'),), "PSK: atestación del servidor"),
+    M("psk-attest-group-off", "qce/transport/tls13_psk.py", (('    if conn.group != REPORTED_GROUP_NAME[group]:', '    if False:'),), "PSK: grupo híbrido atestiguado"),
     M("psk-attest-version-off", "qce/transport/tls13_psk.py", (('    if conn.version != "TLSv1.3":', '    if False:'),), "PSK: TLS 1.3 atestiguado"),
     M("psk-attest-suite-off", "qce/transport/tls13_psk.py", (('    if conn.cipher != suite:', '    if False:'),), "PSK: suite atestiguada"),
     M("psk-attest-psk-used-off", "qce/transport/tls13_psk.py", (('    if not conn.psk_used:', '    if False:'),), "PSK: uso de la PSK atestiguado"),
@@ -362,7 +381,7 @@ MUTANTS = [
 ]
 
 
-SANDBOX_FILES = ("pytest.ini", "THREAT_MODEL.md", "LIMITATIONS.md", "gates.json", "requirements.lock")
+SANDBOX_FILES = ("pytest.ini", "THREAT_MODEL.md", "LIMITATIONS.md", "gates.json", "requirements.lock", "requirements.hashes.txt", "sbom.cdx.json")
 
 
 def _sandbox(root: Path, work: Path) -> None:

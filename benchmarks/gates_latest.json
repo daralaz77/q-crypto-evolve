@@ -1,35 +1,37 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "008de59988cb1892",
-  "state": "REVIEW_REQUIRED",
+  "release_id": "0d4e6ad46b1cb355",
+  "state": "FAILED",
   "gates": [
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
-      "detail": "cadenas de registro íntegras (71 incidentes/eventos), lock coincide, umbrales no debilitados",
+      "detail": "cadenas de registro íntegras (77 incidentes/eventos), lock coincide, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.26
+      "seconds": 0.22
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "397 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "466 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 41.31
+      "seconds": 74.6
     },
     {
       "gate": "G3-SEGURIDAD",
-      "status": "pass",
-      "detail": "sin malos usos, sin secretos, mutación completa, dependencias limpias",
+      "status": "fail",
+      "detail": "puntuación de mutación 0.9969 < 1.0; supervivientes: ['psk-leak-socket-not-closed']",
       "evidence": {
         "misuse": [],
         "secrets": [],
         "mutation": {
-          "total": 297,
-          "scored": 291,
-          "killed": 291,
-          "score": 1.0,
-          "survivors": [],
+          "total": 324,
+          "scored": 318,
+          "killed": 317,
+          "score": 0.9969,
+          "survivors": [
+            "psk-leak-socket-not-closed"
+          ],
           "declared_equivalent": [
             "hs-direction-binding-off",
             "keys-aad-ignores-generation",
@@ -37,7 +39,7 @@
             "tls-config-allows-tls12",
             "prof-keybinding-off"
           ],
-          "seconds": 1507.9,
+          "seconds": 2776.0,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,21 +48,21 @@
           "checked": 3
         }
       },
-      "seconds": 1509.1
+      "seconds": 2778.69
     },
     {
       "gate": "G4-REGRESION",
       "status": "pass",
-      "detail": "22 incidentes históricos reproducidos y siguen corregidos",
+      "detail": "25 incidentes históricos reproducidos y siguen corregidos",
       "evidence": {
-        "checked": 22
+        "checked": 25
       },
-      "seconds": 14.29
+      "seconds": 15.92
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
-      "detail": "sin declaración firmada del implementador para este código",
+      "detail": "sin revisión firmada de un agente distinto del implementador para este código exacto",
       "evidence": {},
       "seconds": 0.0
     },
@@ -73,21 +75,21 @@
     }
   ],
   "metrics": {
-    "tests_passed": 397,
-    "total_seconds": 1565.0,
-    "incidents_total": 22,
-    "incidents_resolved": 22,
+    "tests_passed": 466,
+    "total_seconds": 2869.4,
+    "incidents_total": 25,
+    "incidents_resolved": 25,
     "recurring_patterns": [
-      "14 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
+      "16 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
       "5 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
-      "2 incidentes con causa 'configuracion': revisar el diseño, no solo el síntoma"
+      "3 incidentes con causa 'configuracion': revisar el diseño, no solo el síntoma"
     ]
   },
   "thresholds": {
-    "min_tests": 395,
+    "min_tests": 466,
     "min_mutation_score": 1.0,
     "max_open_high": 0,
-    "min_mutants": 280,
+    "min_mutants": 300,
     "max_declared_equivalent": 5
   },
   "claims_not_made": [

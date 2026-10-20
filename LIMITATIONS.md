@@ -56,7 +56,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
   controles listados en `qce/evolve/mutation.py`, no si existen vulnerabilidades desconocidas.
 - La demo (`python -m qce demo`) introduce un fallo **conocido por construcción**; demuestra el ciclo, no la capacidad de
   descubrir fallos desconocidos.
-- `pip-audit` necesita red y consulta una base pública; `requirements.lock` no fija hashes de artefactos.
+- `pip-audit` necesita red y consulta una base pública. Los hashes de artefactos y el SBOM existen desde 2026-10-19 (`docs/SUPPLY_CHAIN.md`): cubren la sustitución posterior a la publicación, no una dependencia ya maliciosa; las dependencias de prueba no están fijadas con hash.
 - El proyecto no está bajo control de versiones en esta carpeta; los snapshots de `releases/` hacen de punto de reversión.
 
 ## Transporte TLS 1.3 (`qce/transport`)
@@ -84,3 +84,4 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 
 ## Fuzzing y carga de los puentes
 - Resultados y límites en `docs/FUZZ_Y_CARGA.md`: sin defectos por fuzzing, una fuga real de SLH-DSA corregida (INC-0023), memoria/descriptores/hilos estables. Fuzzing no guiado por cobertura. Probado en macOS (Homebrew) y en un contenedor Debian 13 aarch64 (OpenSSL 3.5.7); no en Windows ni en Linux x86_64.
+- La interoperabilidad con una segunda implementación (GnuTLS 3.8.13) cubre solo el grupo clásico X25519 (GnuTLS no trae el híbrido); el parámetro `group="X25519"` existe solo para eso. Detalle en `docs/TLS13_PSK_TRANSPORT.md` §3b.

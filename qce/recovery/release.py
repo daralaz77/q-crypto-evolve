@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..core.errors import IntegrityError, QCEError
 
-CODE_GLOBS = ("qce", "tests", "requirements.lock", "pytest.ini", "gates.json", "THREAT_MODEL.md",
+CODE_GLOBS = ("qce", "tests", "requirements.lock", "requirements.hashes.txt", "sbom.cdx.json", "pytest.ini", "gates.json", "THREAT_MODEL.md",
               "conftest.py", "sitecustomize.py", "usercustomize.py")
 # La reversión SOLO restaura estos prefijos: nunca claves, evidencia, confianza ni umbrales (evita downgrade de gates.json).
 ROLLBACK_ALLOWED = ("qce/", "tests/", "requirements.lock", "pytest.ini")
@@ -19,7 +19,7 @@ ROLLBACK_ALLOWED = ("qce/", "tests/", "requirements.lock", "pytest.ini")
 # --- nivel de reparación según lo que toca el cambio (sección 7 del skill) --------------
 LEVEL3 = ("qce/core/chainlog.py", "gates.json", "qce/security/scanners.py", "learning/")
 LEVEL2 = ("qce/pqc/", "qce/protocols/", "qce/key_management/", "qce/core/policy.py", "qce/symmetric/",
-          "qce/qkd/", "requirements.lock")
+          "qce/qkd/", "requirements.lock", "requirements.hashes.txt")
 
 
 def change_level(paths: list[str]) -> int:

@@ -30,7 +30,8 @@ def mini_project(tmp: Path) -> Path:
     (tmp / "tests").mkdir()
     (tmp / "tests" / "test_m.py").write_text("from qce.m import f\n\n\ndef test_f():\n    assert f(1) and not f(9)\n")
     (tmp / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n")
-    shutil.copy2(ROOT / "requirements.lock", tmp / "requirements.lock")
+    for f in ("requirements.lock", "requirements.hashes.txt", "sbom.cdx.json"):
+        shutil.copy2(ROOT / f, tmp / f)
     (tmp / "gates.json").write_text(json.dumps({"min_tests": 1, "min_mutation_score": 1.0, "max_open_high": 0, "min_mutants": 0, "max_declared_equivalent": 100}))
     return tmp
 
@@ -381,3 +382,18 @@ def test_sanitize_does_not_destroy_long_readable_identifiers():
     name = "tests/test_audit_findings.py::test_ratchet_survives_repeated_evaluation_with_weakened_thresholds"
     assert sanitize(name) == name
     assert sanitize({"reproduction_test": name})["reproduction_test"] == name
+
+
+def test_gate_g1_blocks_when_dependency_hashes_or_sbom_are_missing_or_incoherent(tmp_path):
+    root = mini_project(tmp_path)
+    kw = dict(version="t", run_mutation=False, run_dep_audit=False)
+    g1 = lambda: next(g for g in gates.evaluate(root, **kw)["gates"] if g["gate"].startswith("G1"))      # noqa: E731
+    base = g1()
+    assert base["status"] == "pass" and "hashes y SBOM coherentes" in base["detail"]                     # el estado base no se bloquea por la cadena de suministro
+    (root / "requirements.hashes.txt").unlink()
+    r = g1()
+    assert r["status"] == "blocked" and "requirements.hashes.txt" in r["detail"]
+    shutil.copy2(ROOT / "requirements.hashes.txt", root / "requirements.hashes.txt")
+    (root / "sbom.cdx.json").write_text(json.dumps({"components": []}))
+    r = g1()
+    assert r["status"] == "blocked" and "sbom.cdx.json" in r["detail"]

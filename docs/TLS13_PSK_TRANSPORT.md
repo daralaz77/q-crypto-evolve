@@ -22,6 +22,14 @@ Al ver el `kid` el servidor **reserva** la clave en su fuente (`reserve`); la **
 - Hallazgo real del trabajo: la cola de errores de OpenSSL es **por hilo**; el cierre fallido de una conexión contaminaba la lectura de otra en el mismo hilo. Corregido y fijado por una prueba.
 - **No** se prueba: la corrección de OpenSSL ni de TLS 1.3 (el análisis formal público de TLS 1.3 incluye PSK, pero **no** lo hemos reproducido aquí), la seguridad de memoria del puente `ctypes`, ni ataques de canal lateral.
 
+## 3b. Segunda implementación independiente: GnuTLS (2026-10-19)
+`tests/test_tls13_psk_gnutls.py` prueba la PSK externa contra **GnuTLS 3.8.13** (`gnutls-cli`, `gnutls-serv`), código distinto del de OpenSSL, en los dos sentidos: un cliente GnuTLS completa el apretón con nuestro servidor e intercambia datos;
+nuestro cliente completa el apretón con `gnutls-serv`; con una clave o una identidad equivocadas GnuTLS y nuestro servidor rechazan y la clave del servidor no se gasta.
+Esto contrasta con una implementación ajena la identidad, la derivación de la PSK, el binder y el calendario de claves en modo `psk_dhe_ke`.
+**Límite:** el GnuTLS de Homebrew no incluye X25519MLKEM768 (solo grupos clásicos), así que estas pruebas usan el parámetro `group="X25519"`, que existe **solo para interoperar** (lista cerrada `GROUPS`; el valor por defecto sigue siendo el híbrido, y
+la atestación exige el grupo pedido). Con `X25519` no hay protección frente a un ordenador cuántico. El grupo híbrido sigue contrastado únicamente con el cliente de OpenSSL. Una prueba comprueba además que **un cliente con el valor por defecto no baja en silencio a X25519**
+cuando el servidor no ofrece el híbrido (falla cerrado). Y la suite exige AES-128-GCM-SHA256 en estas pruebas porque la PSK externa de GnuTLS va ligada a SHA-256.
+
 ## 4. Límites
 - **El puente `ctypes` es código nuestro y delicado** (tipos C, tiempos de vida de los callbacks, propiedad de `SSL_SESSION`). Una revisión humana debería mirarlo antes de producción.
 - El `kid` es visible para un observador de red; no es secreto. La PSK sí lo es.

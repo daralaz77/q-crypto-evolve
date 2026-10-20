@@ -139,9 +139,11 @@ def evaluate(root: Path, *, version: str, run_mutation: bool = True, mutants: li
             for line in lock.read_text().lower().splitlines():
                 if line and line not in frozen:
                     problems.append(f"dependencia instalada difiere del lock: {line}")
+        from . import supply_chain
+        problems += supply_chain.check(root)   # hashes de dependencias y SBOM coherentes con el lock (sin red)
         if problems:
             return GateResult("", "blocked", "; ".join(problems))
-        return GateResult("", "pass", f"cadenas de registro íntegras ({n} incidentes/eventos), lock coincide, umbrales no debilitados")
+        return GateResult("", "pass", f"cadenas de registro íntegras ({n} incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados")
 
     # ---- GATE 2: FUNCIONALIDAD -----------------------------------------------------------------
     box: dict = {}
