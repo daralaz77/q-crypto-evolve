@@ -89,3 +89,16 @@ def test_every_ssl_object_is_balanced_and_the_library_context_is_created_once_an
 def test_the_connection_is_attested_after_the_handshake_with_the_hsm_server_too():
     r = scenario("attest")
     assert r["servidor"]["ok"] is False and r["servidor"]["err"] == "PolicyViolation" and "grupo" in r["servidor"]["msg"]
+
+
+@needs
+def test_mozilla_nss_verifies_the_certificate_whose_key_lives_in_the_token_and_negotiates_the_hybrid_group():
+    r = scenario("nss")
+    if r.get("sin_nss"):
+        pytest.skip("sin NSS (certutil, tstclnt)")
+    ok = r["hibrido_con_ca"]                                                  # NSS (otra implementación) valida la cadena y la firma que hizo el token
+    assert ok["servidor"]["ok"] and tuple(ok["servidor"]["conn"]) == ("TLSv1.3", "X25519MLKEM768", "TLS_AES_256_GCM_SHA384")
+    assert ok["grupo_nss"] and ok["version_tls13"] and ok["respuesta"]
+    assert not r["solo_clasico"]["servidor"]["ok"] and not r["solo_clasico"]["respuesta"]          # un NSS solo clásico no baja el grupo
+    assert not r["sin_confiar_en_la_ca"]["respuesta"]                         # sin confiar en la CA, NSS NO acepta el certificado: de verdad lo verifica
+

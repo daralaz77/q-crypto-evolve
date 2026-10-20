@@ -121,7 +121,7 @@ class PskTlsConnection:
             detail = _errors(self._c)
             if e == 6:  # SSL_ERROR_ZERO_RETURN
                 raise MalformedMessage("conexión cerrada por el par")
-            raise AuthenticationFailure(f"{what} falló en TLS 1.3 con PSK ({detail or 'error ' + str(e)})")
+            raise AuthenticationFailure(f"{what} falló en TLS 1.3 ({detail or 'error ' + str(e)})")
 
     def _read_exact(self, n: int, timeout: float) -> bytes:
         out = bytearray()

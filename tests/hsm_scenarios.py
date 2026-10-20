@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 def find(name, extra=()):
-    return shutil.which(name) or next((p for p in (*extra, f"/opt/homebrew/bin/{name}", f"/usr/local/bin/{name}") if os.path.exists(p)), None)
+    return shutil.which(name) or next((p for p in (*extra, f"/opt/homebrew/bin/{name}", f"/usr/local/bin/{name}", f"/opt/homebrew/opt/nss/bin/{name}", f"/usr/local/opt/nss/bin/{name}") if os.path.exists(p)), None)
 
 
 HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
@@ -320,7 +320,38 @@ def sc_leaks():
                 "libctx_creados": cc.n["OSSL_LIB_CTX_new"], "libctx_liberados": cc.n["OSSL_LIB_CTX_free"]}
 
 
-SCEN = {"lifecycle": sc_lifecycle, "attest": sc_attest, "pin_wrong": sc_pin_wrong, "pin_missing": sc_pin_missing, "pin_ok": sc_pin_ok, "e2e": sc_e2e, "key_never_leaves": sc_key_never_leaves, "refusals": sc_refusals, "key_removed": sc_key_removed, "leaks": sc_leaks}
+def sc_nss():
+    """Mozilla NSS (segunda implementación del híbrido) como CLIENTE de nuestro servidor con la clave en el token: verifica la cadena y la firma hecha por el token."""
+    from qce.transport import hsm_tls as H2
+    certutil, tstclnt = find("certutil"), find("tstclnt")
+    if not (certutil and tstclnt):
+        return {"sin_nss": True}
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        s = setup(td)
+
+        def db(name, trust_ca):
+            d = td / name
+            d.mkdir()
+            subprocess.run([certutil, "-N", "-d", f"sql:{d}", "--empty-password"], check=True, capture_output=True, timeout=60)
+            if trust_ca:
+                subprocess.run([certutil, "-A", "-d", f"sql:{d}", "-n", "labca", "-t", "C,,", "-i", str(s["ca"])], check=True, capture_output=True, timeout=60)
+            return f"sql:{d}"
+        ctx = H2.HsmServerContext(s["conf"], s["cert"], s["uri"])
+        out = {}
+        for name, database, groups in (("hibrido_con_ca", db("a", True), "x25519mlkem768"), ("solo_clasico", db("b", True), "x25519"), ("sin_confiar_en_la_ca", db("c", False), "x25519mlkem768")):
+            ls, port = listener(); res = []
+            t = threading.Thread(target=serve_one, args=(ctx, ls, res)); t.start()
+            r = subprocess.run([tstclnt, "-d", database, "-h", "127.0.0.1", "-p", str(port), "-V", "tls1.3:tls1.3", "-I", groups, "-v"], input=b"\x00\x00\x00\x04ping",
+                               capture_output=True, timeout=30)
+            t.join(15); ls.close()
+            text = (r.stdout + r.stderr).decode(errors="replace")
+            out[name] = {"servidor": res[0] if res else None, "grupo_nss": "Key Exchange Group: x25519mlkem768" in text, "respuesta": b"gnip" in r.stdout, "version_tls13": "SSL version 3.4" in text}
+        ctx.close()
+        return out
+
+
+SCEN = {"lifecycle": sc_lifecycle, "attest": sc_attest, "pin_wrong": sc_pin_wrong, "pin_missing": sc_pin_missing, "pin_ok": sc_pin_ok, "e2e": sc_e2e, "key_never_leaves": sc_key_never_leaves, "refusals": sc_refusals, "key_removed": sc_key_removed, "leaks": sc_leaks, "nss": sc_nss}
 
 if __name__ == "__main__":
     print(json.dumps(SCEN[sys.argv[1]]()))
