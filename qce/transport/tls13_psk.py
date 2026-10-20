@@ -64,7 +64,9 @@ _SIGS = [("TLS_server_method", vp, []), ("TLS_client_method", vp, []), ("SSL_CTX
          ("SSL_SESSION_new", vp, []), ("SSL_SESSION_set1_master_key", ci, [vp, vp, sz]), ("SSL_SESSION_set_cipher", ci, [vp, vp]),
          ("SSL_SESSION_set_protocol_version", ci, [vp, ci]), ("SSL_CIPHER_find", vp, [vp, vp]), ("SSL_get0_group_name", cp, [vp]),
          ("SSL_get_version", cp, [vp]), ("SSL_get_current_cipher", vp, [vp]), ("SSL_CIPHER_get_name", cp, [vp]), ("SSL_session_reused", ci, [vp]),
-         ("SSL_CTX_set_psk_use_session_callback", None, [vp, _CB_CLIENT]), ("SSL_CTX_set_psk_find_session_callback", None, [vp, _CB_SERVER])]
+         ("SSL_CTX_set_psk_use_session_callback", None, [vp, _CB_CLIENT]), ("SSL_CTX_set_psk_find_session_callback", None, [vp, _CB_SERVER]),
+         ("SSL_CTX_new_ex", vp, [vp, cp, vp]), ("SSL_CTX_up_ref", ci, [vp]), ("SSL_CTX_use_certificate_chain_file", ci, [vp, cp]),
+         ("SSL_CTX_use_PrivateKey", ci, [vp, vp]), ("SSL_CTX_check_private_key", ci, [vp])]
 
 _lib_cache: tuple | None = None
 _lib_lock = threading.Lock()
@@ -213,7 +215,8 @@ class PskTlsConnection:
             pass
         self._c.ERR_clear_error()   # el cierre de una conexión no debe dejar errores a la siguiente del mismo hilo
         self._l.SSL_free(self._ssl)
-        self._l.SSL_CTX_free(self._ctx)
+        if self._ctx:
+            self._l.SSL_CTX_free(self._ctx)
         try:
             self._sock.close()
         except OSError:
@@ -232,9 +235,10 @@ def _check_suite(suite: str) -> bytes:
     return SUITES[suite]
 
 
-def _new_ctx(lib, server: bool, suite: str, group: str = GROUP):
+def _new_ctx(lib, server: bool, suite: str, group: str = GROUP, libctx=None):
     l, _ = lib
-    ctx = l.SSL_CTX_new((l.TLS_server_method if server else l.TLS_client_method)())
+    method = (l.TLS_server_method if server else l.TLS_client_method)()
+    ctx = l.SSL_CTX_new_ex(libctx, None, method) if libctx else l.SSL_CTX_new(method)
     if not ctx:
         raise PskTransportUnavailable("no se pudo crear el contexto TLS")
     ok = l.SSL_CTX_ctrl(ctx, 123, TLS13, None) == 1 and l.SSL_CTX_ctrl(ctx, 124, TLS13, None) == 1   # mínimo y máximo = TLS 1.3
@@ -259,7 +263,7 @@ def _session(lib, ssl_p, psk: bytes, suite: str):
     return s if ok else None
 
 
-def _attest(conn: PskTlsConnection, suite: str, group: str = GROUP) -> None:
+def _attest(conn: PskTlsConnection, suite: str, group: str = GROUP, require_psk: bool = True) -> None:
     """Tras el apretón se comprueba lo realmente negociado; cualquier discrepancia cierra la conexión (falla cerrado)."""
     problems = []
     if conn.version != "TLSv1.3":
@@ -268,7 +272,7 @@ def _attest(conn: PskTlsConnection, suite: str, group: str = GROUP) -> None:
         problems.append(f"grupo {conn.group!r}")
     if conn.cipher != suite:
         problems.append(f"suite {conn.cipher!r}")
-    if not conn.psk_used:
+    if require_psk and not conn.psk_used:
         problems.append("la PSK no se usó")
     if problems:
         conn.close()

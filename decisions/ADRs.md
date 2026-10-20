@@ -67,3 +67,8 @@ Por qué: las puertas dependían de una API de Python sin interfaz de uso, así 
 Decisión: `requirements.hashes.txt` (SHA-256 de todos los archivos publicados) y `sbom.cdx.json` (CycloneDX 1.5 determinista) junto al lock, coherencia comprobada en G1 (`qce/evolve/supply_chain.py`).
 El escáner de secretos marcaba los hashes públicos del SBOM; tocar el escáner es nivel 3, así que se preguntó al usuario (2026-10-20), que **autorizó una excepción explícita** (`sbom.cdx.json`, regla `long-hex-literal`) frente a guardar el SBOM en XML para que el escáner no lo leyera.
 Consecuencia: el escáner sigue revisando todo lo demás; la excepción queda escrita con su motivo en `SECRET_ALLOW`. Probado con una instalación limpia `--require-hashes` y una alterada rechazada (`docs/SUPPLY_CHAIN.md`).
+
+## ADR-13 — Clave del servidor TLS en un HSM por PKCS#11 (pkcs11-provider), probada con SoftHSM
+Decisión: `qce/transport/hsm_tls.py` carga `pkcs11-provider` en un contexto de biblioteca de OpenSSL propio y entrega la clave privada del token (por URI) a `SSL_CTX_use_PrivateKey`; falla cerrado y sin alternativa en software. Se descartó la ruta por `ssl` de Python (exige la clave en el proceso) y un agente de claves propio (inventar protocolo).
+Hallazgos que fijaron el diseño: el contexto de biblioteca no se puede liberar mientras haya `fork()` (INC-0027); SoftHSM solo firma RSA de forma fiable (las pruebas usan RSA-PSS).
+Consecuencia: la clave larga del servidor deja de estar en el proceso, pero solo se demostró el mecanismo con SoftHSM; la lista de lo no probado está en `docs/HSM.md`. El proveedor se compila con un guion reproducible que fija su SHA-256 (`docs/hsm_lab/setup.sh`).

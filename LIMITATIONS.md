@@ -76,7 +76,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - Necesita OpenSSL ≥ 3.5 (falla cerrado si no); probado en macOS con Homebrew y en un contenedor Debian 13 aarch64 (suite completa: 463 pasan); no en Windows ni en x86_64. El identificador de clave es visible en el ClientHello. Clave QKD simulada.
 - La corrección de OpenSSL/TLS 1.3 se asume; no se reprodujo su análisis formal.
 - Rotación automática: hay que llamar a `rotate_if_due` periódicamente (sin planificador). Revocación: CRL explícita (sin OCSP, sin distribución automática; sin `crl_file` el cliente no comprueba).
-- **Sigue sin haber HSM ni agente de claves** para la ruta con certificados (Python `ssl` exige la clave en el proceso); en la ruta PSK no existe clave privada de larga duración.
+- **HSM por PKCS#11** (`docs/HSM.md`): la ruta con certificados puede tener la clave en un token (`qce/transport/hsm_tls.py`), probado SOLO con SoftHSM (RSA-PSS); ningún HSM real, ni ML-DSA en el token; un archivo de configuración de HSM por proceso; revocar = reiniciar. Puente sin revisión humana. Sin esta ruta, Python `ssl` sigue exigiendo la clave en el proceso; en la ruta PSK no existe clave privada de larga duración.
 
 ## Adaptador ETSI GS QKD 014 y SLH-DSA
 - El adaptador 014 (`docs/ETSI014_ADAPTER.md`) **no se ha probado con ningún KME real**, solo con un emulador que es simulación. La interfaz solo entrega claves: la garantía es la confianza en el operador del KME y en la ficha aprobada, nunca física. Una clave por petición; sin extensiones de fabricantes.

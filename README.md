@@ -23,6 +23,7 @@ cd ~/Claude/q-crypto-evolve
 | `qce/key_management` | ciclo de vida, envelope, vault cifrado con anti-restauración |
 | `qce/protocols` | handshake `QCE1` (no revisado) y capa de registros |
 | `qce/qkd/etsi014.py` | adaptador de ETSI GS QKD 014 (KME) + emulador (simulación): `docs/ETSI014_ADAPTER.md` |
+| `qce/transport/hsm_tls.py` | servidor TLS 1.3 híbrido con la clave privada en un HSM/token PKCS#11 (probado con SoftHSM): `docs/HSM.md` |
 | `qce/evolve/ceremony.py` | ceremonia de firma humana G5/G6 (`python -m qce identity new|register`, `python -m qce sign`): `review/GUIA_PARA_ENVIAR.md` §5 |
 | `qce/evolve/supply_chain.py` | hashes de dependencias + SBOM CycloneDX (`python -m qce supply-chain`): `docs/SUPPLY_CHAIN.md` |
 | `qce/pqc/slhdsa.py` | SLH-DSA-SHA2-128s por el `libcrypto` del sistema: `docs/SLHDSA.md` |
