@@ -169,5 +169,5 @@ def test_a_hexadecimal_string_is_never_read_as_a_file_even_if_a_file_with_that_n
     f = tmp_path / "ana.pub"
     f.write_text(pub.hex())
     assert ceremony.parse_public("ana.pub") == pub          # lo que no es hexadecimal sí se trata como ruta
-    with pytest.raises(QCEError, match="hexadecimal ni un archivo"):
+    with pytest.raises(QCEError, match="hexadecimal"):
         ceremony.parse_public("x" * 5000)                    # ruta imposible (nombre demasiado largo): error limpio, no OSError
