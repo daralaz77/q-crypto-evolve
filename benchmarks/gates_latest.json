@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "2be0a03eb9027756",
+  "release_id": "33b40db171dc2735",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -13,9 +13,9 @@
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "491 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "492 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 74.79
+      "seconds": 78.29
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -37,7 +37,7 @@
             "tls-config-allows-tls12",
             "prof-keybinding-off"
           ],
-          "seconds": 7835.1,
+          "seconds": 3087.7,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,7 +46,7 @@
           "checked": 3
         }
       },
-      "seconds": 7836.39
+      "seconds": 3089.12
     },
     {
       "gate": "G4-REGRESION",
@@ -55,7 +55,7 @@
       "evidence": {
         "checked": 25
       },
-      "seconds": 17.45
+      "seconds": 16.24
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -73,8 +73,8 @@
     }
   ],
   "metrics": {
-    "tests_passed": 491,
-    "total_seconds": 7928.9,
+    "tests_passed": 492,
+    "total_seconds": 3183.9,
     "incidents_total": 25,
     "incidents_resolved": 25,
     "recurring_patterns": [
@@ -84,7 +84,7 @@
     ]
   },
   "thresholds": {
-    "min_tests": 491,
+    "min_tests": 492,
     "min_mutation_score": 1.0,
     "max_open_high": 0,
     "min_mutants": 320,
