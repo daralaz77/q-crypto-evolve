@@ -100,10 +100,9 @@ def test_a_signature_made_by_the_openssl_tool_verifies_with_our_code(tmp_path):
 
 def test_primitive_fails_closed_without_a_usable_openssl(monkeypatch):
     from qce.core.errors import PolicyViolation
-    from qce.transport import tls13_psk as P
+    from qce.core import openssl_ffi
     monkeypatch.setattr(S, "_cache", None)
-    monkeypatch.setattr(P, "_lib_cache", None)
-    monkeypatch.setattr(P, "_CANDIDATES", ("/no/existe/libssl.so.3",))
+    monkeypatch.setattr(openssl_ffi, "CANDIDATES", ("/no/existe/libssl.so.3",))
     with pytest.raises(PolicyViolation):
         S.SlhDsaPrivateKey.generate()
 

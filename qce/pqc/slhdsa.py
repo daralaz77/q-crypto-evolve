@@ -13,7 +13,7 @@ import ctypes
 import threading
 
 from ..core.errors import AuthenticationFailure, MalformedMessage, PolicyViolation
-from ..transport import tls13_psk as _ffi
+from ..core import openssl_ffi as _ffi
 
 ALGORITHM = "SLH-DSA-SHA2-128s"
 PK_LEN = 32
@@ -50,8 +50,8 @@ def _crypto():
         if _cache is not None:
             return _cache
         try:
-            crypto = _ffi._load()[1]
-        except _ffi.PskTransportUnavailable as exc:
+            crypto = _ffi.load()[1]
+        except _ffi.OpenSslUnavailable as exc:
             raise PolicyViolation(f"SLH-DSA no disponible: {exc}") from exc
         for name, res, args in _SIGS:
             f = getattr(crypto, name)

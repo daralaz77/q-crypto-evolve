@@ -10,6 +10,11 @@ MAX_FIELD = 16384
 MAX_FIELDS = 16
 
 
+def lp(x: bytes) -> bytes:
+    """Prefijo de longitud de 4 bytes (big-endian). Lo usan la derivación de la PSK y el transcript de QIL1; `evolve/qil_conformance.py` y las pruebas lo reimplementan A PROPÓSITO como segundo observador independiente."""
+    return len(x).to_bytes(4, "big") + x
+
+
 def pack(tag: int, fields: Sequence[bytes]) -> bytes:
     if not 0 <= tag < 256 or len(fields) > MAX_FIELDS:
         raise MalformedMessage("tag o número de campos fuera de rango")

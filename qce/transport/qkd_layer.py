@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives import hashes  # noqa: E402
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305  # noqa: E402
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF  # noqa: E402
 
+from ..core.encoding import lp as _lp  # noqa: E402
 from ..core.errors import AuthenticationFailure, KeyStateError, MalformedMessage, PolicyViolation  # noqa: E402
 
 VERSION = b"QIL1"
@@ -37,10 +38,6 @@ BIND_MIN = 12               # tls-unique de TLS 1.3 en OpenSSL mide 48 bytes; me
 MAX_RECORDS = 1 << 32       # límite de registros por dirección (el contador es el nonce); más allá hay que abrir otra sesión
 MAX_PLAINTEXT = tls13.MAX_FRAME - 16
 HANDSHAKE_TIMEOUT = 10.0   # segundos que el servidor mantiene una clave reservada esperando al cliente
-
-
-def _lp(x: bytes) -> bytes:
-    return len(x).to_bytes(4, "big") + x
 
 
 def _mac(key: bytes, msg: bytes) -> bytes:

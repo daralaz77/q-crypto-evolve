@@ -9,6 +9,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from qce.core import openssl_ffi as ffi
 from qce.core.errors import AuthenticationFailure, MalformedMessage, PolicyViolation
 from qce.qkd.sources import OneTimeKeys
 from qce.transport import tls13_psk as P
@@ -182,10 +183,9 @@ def test_inputs_are_validated_at_their_limits():
 
 def test_transport_fails_closed_without_a_usable_openssl(monkeypatch):
     monkeypatch.setattr(P, "_lib_cache", None)
-    monkeypatch.setattr(P, "_CANDIDATES", ("/no/existe/libssl.so.3",))
+    monkeypatch.setattr(ffi, "CANDIDATES", ("/no/existe/libssl.so.3",))
     with pytest.raises(P.PskTransportUnavailable):
         P._load()
-    monkeypatch.setattr(P, "_CANDIDATES", tuple(c for c in P._CANDIDATES) or ("x",))
     monkeypatch.setattr(P, "_lib_cache", None)
 
 
@@ -193,7 +193,7 @@ def test_transport_fails_closed_without_a_usable_openssl(monkeypatch):
 def test_too_old_openssl_is_refused(monkeypatch):
     real = P._lib_cache
     monkeypatch.setattr(P, "_lib_cache", None)
-    monkeypatch.setattr(P, "OPENSSL_MIN", 0xFFFFFFFF)
+    monkeypatch.setattr(ffi, "OPENSSL_MIN", 0xFFFFFFFF)
     with pytest.raises(P.PskTransportUnavailable):
         P._load()
     monkeypatch.setattr(P, "_lib_cache", real)

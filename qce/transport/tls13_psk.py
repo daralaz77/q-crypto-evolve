@@ -26,6 +26,8 @@ from typing import Callable
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from ..core import openssl_ffi as ffi
+from ..core.encoding import lp as _lp
 from ..core.errors import AuthenticationFailure, MalformedMessage, PolicyViolation, QCEError
 
 GROUP = "X25519MLKEM768"
@@ -42,16 +44,11 @@ QKD_KEY_MIN = 32
 QKD_KEY_MAX = 1024
 MAX_FRAME = 1 << 20
 HANDSHAKE_TIMEOUT = 10.0
-OPENSSL_MIN = 0x30500000        # 3.5: primer OpenSSL con ML-KEM e híbridos X25519MLKEM768
-
-_CANDIDATES = (os.environ.get("QCE_LIBSSL", ""), "/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib", "/usr/local/opt/openssl@3/lib/libssl.3.dylib",
-               "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/lib64/libssl.so.3", "libssl.so.3")
 
 WANT_READ, WANT_WRITE = 2, 3
 
 
-class PskTransportUnavailable(QCEError):
-    """No hay una biblioteca OpenSSL utilizable (≥ 3.5 con el grupo híbrido): el transporte no se degrada, no existe."""
+PskTransportUnavailable = ffi.OpenSslUnavailable      # mismo tipo: quien captura la excepción antigua sigue funcionando
 
 
 vp, cp, sz, ci = ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int
@@ -73,46 +70,15 @@ _lib_lock = threading.Lock()
 
 
 def _load():
+    """`(libssl, libcrypto)` ya con las firmas de este módulo; cachea y falla cerrado (la carga vive en `core.openssl_ffi`)."""
     global _lib_cache
     with _lib_lock:
-        if _lib_cache is not None:
-            return _lib_cache
-        tried = []
-        for path in _CANDIDATES:
-            if not path:
-                continue
-            try:
-                ssl_lib = ctypes.CDLL(path)
-                crypto = ctypes.CDLL(os.path.join(os.path.dirname(path), os.path.basename(path).replace("libssl", "libcrypto")) if os.path.dirname(path)
-                                     else path.replace("libssl", "libcrypto"))
-                crypto.OpenSSL_version_num.restype = ctypes.c_ulong
-                if crypto.OpenSSL_version_num() < OPENSSL_MIN:
-                    tried.append(f"{path}: versión {crypto.OpenSSL_version_num():#x} < 3.5")
-                    continue
-                for name, res, args in _SIGS:
-                    fn = getattr(ssl_lib, name)
-                    fn.restype, fn.argtypes = res, args
-                crypto.ERR_get_error.restype = ctypes.c_ulong
-                crypto.ERR_clear_error.restype, crypto.ERR_clear_error.argtypes = None, []
-                crypto.ERR_error_string_n.argtypes = [ctypes.c_ulong, ctypes.c_char_p, sz]
-                _lib_cache = (ssl_lib, crypto)
-                return _lib_cache
-            except (OSError, AttributeError) as exc:
-                tried.append(f"{path}: {type(exc).__name__}")
-        raise PskTransportUnavailable("no hay una biblioteca OpenSSL ≥ 3.5 utilizable (" + "; ".join(tried) + "); defina QCE_LIBSSL")
+        if _lib_cache is None:
+            _lib_cache = ffi.load(_SIGS)
+        return _lib_cache
 
 
-def _errors(crypto) -> str:
-    out = []
-    while (e := crypto.ERR_get_error()):
-        b = ctypes.create_string_buffer(256)
-        crypto.ERR_error_string_n(e, b, 256)
-        out.append(b.value.decode(errors="replace"))
-    return "; ".join(out[:3])
-
-
-def _lp(x: bytes) -> bytes:
-    return len(x).to_bytes(4, "big") + x
+_errors = ffi.errors
 
 
 def prepare_psk(qkd_key: bytes, identity: bytes) -> bytes:
