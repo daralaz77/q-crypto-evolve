@@ -13,7 +13,8 @@ import pytest
 
 from qce.core.chainlog import ChainLog, sanitize
 from qce.core.errors import IntegrityError, QCEError
-from qce.evolve import approvals, gates, mutation
+from qce.evolve import gates, mutation
+from qce.security import approvals
 from qce.evolve.workflow import Task, Workflow
 from qce.learning.ledger import Incident, Ledger
 from qce.pqc.hybrid import HybridSigPrivateKey

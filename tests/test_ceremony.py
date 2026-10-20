@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from qce.core.errors import QCEError
-from qce.evolve import approvals, ceremony
+from qce.evolve import ceremony
+from qce.security import approvals
 from qce.pqc.hybrid import SIG_PK_LEN
 
 ROOT = Path(__file__).resolve().parent.parent

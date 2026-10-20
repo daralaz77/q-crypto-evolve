@@ -1,9 +1,7 @@
-"""Mutantes de evolve (55). Archivos que rompen: qce/evolve/approvals.py, qce/evolve/ceremony.py, qce/evolve/gates.py, qce/evolve/mutation.py, qce/evolve/supply_chain.py, qce/evolve/workflow.py."""
+"""Mutantes de evolve (49). Archivos que rompen: qce/evolve/ceremony.py, qce/evolve/gates.py, qce/evolve/mutation.py, qce/evolve/supply_chain.py, qce/evolve/workflow.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
-    M("trust-key-unique-off", "qce/evolve/approvals.py", (("if e[\"public_key\"] == public_bytes.hex() and other != identity:", "if False:"),), "una clave = una identidad"),
-    M("trust-veto-off", "qce/evolve/approvals.py", (("if not reg_p.exists() or has_valid_veto(root, release_id, role):", "if not reg_p.exists():"),), "veto de reject"),
     M("wf-resume-shortcut", "qce/evolve/workflow.py", (("allowed.add(t[\"resume_to\"])  # solo se vuelve a donde se estaba", "allowed.add(\"INDEPENDENT_REVIEW\")"),), "sin atajo desde REVIEW_REQUIRED"),
     M("wf-findings-erasable", "qce/evolve/workflow.py", (("findings = sorted(set(t[\"blocking_findings\"]) | set(blocking_findings or []))", "findings = sorted(set(blocking_findings or []))"),), "hallazgos no borrables"),
     M("wf-approval-unverified", "qce/evolve/workflow.py", (("if self._verify_approval is None or not refs or not all(self._verify_approval(r) for r in refs):", "if False:"),), "aprobación verificable"),
@@ -24,10 +22,6 @@ MUTANTS = [
     M("g3-min-mutants-off", "qce/evolve/gates.py", (('if m["scored"] < c.th["min_mutants"]:', 'if False:'),), "mínimo de mutantes"),
     M("g3-equiv-cap-off", "qce/evolve/gates.py", (('if len(m["declared_equivalent"]) > c.th["max_declared_equivalent"]:', 'if False:'),), "tope de equivalentes"),
     M("g4-resolved-no-test-off", "qce/evolve/gates.py", (('if inc.get("status") == "resuelto" and not inc.get("reproduction_test"):', 'if False:'),), "resuelto exige prueba"),
-    M("appr-casefold-off", "qce/evolve/approvals.py", (('if other != identity and unicodedata.normalize("NFKC", other).casefold() == identity.casefold():', 'if False:'),), "identidades sin colisión"),
-    M("appr-role-change-off", "qce/evolve/approvals.py", (('if identity in data and data[identity]["role"] != role:', 'if False:'),), "sin cambio de rol"),
-    M("appr-filename-verdict-off", "qce/evolve/approvals.py", (('[:16]}.{verdict}.json"', '[:16]}.json"'),), "accept no pisa reject"),
-    M("appr-junk-off", "qce/evolve/approvals.py", (('except (ValueError, OSError, AttributeError):', 'except OSError:'),), "ficheros basura"),
     M("mut-only-unknown-off", "qce/evolve/mutation.py", (('        if unknown:\n', '        if False:\n'),), "only desconocido falla"),
     M('sc-g1-check-skipped', 'qce/evolve/gates.py', (('    problems += supply_chain.check(c.root)   # hashes de dependencias y SBOM coherentes con el lock (sin red)\n', ''),), 'cadena de suministro: G1 la comprueba'),
     M('sc-hash-pattern-loose', 'qce/evolve/supply_chain.py', (('SHA = re.compile(r"^[0-9a-f]{64}$")', 'SHA = re.compile(r"^[0-9a-f]+$")'),), 'cadena de suministro: SHA-256 de 64 hex'),

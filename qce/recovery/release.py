@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from ..core.errors import IntegrityError, QCEError
+from ..security import approvals
 
 CODE_GLOBS = ("qce", "tests", "requirements.lock", "requirements.hashes.txt", "sbom.cdx.json", "pytest.ini", "gates.json", "THREAT_MODEL.md",
               "conftest.py", "sitecustomize.py", "usercustomize.py")
@@ -126,7 +127,6 @@ def verify_release(root: Path, release_id: str) -> None:
 
 def mark_stable(root: Path, release_id: str, approver: str) -> None:
     """Requiere una declaración FIRMADA y válida del aprobador para ESTE release; nunca retrocede a una secuencia menor."""
-    from ..evolve import approvals  # import tardío: evita ciclo
     if not approver or approver not in approvals.valid_statements(root, release_id, "approver"):
         raise QCEError("marcar estable requiere una declaración firmada y válida de un aprobador registrado")
     verify_release(root, release_id)
@@ -146,7 +146,6 @@ def rollback(root: Path, release_id: str | None = None) -> list[str]:
     No toca vault, claves, contadores, registros de auditoría ni el libro de incidentes:
     revertirlos podría resucitar claves revocadas o borrar evidencia.
     """
-    from ..evolve import approvals
     st = json.loads((root / "releases" / "STABLE").read_text())
     if release_id is None:
         release_id = st["release_id"]

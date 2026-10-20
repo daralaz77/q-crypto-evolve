@@ -14,7 +14,8 @@ from ..core.errors import IntegrityError, QCEError
 from ..learning.ledger import Ledger, check_test_ref
 from ..recovery import release as rel
 from ..security import scanners
-from . import approvals, mutation
+from ..security import approvals
+from . import mutation
 
 DEFAULT_THRESHOLDS = {"min_tests": 60, "min_mutation_score": 1.0, "max_open_high": 0, "min_mutants": 0, "max_declared_equivalent": 10**6}
 CRITICAL = "critico"

@@ -9,7 +9,8 @@ import pytest
 
 from qce.core.chainlog import ChainLog, sanitize
 from qce.core.errors import (AuthenticationFailure, IntegrityError, KeyStateError, PolicyViolation, QCEError)
-from qce.evolve import approvals, gates, mutation
+from qce.evolve import gates, mutation
+from qce.security import approvals
 from qce.evolve.workflow import Task, Workflow
 from qce.key_management import vault
 from qce.key_management.keystore import KeyStore, Purpose, State

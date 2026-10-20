@@ -22,7 +22,8 @@ from ..key_management.keystore import KeyStore, Purpose
 from ..learning.ledger import Incident, Ledger
 from ..pqc.hybrid import HybridSigPrivateKey
 from ..recovery import release as rel
-from . import approvals, gates
+from ..security import approvals
+from . import gates
 from .mutation import MUTANTS
 from .workflow import Task, Workflow
 

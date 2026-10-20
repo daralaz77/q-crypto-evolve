@@ -2,7 +2,7 @@
 
 Reglas de diseño:
 - La clave privada la crea y la guarda LA PERSONA, en un archivo 0600 FUERA del repositorio; este código se niega a escribirla dentro del árbol del proyecto.
-  Un agente que no posee esa clave no puede fabricar la declaración (ver approvals.py); y la CLI exige una terminal interactiva para firmar.
+  Un agente que no posee esa clave no puede fabricar la declaración (ver security/approvals.py); y la CLI exige una terminal interactiva para firmar.
 - Registrar una identidad en `trust/registry.json` NO la aprueba: solo asocia clave pública, rol y nombre. Quién revisa o autoriza lo decide la persona al firmar.
 - Una firma está ligada a un `release_id` (hash del contenido): cualquier cambio posterior de código la invalida. Hay que firmar sobre el commit final.
 Límite declarado (LIMITATIONS.md): el registro de confianza vive en el repositorio; en producción debe anclarse fuera.
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from ..core.errors import AuthenticationFailure, QCEError
 from ..pqc.hybrid import SIG_PK_LEN, HybridSigPrivateKey
-from . import approvals
+from ..security import approvals
 
 SEED_HEX_LEN = 2 * (32 + 32)
 
