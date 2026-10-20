@@ -1,37 +1,35 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "0d4e6ad46b1cb355",
-  "state": "FAILED",
+  "release_id": "2be0a03eb9027756",
+  "state": "REVIEW_REQUIRED",
   "gates": [
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
-      "detail": "cadenas de registro íntegras (77 incidentes/eventos), lock coincide, umbrales no debilitados",
+      "detail": "cadenas de registro íntegras (77 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.22
+      "seconds": 0.23
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "466 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "491 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 74.6
+      "seconds": 74.79
     },
     {
       "gate": "G3-SEGURIDAD",
-      "status": "fail",
-      "detail": "puntuación de mutación 0.9969 < 1.0; supervivientes: ['psk-leak-socket-not-closed']",
+      "status": "pass",
+      "detail": "sin malos usos, sin secretos, mutación completa, dependencias limpias",
       "evidence": {
         "misuse": [],
         "secrets": [],
         "mutation": {
-          "total": 324,
-          "scored": 318,
-          "killed": 317,
-          "score": 0.9969,
-          "survivors": [
-            "psk-leak-socket-not-closed"
-          ],
+          "total": 343,
+          "scored": 337,
+          "killed": 337,
+          "score": 1.0,
+          "survivors": [],
           "declared_equivalent": [
             "hs-direction-binding-off",
             "keys-aad-ignores-generation",
@@ -39,7 +37,7 @@
             "tls-config-allows-tls12",
             "prof-keybinding-off"
           ],
-          "seconds": 2776.0,
+          "seconds": 7835.1,
           "canary_ok": true
         },
         "dependencies": {
@@ -48,7 +46,7 @@
           "checked": 3
         }
       },
-      "seconds": 2778.69
+      "seconds": 7836.39
     },
     {
       "gate": "G4-REGRESION",
@@ -57,12 +55,12 @@
       "evidence": {
         "checked": 25
       },
-      "seconds": 15.92
+      "seconds": 17.45
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
-      "detail": "sin revisión firmada de un agente distinto del implementador para este código exacto",
+      "detail": "sin declaración firmada del implementador para este código",
       "evidence": {},
       "seconds": 0.0
     },
@@ -75,8 +73,8 @@
     }
   ],
   "metrics": {
-    "tests_passed": 466,
-    "total_seconds": 2869.4,
+    "tests_passed": 491,
+    "total_seconds": 7928.9,
     "incidents_total": 25,
     "incidents_resolved": 25,
     "recurring_patterns": [
@@ -86,10 +84,10 @@
     ]
   },
   "thresholds": {
-    "min_tests": 466,
+    "min_tests": 491,
     "min_mutation_score": 1.0,
     "max_open_high": 0,
-    "min_mutants": 300,
+    "min_mutants": 320,
     "max_declared_equivalent": 5
   },
   "claims_not_made": [
