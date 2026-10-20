@@ -1,0 +1,30 @@
+"""Mutantes de qkd / profiles (24). Archivos que rompen: qce/qkd/profiles.py."""
+from ._base import Mutant as M
+
+MUTANTS = [
+    M("prof-qber-range-off", "qce/qkd/profiles.py", (("if not _num(q) or not 0.0 <= q <= 0.5:", "if False:"),), "QBER físicamente válido"),
+    M("prof-tsirelson-off", "qce/qkd/profiles.py", (("s > TSIRELSON + 1e-9", "s > TSIRELSON + 1.0"),), "cota de Tsirelson"),
+    M("prof-chsh-margin-boundary", "qce/qkd/profiles.py", (("elif s <= CLASSICAL_CHSH + policy.chsh_margin:", "elif s < CLASSICAL_CHSH + policy.chsh_margin:"),), "CHSH inclusivo"),
+    M("prof-chsh-off", "qce/qkd/profiles.py", (("elif s <= CLASSICAL_CHSH + policy.chsh_margin:", "elif False:"),), "Bell/CHSH"),
+    M("prof-pa-off", "qce/qkd/profiles.py", (("if \"privacy_amplification\" in profile.witnesses and evidence[\"privacy_amplification\"] is not True:", "if False:"),), "amplificación de privacidad"),
+    M("prof-epsilon-off", "qce/qkd/profiles.py", (("elif eps > policy.max_epsilon:", "elif False:"),), "clave finita ε"),
+    M("prof-hops-off", "qce/qkd/profiles.py", (("elif hops > policy.max_trusted_hops:", "elif False:"),), "saltos de confianza"),
+    M("prof-relay-off", "qce/qkd/profiles.py", (("evidence.get(\"relay_holds_key\") is not False", "False"),), "relé MDI no confiable"),
+    M("prof-decoy-off", "qce/qkd/profiles.py", (("evidence[\"decoy_ok\"] is not True", "False"),), "estados señuelo"),
+    M("prof-spec-required-off", "qce/qkd/profiles.py", (("if not spec or not _num(spec.get(need)):", "if False:"),), "ficha aprobada"),
+    M("prof-phase-off", "qce/qkd/profiles.py", (("elif pe > spec[\"phase_error_max\"]:", "elif False:"),), "error de fase TF"),
+    M("prof-calibration-off", "qce/qkd/profiles.py", (("if evidence[\"shot_noise_calibrated\"] is not True:", "if False:"),), "calibración CV"),
+    M("prof-excess-noise-off", "qce/qkd/profiles.py", (("elif spec and _num(spec.get(\"excess_noise_max\")) and xi > spec[\"excess_noise_max\"]:", "elif False:"),), "ruido en exceso CV"),
+    M("prof-loophole-off", "qce/qkd/profiles.py", (("if \"loophole_free\" in profile.witnesses and evidence[\"loophole_free\"] is not True:", "if False:"),), "DI sin lagunas"),
+    M("prof-missing-witness-off", "qce/qkd/profiles.py", (("    if missing:\n", "    if False:\n"),), "testigos ausentes"),
+    M("prof-assurance-eval-off", "qce/qkd/profiles.py", (("if profile.assurance < Assurance(policy.min_assurance) or profile.assurance == Assurance.NONE:", "if False:"),), "garantía mínima"),
+    M("prof-qber-off", "qce/qkd/profiles.py", (("elif q >= policy.qber_abort:", "elif False:"),), "QBER en perfiles"),
+    M("prof-keybinding-off", "qce/qkd/profiles.py", (("if key_id is not None and profile.per_key_witnesses and evidence[\"key_id\"] != key_id:", "if False:"),), "testigos ligados a clave",
+      "el broker aplica el mismo enlace tras adquirir (qkdb-witness-binding-off); la comprobación en evaluate() es redundante"),
+    M('prof-etsi-keysize-floor-off', 'qce/qkd/profiles.py', (('ksb < 128 or ksb % 8', 'ksb < 0 or ksb % 8'),), 'perfil ETSI: tamaño mínimo'),
+    M('prof-etsi-keysize-boundary', 'qce/qkd/profiles.py', (('ksb < 128 or ksb % 8', 'ksb <= 128 or ksb % 8'),), 'perfil ETSI: tamaño mínimo inclusivo'),
+    M('prof-etsi-keysize-multiple-off', 'qce/qkd/profiles.py', (('ksb < 128 or ksb % 8', 'ksb < 128'),), 'perfil ETSI: múltiplo de 8'),
+    M('prof-etsi-keysize-type-off', 'qce/qkd/profiles.py', (('if not isinstance(ksb, int) or isinstance(ksb, bool) or ksb < 128', 'if ksb < 128'),), 'perfil ETSI: tipo del tamaño'),
+    M('prof-hops-from-spec-off', 'qce/qkd/profiles.py', (('else (spec or {}).get("trusted_hops")', 'else 0'),), 'perfil ETSI: saltos desde la ficha'),
+    M('prof-hops-missing-reported-invalid', 'qce/qkd/profiles.py', (('if hops is None and "trusted_hops" not in profile.witnesses:\n        pass', 'if False:\n        pass'),), 'perfil ETSI: ficha ausente es política'),
+]

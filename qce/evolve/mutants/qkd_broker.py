@@ -1,0 +1,31 @@
+"""Mutantes de qkd / broker (26). Archivos que rompen: qce/qkd/broker.py."""
+from ._base import Mutant as M
+
+MUTANTS = [
+    M("qkdb-simulation-allowed", "qce/qkd/broker.py", (("if caps.is_simulation and not self.policy.allow_simulated_qkd:", "if False:"),), "simulación ≠ hardware (broker)"),
+    M("qkdb-trust-not-rechecked", "qce/qkd/broker.py", (("if not self.registry.is_trusted(ad.device_id):  # se reevalúa en CADA operación", "if False:"),), "confianza en cada operación"),
+    M("qkdb-consumer-auth-off", "qce/qkd/broker.py", (("if consumer not in self._allowed.get(link_id, set()):", "if False:"),), "consumidor autorizado"),
+    M("qkdb-consume-state-off", "qce/qkd/broker.py", (("if ref.state is not KeyState.RESERVED or ref.reserved_by != consumer:\n            self._log(\"consume_denied\"", "if False:\n            self._log(\"consume_denied\""),), "consumo único / reserva"),
+    M("qkdb-reserved-by-off", "qce/qkd/broker.py", (("or ref.reserved_by != consumer:\n            self._log(\"consume_denied\"", ":\n            self._log(\"consume_denied\""),), "reserva por consumidor"),
+    M("qkdb-quarantine-not-sticky", "qce/qkd/broker.py", (("if link_id in self._link_blocked:", "if False:"),), "cuarentena persistente"),
+    M("qkdb-duplicate-key-id-off", "qce/qkd/broker.py", (("if ref.key_reference in self._refs:\n                mat.destroy()", "if False:\n                mat.destroy()"),), "key_ID único"),
+    M("qkdb-integrity-off", "qce/qkd/broker.py", (("if not ref.integrity_ok:", "if False:"),), "integridad de clave"),
+    M("qkdb-expiry-off", "qce/qkd/broker.py", (("self._clock() >= ref.expires_at", "False"),), "caducidad de clave"),
+    M("qkdb-response-shape-off", "qce/qkd/broker.py", (("if not (isinstance(res, tuple) and len(res) == 2 and isinstance(res[0], KeyReference) and isinstance(res[1], KeyMaterial)):", "if False:"),), "validación de respuesta"),
+    M("brk-normalize-off", "qce/qkd/broker.py", (('ref = self._normalize(ref, ad, link_id)', 'ref = ref'),), "metadatos propios del broker"),
+    M("brk-spec-from-device", "qce/qkd/broker.py", (('self._caps[link_id] = (protocol, rec.spec, bool(caps.is_simulation))', 'self._caps[link_id] = (protocol, caps.spec, bool(caps.is_simulation))'),), "ficha del alta humano"),
+    M("brk-protocol-pin-off", "qce/qkd/broker.py", (('if rec.protocol and caps.qkd_protocol != rec.protocol:', 'if False:'),), "protocolo fijado"),
+    M("brk-witness-dict-off", "qce/qkd/broker.py", (('if not isinstance(w, dict):', 'if False:'),), "testigos tipados"),
+    M("brk-ttl-clamp-off", "qce/qkd/broker.py", (('expires = min(ref.expires_at, now + self.policy.max_key_ttl_s)', 'expires = ref.expires_at'),), "tope de TTL"),
+    M("brk-already-expired-off", "qce/qkd/broker.py", (('if expires <= now:', 'if False:'),), "clave caducada al llegar"),
+    M("qkdb-assurance-attach-off", "qce/qkd/broker.py", (("if prof.assurance < profiles.Assurance(self.policy.min_assurance) or prof.assurance == profiles.Assurance.NONE:", "if False:"),), "garantía mínima en alta"),
+    M("qkdb-witness-binding-off", "qce/qkd/broker.py", (("and evidence.get(\"key_id\") != ref.key_reference:", "and False:"),), "testigos de otra clave"),
+    M("qkdb-witness-anomaly-off", "qce/qkd/broker.py", (("if any(f.kind == \"anomaly\" for f in findings):", "if False:"),), "anomalía → cuarentena"),
+    M("qkdb-witness-invalid-off", "qce/qkd/broker.py", (("if any(f.kind == \"invalid\" for f in findings):", "if False:"),), "inválido → rechazo"),
+    M('qkdb-per-key-flag-off', 'qce/qkd/broker.py', (('profiles.profile_for(self._caps[link_id][0]).per_key_witnesses and evidence', 'evidence'),), 'broker: testigos por clave solo si el perfil los da'),
+    M("qkdb-peek-state-off", "qce/qkd/broker.py", (("if ref.state is not KeyState.RESERVED or ref.reserved_by != consumer:\n            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f\"clave no reservada", "if False:\n            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f\"clave no reservada"),), "broker: lectura solo con reserva propia"),
+    M("qkdb-peek-owner-off", "qce/qkd/broker.py", (("or ref.reserved_by != consumer:\n            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f\"clave no reservada", ":\n            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f\"clave no reservada"),), "broker: lectura solo del dueño de la reserva"),
+    M("qkdb-release-owner-off", "qce/qkd/broker.py", (("if ref is not None and ref.state is KeyState.RESERVED and ref.reserved_by == consumer:", "if ref is not None and ref.state is KeyState.RESERVED:"),), "broker: solo el dueño libera"),
+    M("qkdb-release-state-off", "qce/qkd/broker.py", (("if ref is not None and ref.state is KeyState.RESERVED and ref.reserved_by == consumer:", "if ref is not None and ref.reserved_by == consumer:"),), "broker: una clave consumida no resucita"),
+    M("qkdb-release-noop", "qce/qkd/broker.py", (("            ref.state, ref.reserved_by = KeyState.AVAILABLE, \"\"\n", "            pass\n"),), "broker: liberar devuelve la clave"),
+]
