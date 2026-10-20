@@ -11,10 +11,12 @@ LÍMITES, medidos y no supuestos:
     contra un servidor NSS: ese sentido de la PSK externa solo está contrastado con GnuTLS (X25519) y con OpenSSL.
   · La PSK externa de NSS va ligada a SHA-256, como la de OpenSSL y GnuTLS: con nuestra suite por defecto (AES-256-GCM-SHA384) NSS no completa el apretón (se prueba).
 """
+import json
 import os
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -136,6 +138,28 @@ def test_with_our_default_sha384_suite_nss_cannot_complete_and_the_key_is_kept()
         srv.close()
 
 
+ROOT = Path(__file__).resolve().parent.parent
+CERT_CLIENT = """
+import json, sys
+from qce.transport import tls13
+pem, port = sys.argv[1], int(sys.argv[2])
+try:
+    s = tls13.connect(tls13.client_context(pem), "127.0.0.1", port, server_hostname="localhost", timeout=8)
+    s.sendall(b"GET / HTTP/1.0\\r\\n\\r\\n")
+    print(json.dumps({"ok": True, "version": s.version(), "data": s.recv(15).decode()}))
+except Exception as exc:
+    print(json.dumps({"ok": False, "err": type(exc).__name__ + ": " + str(exc)[:200]}))
+"""
+
+
+def cert_client(pem, port):
+    """El cliente con certificados exige un proceso arrancado con el entorno de `child_env()` (OPENSSL_CONF fijado antes de iniciar OpenSSL): va en un subproceso, como el resto de pruebas del transporte."""
+    env = tls13.child_env({"PATH": "/usr/bin:/bin", "PYTHONPATH": str(ROOT)})
+    r = subprocess.run([sys.executable, "-c", CERT_CLIENT, str(pem), str(port)], capture_output=True, text=True, timeout=60, env=env, cwd=ROOT)
+    assert r.returncode == 0, r.stderr[-600:]
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
 def nss_server(tmp: Path, groups: str):
     """selfserv con un certificado autofirmado para localhost; devuelve (proceso, puerto, PEM del certificado)."""
     db = nss_db(tmp, "sdb")
@@ -164,11 +188,9 @@ def test_our_certificate_client_completes_hybrid_tls13_with_an_nss_server():
     with tempfile.TemporaryDirectory() as td:
         proc, port, pem = nss_server(Path(td), "x25519mlkem768")
         try:
-            s = tls13.connect(tls13.client_context(pem), "127.0.0.1", port, server_hostname="localhost", timeout=8)
-            assert s.version() == "TLSv1.3"        # NSS solo ofrece X25519MLKEM768 y nuestro contexto solo lo acepta (Python no expone el grupo por conexión): haberlo completado prueba el híbrido
-            s.sendall(b"GET / HTTP/1.0\r\n\r\n")
-            assert s.recv(15) == b"HTTP/1.0 200 OK"
-            s.close()
+            r = cert_client(pem, port)
+            # NSS solo ofrece X25519MLKEM768 y nuestro contexto solo lo acepta (Python no expone el grupo por conexión): haberlo completado prueba el híbrido
+            assert r == {"ok": True, "version": "TLSv1.3", "data": "HTTP/1.0 200 OK"}
         finally:
             proc.kill()
             proc.wait(5)
@@ -179,9 +201,8 @@ def test_our_certificate_client_refuses_an_nss_server_that_only_offers_a_classic
     with tempfile.TemporaryDirectory() as td:
         proc, port, pem = nss_server(Path(td), "x25519")
         try:
-            with pytest.raises(Exception) as exc:                              # alerta de fallo de apretón: no hay grupo en común y NO se baja
-                tls13.connect(tls13.client_context(pem), "127.0.0.1", port, server_hostname="localhost", timeout=8)
-            assert "handshake failure" in str(exc.value).lower() or "alert" in str(exc.value).lower()
+            r = cert_client(pem, port)                                         # alerta de fallo de apretón: no hay grupo en común y NO se baja
+            assert r["ok"] is False and "handshake failure" in r["err"].lower()
         finally:
             proc.kill()
             proc.wait(5)
