@@ -73,7 +73,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 
 ## TLS 1.3 con PSK externa (`qce/transport/tls13_psk.py`) — puente NO REVISADO
 - Es la ruta QKD recomendada, pero el **puente `ctypes`** hacia `libssl` es código nuestro sin revisión humana (tipos C, callbacks, propiedad de `SSL_SESSION`); hubo ya un defecto real (cola de errores por hilo, corregido). Detalle en `docs/TLS13_PSK_TRANSPORT.md` §4.
-- Necesita OpenSSL ≥ 3.5 (falla cerrado si no); probado solo en macOS con Homebrew. El identificador de clave es visible en el ClientHello. Clave QKD simulada.
+- Necesita OpenSSL ≥ 3.5 (falla cerrado si no); probado en macOS con Homebrew y en un contenedor Debian 13 aarch64 (suite completa: 463 pasan); no en Windows ni en x86_64. El identificador de clave es visible en el ClientHello. Clave QKD simulada.
 - La corrección de OpenSSL/TLS 1.3 se asume; no se reprodujo su análisis formal.
 - Rotación automática: hay que llamar a `rotate_if_due` periódicamente (sin planificador). Revocación: CRL explícita (sin OCSP, sin distribución automática; sin `crl_file` el cliente no comprueba).
 - **Sigue sin haber HSM ni agente de claves** para la ruta con certificados (Python `ssl` exige la clave en el proceso); en la ruta PSK no existe clave privada de larga duración.
@@ -83,4 +83,4 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - SLH-DSA (`docs/SLHDSA.md`) usa el `libcrypto` del sistema por un puente `ctypes` NO REVISADO; los vectores oficiales ACVP de SLH-DSA-SHA2-128s sí se ejecutaron (keyGen 10/10, sigVer externa pura 14/14; no sigGen ni preHash ni otros conjuntos de parámetros); no está integrada en el apretón ni en las declaraciones firmadas.
 
 ## Fuzzing y carga de los puentes
-- Resultados y límites en `docs/FUZZ_Y_CARGA.md`: sin defectos por fuzzing, una fuga real de SLH-DSA corregida (INC-0023), memoria/descriptores/hilos estables. Fuzzing no guiado por cobertura; solo macOS.
+- Resultados y límites en `docs/FUZZ_Y_CARGA.md`: sin defectos por fuzzing, una fuga real de SLH-DSA corregida (INC-0023), memoria/descriptores/hilos estables. Fuzzing no guiado por cobertura. Probado en macOS (Homebrew) y en un contenedor Debian 13 aarch64 (OpenSSL 3.5.7); no en Windows ni en Linux x86_64.

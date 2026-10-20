@@ -22,8 +22,15 @@ Medido en macOS (Apple Silicon), Python 3.14.7, OpenSSL 3.6.4. **Esto reduce el 
 
 **Defecto real encontrado (INC-0023):** SLH-DSA no liberaba la clave ni el contexto de resumen cuando el contexto superaba 255 bytes (la validación ocurría tras reservar). La memoria residente no lo veía (≈ 650 B por operación, y en macOS la memoria se comprime); lo vio el contador exacto. Corregido; los cinco mutantes que quitan liberaciones se detectan.
 
-## 3. Lo que sigue sin comprobarse
-- **Linux y Windows**: no probados (ver `LIMITATIONS.md`). Solo macOS con OpenSSL de Homebrew.
+## 3. Linux (contenedor Debian 13, OpenSSL 3.5.7, Python 3.13.5, aarch64, Docker Desktop sobre macOS)
+Suite completa dentro del contenedor (imagen oficial `debian:trixie`): **463 pasan, 6 omitidas (modelo formal y empaquetado, que necesitan Tamarin y el repositorio), 0 fallan.**
+La primera ejecución en Linux dio 6 fallos y destapó **tres defectos reales** que macOS ocultaba:
+1. **INC-0024:** sin `TCP_NODELAY` el apretón PSK iba a 21/s en vez de ≈ 600/s (Nagle + ACK retardado, ≈ 40 ms por ida y vuelta). Corregido en los dos extremos; la suite pasó de 153 s a 77 s.
+2. **INC-0025:** `parse_public` trataba una clave pública hexadecimal de 3968 caracteres como ruta de archivo y Linux lanza «File name too long»; la ceremonia de firma no funcionaba. Corregido.
+3. Mi propia herramienta de medida usaba `ps`, que el contenedor mínimo no trae; ahora lee `/proc/self/statm` en Linux. Y el crecimiento de memoria con 16 hilos era arenas de `malloc` y pilas de los hilos, no una fuga: con una ronda de calentamiento y tres rondas medidas, memoria, descriptores e hilos quedan constantes.
+
+## 4. Lo que sigue sin comprobarse
+- **Windows** y **Linux x86_64**: no probados (solo aarch64 en contenedor); otras versiones de OpenSSL ≥ 3.5; redes reales con pérdida.
 - Seguridad de memoria del propio OpenSSL y del puente ante entradas hostiles más allá de las probadas; canales laterales.
-- Carga sostenida de horas, redes reales con pérdida, y servidores con miles de conexiones simultáneas.
+- Carga sostenida de horas y miles de conexiones simultáneas.
 - Fuzzing guiado por cobertura (p. ej. AFL/libFuzzer sobre OpenSSL) no se hizo.
