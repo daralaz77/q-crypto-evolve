@@ -137,7 +137,9 @@ def main(argv: list[str] | None = None) -> int:
             rid = a.release_id or ceremony.current_release_id(ROOT)
             if sys.stdin.isatty():
                 print(f"Vas a firmar como {a.signer!r} ({a.role}) el veredicto {a.verdict!r} sobre el código release_id={rid}.")
-                if input(f"Escribe tu identidad ({a.signer}) para confirmar: ").strip() != a.signer:
+                who = a.signer
+                typed = input(f"Escribe tu identidad ({who}) para confirmar: ").strip()
+                if typed != who:
                     print("no confirmado")
                     return 2
             p = ceremony.sign(ROOT, Path(a.key), a.role, a.signer, rid, a.verdict, a.notes)

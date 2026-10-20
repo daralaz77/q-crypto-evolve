@@ -179,3 +179,52 @@ def test_seeded_generation_is_deterministic_and_validates_its_input(key):
     for bad in (seed[:-1], seed + b"x", b"", None, "x" * S.SEED_LEN):
         with pytest.raises(MalformedMessage):
             S.SlhDsaPrivateKey.from_seed(bad)
+
+
+class Counting:
+    """Envoltorio del libcrypto que cuenta cuántos objetos se crean y se liberan: una fuga es un desequilibrio exacto, sin depender de la memoria residente."""
+
+    def __init__(self, real):
+        import collections
+        self._r, self.n = real, collections.Counter()
+
+    def __getattr__(self, name):
+        fn = getattr(self._r, name)
+        made = {"EVP_PKEY_fromdata": "pkey", "EVP_PKEY_keygen": "pkey", "EVP_MD_CTX_new": "mdctx", "EVP_PKEY_CTX_new_from_name": "pkeyctx"}
+        freed = {"EVP_PKEY_free": "pkey", "EVP_MD_CTX_free": "mdctx", "EVP_PKEY_CTX_free": "pkeyctx"}
+        if name in made:
+            def w(*a):
+                r = fn(*a)
+                self.n[made[name] + "_new"] += (r == 1) if name in ("EVP_PKEY_fromdata", "EVP_PKEY_keygen") else bool(r)
+                return r
+            return w
+        if name in freed:
+            def w(p):
+                self.n[freed[name] + "_free"] += bool(p)
+                return fn(p)
+            return w
+        return fn
+
+
+@needs
+def test_every_openssl_object_the_primitive_creates_is_freed_on_every_path(monkeypatch, key):
+    real = S._crypto()
+    counting = Counting(real)
+    monkeypatch.setattr(S, "_crypto", lambda: counting)
+    k = S.SlhDsaPrivateKey.generate()
+    S.SlhDsaPrivateKey.from_seed(bytes(S.SEED_LEN))
+    sig = k.sign(b"m", b"ctx")
+    sig2 = k.sign(b"m", deterministic=True)
+    S.slhdsa_verify(k.public_bytes(), b"m", sig, b"ctx")                         # camino correcto
+    for bad in ((k.public_bytes(), b"otro", sig, b"ctx"), (k.public_bytes(), b"m", sig, b"x"), (bytes(S.PK_LEN), b"m", sig2, b"")):
+        with pytest.raises(AuthenticationFailure):
+            S.slhdsa_verify(*bad)                                                    # caminos de rechazo
+    for bad in ((k.public_bytes()[:-1], b"m", sig), (k.public_bytes(), b"m", sig[:-1])):
+        with pytest.raises(MalformedMessage):
+            S.slhdsa_verify(*bad)                                                    # rechazo antes de reservar nada
+    with pytest.raises(MalformedMessage):
+        k.sign(b"m", bytes(S.CONTEXT_MAX + 1))
+    with pytest.raises(MalformedMessage):
+        S.SlhDsaPrivateKey.from_seed(b"x")
+    n = counting.n
+    assert n["pkey_new"] == n["pkey_free"] > 0 and n["mdctx_new"] == n["mdctx_free"] > 0 and n["pkeyctx_new"] == n["pkeyctx_free"] > 0, dict(n)

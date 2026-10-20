@@ -81,3 +81,6 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 ## Adaptador ETSI GS QKD 014 y SLH-DSA
 - El adaptador 014 (`docs/ETSI014_ADAPTER.md`) **no se ha probado con ningún KME real**, solo con un emulador que es simulación. La interfaz solo entrega claves: la garantía es la confianza en el operador del KME y en la ficha aprobada, nunca física. Una clave por petición; sin extensiones de fabricantes.
 - SLH-DSA (`docs/SLHDSA.md`) usa el `libcrypto` del sistema por un puente `ctypes` NO REVISADO; los vectores oficiales ACVP de SLH-DSA-SHA2-128s sí se ejecutaron (keyGen 10/10, sigVer externa pura 14/14; no sigGen ni preHash ni otros conjuntos de parámetros); no está integrada en el apretón ni en las declaraciones firmadas.
+
+## Fuzzing y carga de los puentes
+- Resultados y límites en `docs/FUZZ_Y_CARGA.md`: sin defectos por fuzzing, una fuga real de SLH-DSA corregida (INC-0023), memoria/descriptores/hilos estables. Fuzzing no guiado por cobertura; solo macOS.

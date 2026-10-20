@@ -1,0 +1,114 @@
+"""Escenarios de carga y fugas de los puentes ctypes, en un PROCESO NUEVO (la memoria de pytest sería ruido). Uso: python tests/leak_scenarios.py <escenario> → JSON."""
+import gc
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+
+from qce.core.errors import QCEError
+from qce.pqc import slhdsa as S
+from qce.qkd.sources import OneTimeKeys
+from qce.transport import tls13_psk as P
+
+KEY = bytes(range(32))
+
+
+class Reusable(OneTimeKeys):
+    """Fuente que no consume: permite miles de apretones sin fabricar claves (la reserva exclusiva sí se mantiene)."""
+
+    def commit(self, k):
+        self.release(k)
+
+
+def rss_mb():
+    return int(subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True).stdout) / 1024
+
+
+def snapshot():
+    time.sleep(0.4)
+    gc.collect()
+    return {"rss_mb": round(rss_mb(), 2), "fds": len(os.listdir("/dev/fd")), "threads": threading.active_count()}
+
+
+def echo(c):
+    c.send_frame(c.recv_frame()[::-1])
+
+
+def run_handshakes(n, key, ok):
+    srv = P.PskServer(Reusable({b"k": KEY}), echo, timeout=5).start()
+
+    def one():
+        try:
+            c = P.connect_tcp("127.0.0.1", srv.port, b"k", key, timeout=5)
+            c.send_frame(b"x" * 100)
+            assert c.recv_frame() == b"x" * 100
+            c.close()
+            return True
+        except (QCEError, OSError):
+            return False
+    for _ in range(50):
+        one()
+    before = snapshot()
+    t0 = time.time()
+    good = sum(one() for _ in range(n))
+    dt = time.time() - t0
+    after = snapshot()
+    srv.close()
+    return {"n": n, "ok": good, "per_second": round(n / dt), "before": before, "after": after}
+
+
+def sc_handshakes():
+    return run_handshakes(1500, KEY, True)
+
+
+def sc_failing_handshakes():
+    return run_handshakes(1500, bytes(32), False)
+
+
+def sc_concurrent():
+    keys = {b"k%d" % i: bytes([i + 1]) * 32 for i in range(16)}
+    srv = P.PskServer(Reusable(keys), echo, timeout=10).start()
+    results, lock = [], threading.Lock()
+
+    def worker(kid):
+        good = 0
+        for _ in range(60):
+            try:
+                c = P.connect_tcp("127.0.0.1", srv.port, kid, keys[kid], timeout=10)
+                c.send_frame(kid)
+                good += c.recv_frame() == kid[::-1]
+                c.close()
+            except (QCEError, OSError):
+                pass
+        with lock:
+            results.append(good)
+    before = snapshot()
+    ts = [threading.Thread(target=worker, args=(k,)) for k in keys]
+    [t.start() for t in ts]
+    [t.join(120) for t in ts]
+    after = snapshot()
+    srv.close()
+    return {"workers": len(keys), "per_worker": 60, "ok_total": sum(results), "before": before, "after": after}
+
+
+def sc_slhdsa():
+    k = S.SlhDsaPrivateKey.generate()
+    sig = k.sign(b"m")
+    for _ in range(100):
+        S.slhdsa_verify(k.public_bytes(), b"m", sig)
+    before = snapshot()
+    for i in range(1, 5001):
+        S.slhdsa_verify(k.public_bytes(), b"m", sig)
+        if i % 100 == 0:
+            S.SlhDsaPrivateKey.from_seed(bytes(48))
+        if i % 500 == 0:
+            k.sign(b"m")
+    return {"before": before, "after": snapshot()}
+
+
+SCEN = {"handshakes": sc_handshakes, "failing_handshakes": sc_failing_handshakes, "concurrent": sc_concurrent, "slhdsa": sc_slhdsa}
+
+if __name__ == "__main__":
+    print(json.dumps(SCEN[sys.argv[1]]()))

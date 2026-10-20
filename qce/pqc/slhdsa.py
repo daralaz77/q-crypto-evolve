@@ -169,9 +169,9 @@ class SlhDsaPrivateKey:
 
     def sign(self, message: bytes, context: bytes = b"", deterministic: bool = False) -> bytes:
         c = _crypto()
+        params, keep = _params(context, deterministic)   # PRIMERO lo que puede fallar por la entrada: nada reservado que liberar (INC-0023)
         pkey = _import(c, EVP_PKEY_KEYPAIR, priv=self._sk, pub=self._pk)
         mctx = c.EVP_MD_CTX_new()
-        params, keep = _params(context, deterministic)
         try:
             if c.EVP_DigestSignInit_ex(mctx, None, None, None, None, pkey, params) != 1:
                 raise PolicyViolation("falló la preparación de la firma")
@@ -190,9 +190,9 @@ def slhdsa_verify(pk: bytes, message: bytes, sig: bytes, context: bytes = b"") -
     if len(pk) != PK_LEN or len(sig) != SIG_LEN:
         raise MalformedMessage("clave pública o firma SLH-DSA con longitud inválida")
     c = _crypto()
+    params, keep = _params(context)   # PRIMERO lo que puede fallar por la entrada (INC-0023)
     pkey = _import(c, EVP_PKEY_PUBLIC_KEY, pub=bytes(pk))
     mctx = c.EVP_MD_CTX_new()
-    params, keep = _params(context)
     try:
         if c.EVP_DigestVerifyInit_ex(mctx, None, None, None, None, pkey, params) != 1:
             raise AuthenticationFailure("no se pudo preparar la verificación")

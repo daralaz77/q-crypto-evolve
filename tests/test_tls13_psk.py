@@ -308,3 +308,57 @@ def test_a_stale_openssl_error_in_the_thread_does_not_break_a_healthy_connection
     assert c.recv_frame() == b"ba"
     c.close()
     srv.close()
+
+
+class CountingSsl:
+    """Envoltorio del libssl que cuenta los SSL_CTX y SSL creados y liberados: una fuga es un desequilibrio exacto."""
+
+    def __init__(self, real):
+        import collections
+        self._r, self.n = real, collections.Counter()
+
+    def __getattr__(self, name):
+        fn = getattr(self._r, name)
+        if name in ("SSL_CTX_new", "SSL_new"):
+            def new(*a):
+                r = fn(*a)
+                self.n[name] += bool(r)
+                return r
+            return new
+        if name in ("SSL_CTX_free", "SSL_free"):
+            def free(p):
+                self.n[name] += bool(p)
+                return fn(p)
+            return free
+        return fn
+
+
+@needs_lib
+def test_every_ssl_object_is_freed_on_success_and_on_every_failure_path(monkeypatch):
+    import socket
+    lib, crypto = P._load()
+    cnt = CountingSsl(lib)
+    monkeypatch.setattr(P, "_lib_cache", (cnt, crypto))
+    store, srv = serve(timeout=1.0)
+    c = client(srv)                                                       # éxito
+    c.send_frame(b"ab")
+    c.recv_frame()
+    c.close()
+    assert wait(lambda: KID not in store._keys)
+    store.add(KID, KEY)
+    for kid, key in ((KID, bytes(32)), (b"no-existe", KEY)):              # clave equivocada e id desconocido
+        with pytest.raises((AuthenticationFailure, MalformedMessage)):
+            client(srv, kid, key)
+    with pytest.raises(PolicyViolation):                                  # suite no permitida: se rechaza antes de reservar nada
+        P.connect_tcp("127.0.0.1", srv.port, KID, KEY, timeout=2, suite="otra")
+    with monkeypatch.context() as m:                                      # atestación negativa en los dos extremos
+        m.setattr(P.PskTlsConnection, "group", property(lambda self: "X25519"))
+        with pytest.raises(PolicyViolation):
+            client(srv)
+    s = socket.create_connection(("127.0.0.1", srv.port))                 # cliente mudo: el servidor agota el plazo
+    assert wait(lambda: srv.failed_handshakes >= 4, 6.0)
+    s.close()
+    srv.close()
+    balanced = wait(lambda: cnt.n["SSL_CTX_new"] == cnt.n["SSL_CTX_free"] and cnt.n["SSL_new"] == cnt.n["SSL_free"], 6.0)
+    assert balanced, dict(cnt.n)
+    assert cnt.n["SSL_CTX_new"] >= 9 and cnt.n["SSL_new"] >= 9
