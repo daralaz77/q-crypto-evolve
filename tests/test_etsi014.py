@@ -371,3 +371,53 @@ def test_oversized_response_is_reported_as_too_big_and_a_peer_without_certificat
     with pytest.raises(QKDDeviceError) as e:
         tr.peer_certificate_der()
     assert e.value.category is ErrorCategory.DEVICE_UNTRUSTED
+
+
+# ---- el emulador cumple las formas GET y los mensajes del estándar (INC-0033: lo destapó la sonda de conformidad de qkdsec) -----------------------------------
+def raw(env, sae, method, path, body=None):
+    """Petición HTTPS directa (sin pasar por nuestro adaptador, que solo usa POST) con el certificado de la SAE indicada."""
+    import http.client
+    c = env.certs[sae]
+    conn = http.client.HTTPSConnection("127.0.0.1", env.kme.port, context=client_ctx(env.ca, c[0], c[1]), timeout=5)
+    conn.request(method, path, body=None if body is None else json.dumps(body), headers={"Content-Type": "application/json"})
+    r = conn.getresponse()
+    data = r.read()
+    conn.close()
+    return r.status, (json.loads(data) if data else None)
+
+
+def test_get_enc_keys_with_simple_uri_parameters_and_no_parameters_delivers_keys(env):
+    st, out = raw(env, MASTER, "GET", f"/api/v1/keys/{SLAVE}/enc_keys?number=2&size=128")
+    assert st == 200 and len(out["keys"]) == 2 and all(len(base64.b64decode(k["key"])) == 16 for k in out["keys"])
+    st, out = raw(env, MASTER, "GET", f"/api/v1/keys/{SLAVE}/enc_keys")                       # sin parámetros: una clave del tamaño por defecto
+    assert st == 200 and len(out["keys"]) == 1 and len(base64.b64decode(out["keys"][0]["key"])) == 32
+
+
+def test_get_dec_keys_with_one_key_id_delivers_it_once_and_the_roundtrip_matches(env):
+    _, enc = raw(env, MASTER, "GET", f"/api/v1/keys/{SLAVE}/enc_keys?number=1")
+    kid, key = enc["keys"][0]["key_ID"], enc["keys"][0]["key"]
+    st, dec = raw(env, SLAVE, "GET", f"/api/v1/keys/{MASTER}/dec_keys?key_ID={kid}")
+    assert st == 200 and dec["keys"] == [{"key_ID": kid, "key": key}]
+    st, again = raw(env, SLAVE, "GET", f"/api/v1/keys/{MASTER}/dec_keys?key_ID={kid}")       # entrega única, también por GET
+    assert st == 400 and again["message"] == "one or more keys specified are not found on KME"
+
+
+def test_get_forms_reject_anything_that_is_not_a_simple_request_and_keep_the_sae_rules(env):
+    for path in (f"/api/v1/keys/{SLAVE}/enc_keys?number=abc", f"/api/v1/keys/{SLAVE}/enc_keys?number=1&number=2", f"/api/v1/keys/{SLAVE}/enc_keys?extension_optional=x"):
+        assert raw(env, MASTER, "GET", path)[0] == 400, path
+    _, enc = raw(env, MASTER, "GET", f"/api/v1/keys/{SLAVE}/enc_keys")
+    kid = enc["keys"][0]["key_ID"]
+    assert raw(env, MASTER, "GET", f"/api/v1/keys/{SLAVE}/dec_keys?key_ID={kid}")[0] == 401   # la maestra no puede recoger la clave de la esclava (§5.4: 401)
+    assert raw(env, SLAVE, "GET", f"/api/v1/keys/{MASTER}/dec_keys?key_ID={kid}&key_ID={kid}")[0] == 400   # dos IDs exigen POST
+    assert raw(env, "intruso", "GET", f"/api/v1/keys/{SLAVE}/enc_keys")[0] == 401
+    assert raw(env, SLAVE, "GET", f"/api/v1/keys/{MASTER}/enc_keys")[0] == 401   # la esclava no pide claves nuevas
+
+
+def test_error_messages_follow_the_standard_text(env):
+    st, out = raw(env, MASTER, "POST", f"/api/v1/keys/{SLAVE}/enc_keys", {"size": 257})
+    assert (st, out["message"]) == (400, "size shall be a multiple of 8")
+    st, out = raw(env, MASTER, "POST", f"/api/v1/keys/{SLAVE}/enc_keys", {"extension_mandatory": [{"abc_route_type": "direct"}]})
+    assert (st, out["message"]) == (400, "not all extension_mandatory parameters are supported")
+    st, out = raw(env, MASTER, "POST", f"/api/v1/keys/{SLAVE}/enc_keys", {"extension_optional": [{"abc_x": 1}]})     # las opcionales pueden ignorarse
+    assert st == 200
+

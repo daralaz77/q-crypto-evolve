@@ -1,4 +1,4 @@
-"""Mutantes de qkd / etsi014 (29). Archivos que rompen: qce/qkd/etsi014.py."""
+"""Mutantes de qkd / etsi014 (34). Archivos que rompen: qce/qkd/etsi014.py, qce/qkd/etsi014_emulator.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
@@ -31,4 +31,10 @@ MUTANTS = [
     M('e14-timeout-mapped-to-connection', 'qce/qkd/etsi014.py', (('        except socket.timeout:\n            raise QKDDeviceError(ErrorCategory.SERVICE_UNAVAILABLE, "tiempo de espera agotado con el KME") from None\n        except ssl.SSLError as exc:\n            raise QKDDeviceError(ErrorCategory.AUTHENTICATION_FAILURE, f"fallo TLS con el KME ({type(exc).__name__})") from None\n        except OSError as exc:\n            raise QKDDeviceError(ErrorCategory.CONNECTION_FAILURE, f"no hay conexión con el KME ({type(exc).__name__})") from None\n        finally:', '        except ssl.SSLError as exc:\n            raise QKDDeviceError(ErrorCategory.AUTHENTICATION_FAILURE, f"fallo TLS con el KME ({type(exc).__name__})") from None\n        except OSError as exc:\n            raise QKDDeviceError(ErrorCategory.CONNECTION_FAILURE, f"no hay conexión con el KME ({type(exc).__name__})") from None\n        finally:'),), 'ETSI 014: plazo agotado'),
     M('e14-response-limit-off', 'qce/qkd/etsi014.py', (('            if len(payload) > MAX_RESPONSE:', '            if False:'),), 'ETSI 014: tamaño máximo de respuesta'),
     M('e14-cert-required-off', 'qce/qkd/etsi014.py', (('        if not der:\n            raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED', '        if False:\n            raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED'),), 'ETSI 014: el KME presenta certificado'),
+    M('e14-emu-get-form-off', 'qce/qkd/etsi014_emulator.py', (('if method == "GET" and op in ("enc_keys", "dec_keys"):', 'if False:'),), 'emulador 014: acepta las formas GET simples del estándar'),
+    M('e14-emu-get-params-unchecked', 'qce/qkd/etsi014_emulator.py', (('if length or set(params) - ({"number", "size"} if op == "enc_keys" else {"key_ID"}) or any(len(v) != 1 for v in params.values()):', 'if False:'),), 'emulador 014: el GET solo admite solicitudes simples'),
+    M('e14-emu-size-multiple-off', 'qce/qkd/etsi014_emulator.py', (('if isinstance(size, int) and size % 8:', 'if False:'),), 'emulador 014: mensaje exacto para tamaños no múltiplos de 8'),
+    M('e14-emu-extension-mandatory-off', 'qce/qkd/etsi014_emulator.py', (('if body.get("extension_mandatory"):', 'if False:'),), 'emulador 014: rechaza extensiones obligatorias no soportadas'),
+    M('e14-emu-key-not-found-text', 'qce/qkd/etsi014_emulator.py', (('"one or more keys specified are not found on KME"', '"clave no encontrada"'),), 'emulador 014: mensaje exacto de clave no encontrada'),
+    M('e14-emu-role-401-off', 'qce/qkd/etsi014_emulator.py', (('if (op == "enc_keys" and sae != kme.master) or (op == "dec_keys" and sae != kme.slave):', 'if False:'),), 'emulador 014: solo la SAE esclava recoge las claves y solo la maestra las pide (401)'),
 ]

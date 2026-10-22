@@ -37,6 +37,7 @@ def issue_ca(directory: Path, cn: str = "QCE lab CA", days: int = 1) -> tuple[Pa
             .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
             .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=True, crl_sign=True, content_commitment=False, key_encipherment=False,
                                          data_encipherment=False, key_agreement=False, encipher_only=False, decipher_only=False), critical=True)
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)   # RFC 5280 §4.2.1.2: los clientes estrictos (Python ≥ 3.13 por defecto) lo exigen
             .sign(key, hashes.SHA256()))
     path = _write(directory / "ca.pem", cert.public_bytes(serialization.Encoding.PEM), 0o644)
     return path, key, cert
@@ -55,6 +56,8 @@ def issue_leaf(directory: Path, ca_key, ca_cert: x509.Certificate, name: str, *,
             .add_extension(x509.SubjectAlternativeName(san), critical=False)
             .add_extension(x509.ExtendedKeyUsage([eku]), critical=False)
             .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()), critical=False)   # RFC 5280 §4.2.1.1: obligatorio salvo en autofirmados
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
             .sign(ca_key, hashes.SHA256()))
     tag = ("srv-" if server else "cli-") + name
     cp = _write(directory / f"{tag}.pem", cert.public_bytes(serialization.Encoding.PEM), 0o644)
@@ -72,7 +75,10 @@ def sign_csr(ca_key, ca_cert: x509.Certificate, csr: x509.CertificateSigningRequ
     return (x509.CertificateBuilder().subject_name(csr.subject).issuer_name(ca_cert.subject).public_key(csr.public_key())
             .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(minutes=1)).not_valid_after(now + dt.timedelta(days=days))
             .add_extension(san, critical=False).add_extension(x509.ExtendedKeyUsage([eku]), critical=False)
-            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True).sign(ca_key, hashes.SHA256()))
+            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()), critical=False)
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(csr.public_key()), critical=False)
+            .sign(ca_key, hashes.SHA256()))
 
 
 def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[x509.Certificate], days: int = 1, name: str = "crl.pem") -> Path:
@@ -82,5 +88,6 @@ def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[
          .next_update(now + dt.timedelta(days=days)))
     for cert in revoked:
         b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(cert.serial_number).revocation_date(now).build())
+    b = b.add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()), critical=False)
     crl = b.sign(ca_key, hashes.SHA256())
     return _write(directory / name, crl.public_bytes(serialization.Encoding.PEM), 0o644)

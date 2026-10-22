@@ -14,6 +14,7 @@ import ssl
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs
 
 KEY_PATH = re.compile(r"^/api/v1/keys/([A-Za-z0-9._:@-]{1,128})/(status|enc_keys|dec_keys)$")
 
@@ -50,7 +51,8 @@ class EmulatedKME:
             def _handle(self, method):
                 sae = self._sae()
                 kme.requests.append((str(sae), method, self.path))
-                m = KEY_PATH.match(self.path)
+                path, _, query = self.path.partition("?")
+                m = KEY_PATH.match(path)
                 if sae not in (kme.master, kme.slave):
                     return self._reply(401, {"message": "SAE no autorizada"})
                 if not m:
@@ -63,14 +65,30 @@ class EmulatedKME:
                     body = json.loads(self.rfile.read(length)) if length else {}
                 except ValueError:
                     return self._reply(400, {"message": "cuerpo no es JSON"})
+                if method == "GET" and op in ("enc_keys", "dec_keys"):
+                    # ETSI GS QKD 014 §6.2 y §6.4: el GET es solo para solicitudes SIMPLES, sin cuerpo: `?number=&size=` en enc_keys y un único `?key_ID=` en dec_keys.
+                    params = parse_qs(query, keep_blank_values=True)
+                    if length or set(params) - ({"number", "size"} if op == "enc_keys" else {"key_ID"}) or any(len(v) != 1 for v in params.values()):
+                        return self._reply(400, {"message": "Bad request format"})
+                    try:
+                        body = {k: int(v[0]) for k, v in params.items()} if op == "enc_keys" else ({"key_IDs": [{"key_ID": params["key_ID"][0]}]} if params else {})
+                    except ValueError:
+                        return self._reply(400, {"message": "Bad request format"})
+                    method = "POST"   # desde aquí es la misma operación que la forma POST
+                if (op == "enc_keys" and sae != kme.master) or (op == "dec_keys" and sae != kme.slave):
+                    return self._reply(401, {"message": "SAE no autorizada para esta operación"})   # §5.4: solo la SAE a la que se entregó la clave puede recogerla
                 with kme._lock:
                     if op == "status" and method == "GET":
                         return self._reply(200, {"source_KME_ID": "KME-A", "target_KME_ID": "KME-B", "master_SAE_ID": kme.master, "slave_SAE_ID": kme.slave,
                                                  "key_size": kme.key_size, "stored_key_count": len(kme._store), "max_key_count": kme.max_keys,
                                                  "max_key_per_request": kme.max_per_request, "max_key_size": 1024, "min_key_size": 64, "max_SAE_ID_count": 0})
                     if op == "enc_keys" and method == "POST" and sae == kme.master:
+                        if body.get("extension_mandatory"):   # este KME no admite ninguna extensión obligatoria (§6.2)
+                            return self._reply(400, {"message": "not all extension_mandatory parameters are supported"})
                         n, size = body.get("number", 1), body.get("size", kme.key_size)
-                        if not (isinstance(n, int) and isinstance(size, int)) or n < 1 or n > kme.max_per_request or size % 8 or not 64 <= size <= 1024:
+                        if isinstance(size, int) and size % 8:
+                            return self._reply(400, {"message": "size shall be a multiple of 8"})   # texto exacto del estándar (§6.2)
+                        if not (isinstance(n, int) and isinstance(size, int)) or n < 1 or n > kme.max_per_request or not 64 <= size <= 1024:
                             return self._reply(400, {"message": "número o tamaño de clave no admitido"})
                         if len(kme._store) + n > kme.max_keys:
                             return self._reply(503, {"message": "KME sin capacidad para más claves"})
@@ -85,7 +103,7 @@ class EmulatedKME:
                         if not ids or len(ids) > kme.max_per_request:
                             return self._reply(400, {"message": "key_IDs ausentes o demasiados"})
                         if any(i not in kme._store for i in ids):
-                            return self._reply(400, {"message": "key_ID desconocido o ya entregado"})
+                            return self._reply(400, {"message": "one or more keys specified are not found on KME"})   # texto exacto del estándar (§6.4)
                         out = [{"key_ID": i, "key": base64.b64encode(kme._store.pop(i)).decode()} for i in ids]   # entrega única
                         return self._reply(200, {"keys": out})
                 return self._reply(400, {"message": "operación no permitida para esta SAE"})

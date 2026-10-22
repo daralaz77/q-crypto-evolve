@@ -33,7 +33,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
   dispositivos con identidad por desafío-respuesta y un **simulador etiquetado `SIMULATION`**. Su política por defecto lo rechaza.
 - **Perfiles de protocolo (`qce/qkd/profiles.py`)**: validan testigos DECLARADOS por el dispositivo (presencia, plausibilidad física,
   umbrales). No verifican la física ni detectan a un equipo que mienta de forma consistente. Ver `docs/QKD_PROTOCOLS.md`.
-- Hay un adaptador ETSI GS QKD 014 (`qce/qkd/etsi014.py`), probado SOLO contra un emulador (simulación; ver más abajo); no hay adaptador de ningún fabricante ni KME real: no se inventa compatibilidad (skill `q-crypto-qkd-adapters`, §16).
+- Hay un adaptador ETSI GS QKD 014 (`qce/qkd/etsi014.py`), probado SOLO contra un emulador (simulación; ver más abajo), que además se contrastó con una herramienta independiente (`qkdsec`: `docs/ETSI014_ADAPTER.md`, INC-0032/0033); no hay adaptador de ningún fabricante ni KME real: no se inventa compatibilidad (skill `q-crypto-qkd-adapters`, §16).
 - Las pruebas son funcionales/de contrato; **no validan la seguridad física de ningún equipo QKD**.
 - Mezclar la clave QKD con el secreto poscuántico se hace mediante HKDF sobre el transcript; la composición **no ha sido revisada**
   como diseño de combinación de claves (ver ADR-3). No se afirma que sea "más segura" que PQC sola.

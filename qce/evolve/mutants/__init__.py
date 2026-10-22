@@ -15,6 +15,7 @@ from . import security
 from . import symmetric
 from . import transport_custody
 from . import transport_hsm_tls
+from . import transport_pki
 from . import transport_qkd_layer
 from . import transport_tls13
 from . import transport_tls13_psk
@@ -36,6 +37,7 @@ ALL = [
     *symmetric.MUTANTS,
     *transport_custody.MUTANTS,
     *transport_hsm_tls.MUTANTS,
+    *transport_pki.MUTANTS,
     *transport_qkd_layer.MUTANTS,
     *transport_tls13.MUTANTS,
     *transport_tls13_psk.MUTANTS,
