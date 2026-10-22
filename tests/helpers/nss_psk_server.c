@@ -2,7 +2,7 @@
  * Existe porque `selfserv` de NSS no aplica la PSK externa en el servidor (la autentica por certificado aunque se le dé una PSK): así se contrasta NUESTRO CLIENTE PSK
  * con una implementación de TLS 1.3 distinta de OpenSSL y de GnuTLS que además trae el híbrido X25519MLKEM768. Es un ayudante de PRUEBA, no un servicio.
  *
- *   nss_psk_server <puerto> <psk-hex> <etiqueta> <hibrido|x25519> <conexiones> <base-NSS> <apodo-del-certificado>
+ *   nss_psk_server <puerto> <psk-hex> <etiqueta> <hibrido|hibrido1024|x25519> <conexiones> <base-NSS> <apodo-del-certificado>
  * (NSS no ofrece suites TLS 1.3 sin un certificado configurado, así que se le da uno; lo que se prueba es que ELIGE la PSK, no el certificado.)
  * Por conexión imprime una línea JSON con lo que NSS negoció; lee 4 bytes y devuelve esos 4 bytes invertidos. */
 #include <stdio.h>
@@ -22,13 +22,14 @@
 static int hexval(char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; }
 
 int main(int argc, char **argv) {
-    if (argc < 8) { fprintf(stderr, "uso: %s puerto psk-hex etiqueta hibrido|x25519 conexiones base-NSS apodo\n", argv[0]); return 2; }
+    if (argc < 8) { fprintf(stderr, "uso: %s puerto psk-hex etiqueta hibrido|hibrido1024|x25519 conexiones base-NSS apodo\n", argv[0]); return 2; }
     int port = atoi(argv[1]), conns = atoi(argv[5]);
     size_t hl = strlen(argv[2]);
     unsigned char key[256];
     if (hl % 2 || hl / 2 > sizeof key) return 2;
     for (size_t i = 0; i < hl / 2; i++) { int a = hexval(argv[2][2 * i]), b = hexval(argv[2][2 * i + 1]); if (a < 0 || b < 0) return 2; key[i] = (unsigned char)(a * 16 + b); }
-    SSLNamedGroup group = strcmp(argv[4], "hibrido") == 0 ? ssl_grp_kem_mlkem768x25519 : ssl_grp_ec_curve25519;
+    SSLNamedGroup group = strcmp(argv[4], "hibrido") == 0 ? ssl_grp_kem_mlkem768x25519
+                        : strcmp(argv[4], "hibrido1024") == 0 ? ssl_grp_kem_secp384r1mlkem1024 : ssl_grp_ec_curve25519;
 
     if (NSS_Init(argv[6]) != SECSuccess || NSS_SetDomesticPolicy() != SECSuccess) { fprintf(stderr, "NSS no inicia\n"); return 3; }
     CERTCertificate *cert = CERT_FindCertByNickname(CERT_GetDefaultCertDB(), argv[7]);

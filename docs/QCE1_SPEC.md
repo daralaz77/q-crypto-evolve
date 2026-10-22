@@ -49,10 +49,14 @@ canales laterales; resistencia a denegación de servicio; renegociación o reanu
 - `Decaps(sk, ct)`: simétrico. Un punto X25519 de orden pequeño (secreto compartido nulo) se rechaza; ML-KEM aplica rechazo implícito (FIPS 203).
 - `LABEL_KEM = "QCE1/hybrid-kem/X25519+ML-KEM-768"`.
 
+**Nivel ALTO (opcional).** El mismo KEM con ML-KEM-1024 en lugar de ML-KEM-768: `pk = X_pk(32) ‖ M_pk(1568)` → 1600 bytes; `ct = X_eph_pk(32) ‖ M_ct(1568)` → 1600 bytes; `LABEL_KEM_HIGH = "QCE1/hybrid-kem/X25519+ML-KEM-1024"`. La etiqueta distinta separa dominios: un secreto de un nivel nunca coincide con el del otro. El nivel **no se deduce de las longitudes recibidas**: lo fija la suite negociada (que va firmada en el transcript) y cada operación comprueba las longitudes contra el nivel esperado.
+
 ### 4.2 Firma híbrida `Ed25519+ML-DSA-65`
 - Clave pública `pk = Ed_pk(32) ‖ ML_pk(1952)` → 1984 bytes. Firma `sig = Ed_sig(64) ‖ ML_sig(3309)` → 3373 bytes.
 - `Sign(sk, msg, ctx)`: `Ed_sig = Ed25519(msg' )` con `msg' = ctx ‖ 0x00 ‖ msg`; `ML_sig = ML-DSA-65.Sign(msg, ctx)` (contexto nativo de FIPS 204).
 - `Verify`: **ambas** deben ser válidas; cualquier otra longitud de clave o firma se rechaza.
+
+**Nivel ALTO (opcional).** La misma firma con ML-DSA-87: `pk = Ed_pk(32) ‖ ML_pk(2592)` → 2624 bytes; `sig = Ed_sig(64) ‖ ML_sig(4627)` → 4691 bytes. La identidad del servidor debe ser del nivel de la suite elegida; si no, el servidor aborta (no firma con otro nivel).
 
 ## 5. Codificación en el cable
 
@@ -128,6 +132,9 @@ comprueba mac_s
 |---|---|---|---|
 | `QCE1-XMLKEM768-CHACHA` | X25519+ML-KEM-768 | Ed25519+ML-DSA-65 | ChaCha20-Poly1305 |
 | `QCE1-XMLKEM768-AESGCM` | X25519+ML-KEM-768 | Ed25519+ML-DSA-65 | AES-256-GCM |
+| `QCE1-XMLKEM1024-AESGCM` | X25519+ML-KEM-1024 | Ed25519+ML-DSA-87 | AES-256-GCM |
+
+La suite de nivel alto está en el registro pero **no en la política por defecto**: se activa a propósito (`Policy(allowed_suites=("QCE1-XMLKEM1024-AESGCM",))`). Usar los parámetros que pide CNSA 2.0 **no hace conforme** al sistema con CNSA 2.0 (el híbrido sigue llevando X25519/Ed25519 y hay más requisitos; ver `docs/FIPS_140_3.md`).
 
 La política rechaza cualquier suite no listada o sin componente poscuántico. `QCE0-X25519-CHACHA` figura en el registro como `forbidden`.
 
@@ -162,6 +169,11 @@ KEM_PK_LEN = 1216
 KEM_CT_LEN = 1120
 SIG_PK_LEN = 1984
 SIG_LEN = 3373
+KEM_LABEL_HIGH = QCE1/hybrid-kem/X25519+ML-KEM-1024
+KEM_PK_LEN_HIGH = 1600
+KEM_CT_LEN_HIGH = 1600
+SIG_PK_LEN_HIGH = 2624
+SIG_LEN_HIGH = 4691
 KEYS_INFO_PREFIX = QCE1/keys
 KEYS_LEN = 104
 SESSION_ID_LEN = 16

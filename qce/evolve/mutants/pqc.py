@@ -1,12 +1,12 @@
-"""Mutantes de pqc (21). Archivos que rompen: qce/pqc/hybrid.py, qce/pqc/slhdsa.py."""
+"""Mutantes de pqc (29). Archivos que rompen: qce/pqc/hybrid.py, qce/pqc/slhdsa.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
-    M("kem-combiner-drops-ct", "qce/pqc/hybrid.py", (("_LABEL + ct + pk", "_LABEL"),), "enlace de transcript KEM"),
+    M("kem-combiner-drops-ct", "qce/pqc/hybrid.py", (("level.label + ct + pk", "level.label"),), "enlace de transcript KEM"),
     M("kem-combiner-drops-x25519", "qce/pqc/hybrid.py", (("hkdf(ss_m + ss_x,", "hkdf(ss_m,"),), "hibridación (X25519)"),
     M("kem-combiner-drops-mlkem", "qce/pqc/hybrid.py", (("hkdf(ss_m + ss_x,", "hkdf(ss_x,"),), "hibridación (ML-KEM)"),
     M("sig-ed25519-skipped", "qce/pqc/hybrid.py", (("ed25519.Ed25519PublicKey.from_public_bytes(public_bytes[:32]).verify(", "(lambda *a: None)("),), "firma híbrida AND"),
-    M("sig-mldsa-skipped", "qce/pqc/hybrid.py", (("mldsa.MLDSA65PublicKey.from_public_bytes(public_bytes[32:]).verify(", "(lambda *a: None)("),), "firma híbrida AND"),
+    M("sig-mldsa-skipped", "qce/pqc/hybrid.py", (("level.mldsa_public.from_public_bytes(public_bytes[32:]).verify(", "(lambda *a: None)("),), "firma híbrida AND"),
     M("sig-context-ignored", "qce/pqc/hybrid.py", (("signature[ED_SIG:], message, context)", "signature[ED_SIG:], message, b'')"),), "separación de dominios"),
     M('slh-leak-pkey-not-freed-sign', 'qce/pqc/slhdsa.py', (('            c.EVP_MD_CTX_free(mctx)\n            c.EVP_PKEY_free(pkey)\n\n\ndef slhdsa_verify', '            c.EVP_MD_CTX_free(mctx)\n\n\ndef slhdsa_verify'),), 'SLH-DSA: se libera la clave al firmar'),
     M('slh-leak-pkey-not-freed-verify', 'qce/pqc/slhdsa.py', (('        c.EVP_MD_CTX_free(mctx)\n        c.EVP_PKEY_free(pkey)\n', '        c.EVP_MD_CTX_free(mctx)\n'),), 'SLH-DSA: se libera la clave al verificar'),
@@ -23,4 +23,12 @@ MUTANTS = [
     M("slh-from-bytes-length-off", "qce/pqc/slhdsa.py", (("        if len(sk) != SK_LEN:\n            raise MalformedMessage", "        if False:\n            raise MalformedMessage"),), "SLH-DSA: longitud de la clave privada"),
     M("slh-public-part-wrong", "qce/pqc/slhdsa.py", (("return cls(sk, bytes(sk[PK_LEN:]))", "return cls(sk, bytes(sk[:PK_LEN]))"),), "SLH-DSA: parte pública de la privada"),
     M("slh-export-length-unchecked", "qce/pqc/slhdsa.py", (("or n.value != size:", ":"),), "SLH-DSA: longitud al exportar"),
+    M('lvl-label-shared', 'qce/pqc/hybrid.py', (('b"QCE1/hybrid-kem/X25519+ML-KEM-1024"', 'b"QCE1/hybrid-kem/X25519+ML-KEM-768"'),), 'niveles: etiqueta de derivación distinta por nivel'),
+    M('lvl-encaps-length-off', 'qce/pqc/hybrid.py', (('    if len(public_bytes) != level.kem_pk_len:\n        raise MalformedMessage("clave pública KEM de longitud inválida")', '    if False:\n        raise MalformedMessage("clave pública KEM de longitud inválida")'),), 'niveles: encapsular rechaza claves de otro nivel'),
+    M('lvl-decaps-length-off', 'qce/pqc/hybrid.py', (('        if len(ct) != self.level.kem_ct_len:', '        if False:'),), 'niveles: desencapsular rechaza textos cifrados de otro nivel'),
+    M('lvl-verify-length-off', 'qce/pqc/hybrid.py', (('    if len(public_bytes) != level.sig_pk_len or len(signature) != level.sig_len:', '    if False:'),), 'niveles: verificar rechaza claves y firmas de otro nivel'),
+    M('lvl-combine-ignores-level', 'qce/pqc/hybrid.py', (('    return hkdf(ss_m + ss_x, level.label + ct + pk, 32)', '    return hkdf(ss_m + ss_x, STANDARD.label + ct + pk, 32)'),), 'niveles: el secreto combinado depende del nivel'),
+    M('lvl-kem-generate-ignores-level', 'qce/pqc/hybrid.py', (('        return cls(x25519.X25519PrivateKey.generate(), level.mlkem_private.generate(), level)', '        return cls(x25519.X25519PrivateKey.generate(), mlkem.MLKEM768PrivateKey.generate(), level)'),), 'niveles: la clave KEM generada es del nivel pedido'),
+    M('lvl-encaps-uses-standard-public', 'qce/pqc/hybrid.py', (('    m_pub = level.mlkem_public.from_public_bytes(public_bytes[X_LEN:])', '    m_pub = mlkem.MLKEM768PublicKey.from_public_bytes(public_bytes[X_LEN:])'),), 'niveles: encapsular usa el ML-KEM del nivel'),
+    M('lvl-verify-uses-standard-mldsa', 'qce/pqc/hybrid.py', (('        level.mldsa_public.from_public_bytes(public_bytes[32:]).verify(', '        mldsa.MLDSA65PublicKey.from_public_bytes(public_bytes[32:]).verify('),), 'niveles: verificar usa el ML-DSA del nivel'),
 ]

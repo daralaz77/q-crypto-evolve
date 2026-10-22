@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from openssl_tool import find_openssl
 from qce.core.errors import AuthenticationFailure, MalformedMessage
 from qce.pqc import slhdsa as S
 
@@ -13,7 +14,7 @@ try:
 except Exception:  # noqa: BLE001
     HAVE = False
 needs = pytest.mark.skipif(not HAVE, reason="sin OpenSSL ≥ 3.5 con SLH-DSA")
-EXE = next((p for p in ("/opt/homebrew/bin/openssl", "/opt/homebrew/opt/openssl@3/bin/openssl", "/usr/local/bin/openssl") if os.path.exists(p)), None)
+EXE = find_openssl()   # openssl >= 3.5 de Homebrew o del PATH (tests/openssl_tool.py); None → las pruebas con la herramienta se saltan
 SPKI_PREFIX = bytes.fromhex("3030300b060960864801650304031403210" + "0")   # SubjectPublicKeyInfo de SLH-DSA-SHA2-128s (OID 2.16.840.1.101.3.4.3.20)
 
 

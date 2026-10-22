@@ -13,6 +13,7 @@ class Suite:
     sig: str
     aead: str
     status: str  # "allowed" | "deprecated" | "forbidden"
+    level: str = "standard"  # nivel de parámetros poscuánticos (qce.pqc.hybrid.LEVELS): "standard" = ML-KEM-768/ML-DSA-65, "high" = ML-KEM-1024/ML-DSA-87
 
 
 # Registro central. Añadir una suite aquí NO la habilita: la política decide.
@@ -21,6 +22,8 @@ SUITES: dict[str, Suite] = {
     for s in (
         Suite("QCE1-XMLKEM768-CHACHA", "X25519+ML-KEM-768", "Ed25519+ML-DSA-65", "CHACHA20-POLY1305", "allowed"),
         Suite("QCE1-XMLKEM768-AESGCM", "X25519+ML-KEM-768", "Ed25519+ML-DSA-65", "AES-256-GCM", "allowed"),
+        # Nivel ALTO (parámetros que pide CNSA 2.0 para la parte poscuántica). Está en el registro pero NO en la política por defecto: se activa a propósito.
+        Suite("QCE1-XMLKEM1024-AESGCM", "X25519+ML-KEM-1024", "Ed25519+ML-DSA-87", "AES-256-GCM", "allowed", "high"),
         # Ejemplo de suite histórica rechazada siempre (sin componente poscuántico).
         Suite("QCE0-X25519-CHACHA", "X25519", "Ed25519", "CHACHA20-POLY1305", "forbidden"),
     )

@@ -129,8 +129,8 @@ class _Spies:
     def __enter__(self):
         real_enc, real_dec, real_gen = S.hybrid_encapsulate, HybridKemPrivateKey.decapsulate, HybridKemPrivateKey.generate.__func__
 
-        def enc(pk):
-            k, ct = real_enc(pk)
+        def enc(pk, *a, **kw):
+            k, ct = real_enc(pk, *a, **kw)
             self.k_client = k
             return k, ct
 
@@ -139,8 +139,8 @@ class _Spies:
             self.k_server = k
             return k
 
-        def gen(cls):
-            k = real_gen(cls)
+        def gen(cls, *a, **kw):
+            k = real_gen(cls, *a, **kw)
             self.leaked_ephemeral.append(k)
             return k
         self._p = [mock.patch.object(S, "hybrid_encapsulate", enc), mock.patch.object(HybridKemPrivateKey, "decapsulate", dec),

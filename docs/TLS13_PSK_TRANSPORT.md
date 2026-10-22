@@ -47,6 +47,9 @@ NSS 3.125 (`tstclnt`, `selfserv`, `certutil`; código distinto de OpenSSL y de G
 - Python 3.14 no expone el grupo negociado por conexión en el cliente con certificados: en esa prueba el híbrido se deduce de que NSS solo ofrecía ese grupo y nuestro contexto solo lo acepta. En el cliente PSK sí se atestigua el grupo.
 - Las pruebas se saltan solas sin NSS, sin compilador o sin cabeceras de NSS (en Linux las herramientas `tstclnt`/`selfserv` normalmente no vienen empaquetadas). Probado solo en macOS con Homebrew.
 
+## 3d. Grupo híbrido de nivel alto: `SecP384r1MLKEM1024` (2026-10-22)
+Además de `X25519MLKEM768` (por defecto) y `X25519` (solo para interoperar), el puente admite `SecP384r1MLKEM1024` (P-384 + ML-KEM-1024, los parámetros poscuánticos de CNSA 2.0) **si se pide** (`group="SecP384r1MLKEM1024"` en los dos lados). No se admite ML-KEM «puro» (`MLKEM1024`, `MLKEM768`) por no llevar componente clásico, ni `SecP256r1MLKEM768`. Un cliente con el grupo por defecto no puede hablar con un servidor de nivel alto (falla, no cambia el nivel en silencio). Se atestigua el grupo negociado en las dos puntas. **Interoperabilidad con NSS** (`secp384r1mlkem1024` en `tstclnt`, y el ayudante en C con el grupo 4589): en los dos sentidos. Límite: la ruta con certificados (`tls13.py`) sigue ofreciendo solo `X25519MLKEM768`.
+
 ## 4. Límites
 - **El puente `ctypes` es código nuestro y delicado** (tipos C, tiempos de vida de los callbacks, propiedad de `SSL_SESSION`). Una revisión humana debería mirarlo antes de producción.
 - El `kid` es visible para un observador de red; no es secreto. La PSK sí lo es.

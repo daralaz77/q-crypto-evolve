@@ -16,7 +16,8 @@ try:
 except P.PskTransportUnavailable:
     HAVE = False
 needs = pytest.mark.skipif(not HAVE or sys.platform == "win32", reason="sin OpenSSL ≥ 3.5 o sin /dev/fd")
-RSS_GROWTH_MB = 4.0   # lo observado es < 0,5 MB; el margen cubre el ruido del asignador
+RSS_GROWTH_MB = 4.0   # sin `mallinfo2`: lo observado es < 0,5 MB; el margen cubre el ruido del asignador
+HEAP_GROWTH_MB = 0.5  # con `mallinfo2` (glibc): bytes EN USO; lo observado es ≈ 0,01 MB. Una fuga de ≈ 170 B por apretón ya lo superaría
 
 
 def scenario(name):
@@ -28,7 +29,11 @@ def scenario(name):
 
 def no_growth(r):
     b, a = r["before"], r["after"]
-    assert a["rss_mb"] - b["rss_mb"] < RSS_GROWTH_MB, (b, a)
+    if a.get("heap_mb") is not None and b.get("heap_mb") is not None:
+        # En glibc el RSS mezcla fugas con fragmentación (medido: +600 B por apretón en Linux x86_64 sin fuga alguna): se mide lo que está en uso, que es más estricto.
+        assert a["heap_mb"] - b["heap_mb"] < HEAP_GROWTH_MB, (b, a)
+    else:
+        assert a["rss_mb"] - b["rss_mb"] < RSS_GROWTH_MB, (b, a)
     assert a["fds"] == b["fds"] and a["threads"] == b["threads"], (b, a)
 
 

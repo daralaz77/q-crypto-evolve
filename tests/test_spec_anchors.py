@@ -45,6 +45,9 @@ def test_constants_table_matches_code():
     assert C["KEM_LABEL"] == hybrid._LABEL.decode()
     assert (int(C["KEM_PK_LEN"]), int(C["KEM_CT_LEN"]), int(C["SIG_PK_LEN"]), int(C["SIG_LEN"])) == \
         (hybrid.KEM_PK_LEN, hybrid.KEM_CT_LEN, hybrid.SIG_PK_LEN, hybrid.SIG_LEN)
+    assert C["KEM_LABEL_HIGH"] == hybrid.HIGH.label.decode()
+    assert (int(C["KEM_PK_LEN_HIGH"]), int(C["KEM_CT_LEN_HIGH"]), int(C["SIG_PK_LEN_HIGH"]), int(C["SIG_LEN_HIGH"])) == \
+        (hybrid.HIGH.kem_pk_len, hybrid.HIGH.kem_ct_len, hybrid.HIGH.sig_pk_len, hybrid.HIGH.sig_len)
     assert (int(C["MAX_FIELD"]), int(C["MAX_FIELDS"])) == (encoding.MAX_FIELD, encoding.MAX_FIELDS)
     assert int(C["REPLAY_WINDOW"]) == Policy().replay_window
 
@@ -53,7 +56,7 @@ def test_every_constant_in_the_table_is_used_by_the_independent_rederivation():
     """Evita constantes decorativas: las que no se comprueban ni aquí ni arriba se detectan."""
     used = {"VERSION", "TAG_CLIENT_HELLO", "TAG_SERVER_HELLO", "TAG_CLIENT_FINISH", "TAG_SERVER_FINISH", "TAG_RECORD", "SIGN_CONTEXT",
             "KEM_LABEL", "KEM_PK_LEN", "KEM_CT_LEN", "SIG_PK_LEN", "SIG_LEN", "KEYS_INFO_PREFIX", "KEYS_LEN", "SESSION_ID_LEN",
-            "MAX_FIELD", "MAX_FIELDS", "REPLAY_WINDOW"}
+            "MAX_FIELD", "MAX_FIELDS", "REPLAY_WINDOW", "KEM_LABEL_HIGH", "KEM_PK_LEN_HIGH", "KEM_CT_LEN_HIGH", "SIG_PK_LEN_HIGH", "SIG_LEN_HIGH"}
     assert set(C) == used
 
 
@@ -78,8 +81,8 @@ def parse(msg: bytes, tag: int, n: int) -> list[bytes]:  # §5, escrito de nuevo
     return out
 
 
-def run_handshake(monkeypatch, policy, qkd=None):
-    ident = HybridSigPrivateKey.generate()
+def run_handshake(monkeypatch, policy, qkd=None, level=hybrid.STANDARD):
+    ident = HybridSigPrivateKey.generate(level)
     captured = {}
     real = HybridKemPrivateKey.decapsulate
 
@@ -97,12 +100,13 @@ def run_handshake(monkeypatch, policy, qkd=None):
     return ident, (m1, m2, m3, m4), captured["ss"], cs, ss_sess
 
 
-@pytest.mark.parametrize("suite,aead_cls,qkd", [
-    ("QCE1-XMLKEM768-CHACHA", ChaCha20Poly1305, None),
-    ("QCE1-XMLKEM768-AESGCM", AESGCM, (b"qkd-id-1", b"q" * 32)),
+@pytest.mark.parametrize("suite,aead_cls,qkd,sfx,level,mldsa_pub", [
+    ("QCE1-XMLKEM768-CHACHA", ChaCha20Poly1305, None, "", hybrid.STANDARD, mldsa.MLDSA65PublicKey),
+    ("QCE1-XMLKEM768-AESGCM", AESGCM, (b"qkd-id-1", b"q" * 32), "", hybrid.STANDARD, mldsa.MLDSA65PublicKey),
+    ("QCE1-XMLKEM1024-AESGCM", AESGCM, (b"qkd-id-2", b"q" * 32), "_HIGH", hybrid.HIGH, mldsa.MLDSA87PublicKey),   # nivel alto: ML-KEM-1024 / ML-DSA-87
 ])
-def test_independent_rederivation_matches_a_real_handshake(monkeypatch, suite, aead_cls, qkd):
-    ident, (m1, m2, m3, m4), ss, cs, srv = run_handshake(monkeypatch, Policy(allowed_suites=(suite,)), qkd)
+def test_independent_rederivation_matches_a_real_handshake(monkeypatch, suite, aead_cls, qkd, sfx, level, mldsa_pub):
+    ident, (m1, m2, m3, m4), ss, cs, srv = run_handshake(monkeypatch, Policy(allowed_suites=(suite,)), qkd, level)
     version, nonce_c, suites, qid = parse(m1, int(C["TAG_CLIENT_HELLO"]), 4)
     suite_b, nonce_s, kem_pk, sig = parse(m2, int(C["TAG_SERVER_HELLO"]), 4)
     ct, mac_c = parse(m3, int(C["TAG_CLIENT_FINISH"]), 2)
@@ -110,13 +114,13 @@ def test_independent_rederivation_matches_a_real_handshake(monkeypatch, suite, a
     assert version.decode() == C["VERSION"] and len(nonce_c) == 32 and len(nonce_s) == 32
     assert suite_b.decode() == suite and qid == (qkd[0] if qkd else b"")
     assert (len(kem_pk), len(ct), len(sig), len(ident.public_bytes)) == \
-        (int(C["KEM_PK_LEN"]), int(C["KEM_CT_LEN"]), int(C["SIG_LEN"]), int(C["SIG_PK_LEN"]))
+        (int(C["KEM_PK_LEN" + sfx]), int(C["KEM_CT_LEN" + sfx]), int(C["SIG_LEN" + sfx]), int(C["SIG_PK_LEN" + sfx]))
 
     # §6: firma del servidor, con las dos mitades verificadas por separado
     signed = H(m1, suite_b, nonce_s, kem_pk, hashlib.sha256(ident.public_bytes).digest())
     ctx = C["SIGN_CONTEXT"].encode()
     ed25519.Ed25519PublicKey.from_public_bytes(ident.public_bytes[:32]).verify(sig[:64], ctx + b"\x00" + signed)
-    mldsa.MLDSA65PublicKey.from_public_bytes(ident.public_bytes[32:]).verify(sig[64:], signed, ctx)
+    mldsa_pub.from_public_bytes(ident.public_bytes[32:]).verify(sig[64:], signed, ctx)
 
     # §6/§7: transcript, claves y confirmaciones
     th = H(m1, m2, ct)
@@ -136,13 +140,14 @@ def test_independent_rederivation_matches_a_real_handshake(monkeypatch, suite, a
         assert pt == b"hola poscuantico"
 
 
-def test_kem_combiner_matches_spec():
-    """§4.1: K = HKDF(ss_m ‖ ss_x, LABEL ‖ ct ‖ pk, 32, sin sal)."""
-    k = HybridKemPrivateKey.generate()
-    K, ct = hybrid.hybrid_encapsulate(k.public_bytes)
+@pytest.mark.parametrize("level,label_key", [(hybrid.STANDARD, "KEM_LABEL"), (hybrid.HIGH, "KEM_LABEL_HIGH")])
+def test_kem_combiner_matches_spec(level, label_key):
+    """§4.1: K = HKDF(ss_m ‖ ss_x, LABEL ‖ ct ‖ pk, 32, sin sal), con la etiqueta de cada nivel."""
+    k = HybridKemPrivateKey.generate(level)
+    K, ct = hybrid.hybrid_encapsulate(k.public_bytes, level)
     ss_x = k._x.exchange(x25519.X25519PublicKey.from_public_bytes(ct[:32]))
     ss_m = k._m.decapsulate(ct[32:])
-    expected = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=C["KEM_LABEL"].encode() + ct + k.public_bytes).derive(ss_m + ss_x)
+    expected = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=C[label_key].encode() + ct + k.public_bytes).derive(ss_m + ss_x)
     assert K == expected == k.decapsulate(ct)
 
 

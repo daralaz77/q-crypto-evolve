@@ -1,4 +1,4 @@
-"""Mutantes de transport / tls13 / psk (36). Archivos que rompen: qce/transport/tls13_psk.py."""
+"""Mutantes de transport / tls13 / psk (39). Archivos que rompen: qce/transport/tls13_psk.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
@@ -8,7 +8,7 @@ MUTANTS = [
     M('psk-group-client-unchecked', 'qce/transport/tls13_psk.py', (('    _check_suite(suite)\n    _check_group(group)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)', '    _check_suite(suite)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)'),), 'PSK: el cliente valida el grupo'),
     M('psk-group-server-unchecked', 'qce/transport/tls13_psk.py', (('    _check_suite(suite)\n    _check_group(group)\n    _nodelay(sock)\n    lib = _load()', '    _check_suite(suite)\n    _nodelay(sock)\n    lib = _load()'),), 'PSK: el servidor valida el grupo'),
     M('psk-default-group-classical', 'qce/transport/tls13_psk.py', (('GROUP = "X25519MLKEM768"', 'GROUP = "X25519"'),), 'PSK: el grupo por defecto es el híbrido'),
-    M('psk-groups-allow-more', 'qce/transport/tls13_psk.py', (('GROUPS = ("X25519MLKEM768", "X25519")', 'GROUPS = ("X25519MLKEM768", "X25519", "X448")'),), 'PSK: solo dos grupos permitidos'),
+    M('psk-groups-allow-more', 'qce/transport/tls13_psk.py', (('GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519")', 'GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519", "X448")'),), 'PSK: solo tres grupos permitidos (dos híbridos y X25519 para interoperar)'),
     M('psk-nodelay-client-off', 'qce/transport/tls13_psk.py', (('    _check_group(group)\n    _nodelay(sock)\n    psk = prepare_psk(qkd_key, identity)', '    _check_group(group)\n    psk = prepare_psk(qkd_key, identity)'),), 'PSK: TCP_NODELAY (cliente)'),
     M('psk-nodelay-server-off', 'qce/transport/tls13_psk.py', (('    _check_group(group)\n    _nodelay(sock)\n    lib = _load()', '    _check_group(group)\n    lib = _load()'),), 'PSK: TCP_NODELAY (servidor)'),
     M('psk-leak-ssl-not-freed', 'qce/transport/tls13_psk.py', (('        self._l.SSL_free(self._ssl)\n', '        pass\n'),), 'PSK: se libera SSL (fugas de memoria)'),
@@ -38,4 +38,7 @@ MUTANTS = [
     M("psk-closed-peer-unreported", "qce/transport/tls13_psk.py", (('            if e == 6:  # SSL_ERROR_ZERO_RETURN\n                raise MalformedMessage("conexión cerrada por el par")\n', ''),), "PSK: cierre del par"),
     M("psk-send-limit-off", "qce/transport/tls13_psk.py", (('        if len(data) > MAX_FRAME:\n            raise MalformedMessage("mensaje demasiado grande")', '        if False:\n            raise MalformedMessage("mensaje demasiado grande")'),), "PSK: tamaño máximo de mensaje (envío)"),
     M("psk-recv-limit-off", "qce/transport/tls13_psk.py", (('        if n > max_size:\n            raise MalformedMessage("mensaje mayor', '        if False:\n            raise MalformedMessage("mensaje mayor'),), "PSK: tamaño máximo de mensaje (recepción)"),
+    M('lvl-psk-high-group-name-off', 'qce/transport/tls13_psk.py', (('"SecP384r1MLKEM1024": "SecP384r1MLKEM1024", "X25519": "x25519"}', '"SecP384r1MLKEM1024": "x25519", "X25519": "x25519"}'),), 'niveles PSK: la atestación comprueba el grupo de nivel alto realmente negociado'),
+    M('lvl-psk-pure-mlkem-allowed', 'qce/transport/tls13_psk.py', (('GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519")', 'GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519", "MLKEM1024")'),), 'niveles PSK: ML-KEM sin componente clásico no está permitido'),
+    M('lvl-psk-default-group-high', 'qce/transport/tls13_psk.py', (('GROUP = "X25519MLKEM768"\n', 'GROUP = "SecP384r1MLKEM1024"\n'),), 'niveles PSK: el grupo por defecto no cambia en silencio al nivel alto'),
 ]

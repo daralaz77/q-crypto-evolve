@@ -1,8 +1,8 @@
-"""Mutantes de protocols (13). Archivos que rompen: qce/protocols/session.py."""
+"""Mutantes de protocols (17). Archivos que rompen: qce/protocols/session.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
-    M("hs-server-sig-not-verified", "qce/protocols/session.py", (("hybrid_verify(self._pinned, signed, sig, CTX_SERVER)", "pass"),), "autenticación del servidor"),
+    M("hs-server-sig-not-verified", "qce/protocols/session.py", (("hybrid_verify(self._pinned, signed, sig, CTX_SERVER, level)", "pass"),), "autenticación del servidor"),
     M("hs-suite-not-offered-allowed", "qce/protocols/session.py", (("if suite not in self._offered:", "if False:"),), "anti-degradación"),
     M("hs-transcript-unsigned", "qce/protocols/session.py",
       (("signed = _h(self._m1, suite_b,", "signed = _h(suite_b,"), ("signed = _h(m1, suite_b,", "signed = _h(suite_b,")), "firma cubre ClientHello"),
@@ -17,4 +17,8 @@ MUTANTS = [
     M("conf-client-mac-truncated", "qce/protocols/session.py", (('if not ct_equal(mac_s, mac(self._ck, b"server" + self._th + self._mac_c)):', 'if not ct_equal(mac_s[:16], mac(self._ck, b"server" + self._th + self._mac_c)[:16]):'),), "conformidad: MAC completo"),
     M("conf-fingerprint-dropped-client", "qce/protocols/session.py", (('signed = _h(self._m1, suite_b, nonce_s, kem_pk, fingerprint(self._pinned))', 'signed = _h(self._m1, suite_b, nonce_s, kem_pk)'),), "conformidad: huella en lo firmado"),
     M("conf-ct-not-in-transcript-server", "qce/protocols/session.py", (('th = _h(self._m1, self._m2, ct)\n        c2s, s2c, ck = _derive(secret, th)', 'th = _h(self._m1, self._m2)\n        c2s, s2c, ck = _derive(secret, th)'),), "conformidad: ct en el transcript"),
+    M('lvl-client-verify-level-default', 'qce/protocols/session.py', (('hybrid_verify(self._pinned, signed, sig, CTX_SERVER, level)', 'hybrid_verify(self._pinned, signed, sig, CTX_SERVER)'),), 'niveles QCE1: el cliente verifica con el nivel de la suite'),
+    M('lvl-client-encaps-level-default', 'qce/protocols/session.py', (('ss, ct = hybrid_encapsulate(kem_pk, level)', 'ss, ct = hybrid_encapsulate(kem_pk)'),), 'niveles QCE1: el cliente encapsula con el nivel de la suite'),
+    M('lvl-server-identity-level-check-off', 'qce/protocols/session.py', (('        if self._id.level is not level:', '        if False:'),), 'niveles QCE1: el servidor no firma con una identidad de otro nivel'),
+    M('lvl-server-kem-level-off', 'qce/protocols/session.py', (('self._kem = HybridKemPrivateKey.generate(level)  # efímera', 'self._kem = HybridKemPrivateKey.generate()  # efímera'),), 'niveles QCE1: la clave KEM efímera es del nivel de la suite'),
 ]

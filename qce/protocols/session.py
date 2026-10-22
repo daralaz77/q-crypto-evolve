@@ -20,7 +20,7 @@ from typing import Callable
 from ..core.encoding import pack, unpack
 from ..core.errors import AuthenticationFailure, MalformedMessage, PolicyViolation
 from ..core.policy import Policy
-from ..pqc.hybrid import (HybridKemPrivateKey, HybridSigPrivateKey, hybrid_encapsulate,
+from ..pqc.hybrid import (LEVELS, HybridKemPrivateKey, HybridSigPrivateKey, hybrid_encapsulate,
                           hybrid_verify)
 from ..symmetric.aead import OpeningKey, SealingKey, ct_equal, hkdf, mac
 
@@ -93,9 +93,10 @@ class ClientHandshake:
         if suite not in self._offered:  # el servidor no puede elegir algo que no ofrecimos
             raise PolicyViolation("el servidor eligió una suite no ofrecida")
         self.suite = self.policy.check_suite(suite)
+        level = LEVELS[self.suite.level]  # el nivel lo fija la suite (firmada en el transcript), nunca algo deducido de las longitudes recibidas
         signed = _h(self._m1, suite_b, nonce_s, kem_pk, fingerprint(self._pinned))
-        hybrid_verify(self._pinned, signed, sig, CTX_SERVER)  # autentica al servidor + transcript
-        ss, ct = hybrid_encapsulate(kem_pk)
+        hybrid_verify(self._pinned, signed, sig, CTX_SERVER, level)  # autentica al servidor + transcript
+        ss, ct = hybrid_encapsulate(kem_pk, level)
         secret = ss + (self._qkd[1] if self._qkd else b"")
         self._th = _h(self._m1, m2, ct)
         self._send, self._recv, self._ck = _derive(secret, self._th)
@@ -137,7 +138,10 @@ class ServerHandshake:
             self._qkd_key = self._qkd_lookup(qid)
             if self._qkd_key is None:
                 raise PolicyViolation("QKD declarada por el cliente pero ausente: se aborta, no se degrada")
-        self._kem = HybridKemPrivateKey.generate()  # efímera
+        level = LEVELS[self.suite.level]
+        if self._id.level is not level:  # la identidad del servidor debe ser del nivel de la suite elegida: nada de firmar con otro nivel
+            raise PolicyViolation("la identidad del servidor no corresponde al nivel de la suite elegida")
+        self._kem = HybridKemPrivateKey.generate(level)  # efímera
         nonce_s, suite_b = os.urandom(32), suite_id.encode()
         signed = _h(m1, suite_b, nonce_s, self._kem.public_bytes, fingerprint(self._id.public_bytes))
         sig = self._id.sign(signed, CTX_SERVER)

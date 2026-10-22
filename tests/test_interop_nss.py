@@ -323,3 +323,31 @@ def test_our_certificate_client_refuses_an_nss_server_that_only_offers_a_classic
         finally:
             proc.kill()
             proc.wait(5)
+
+
+# ---- grupo de nivel alto (SecP384r1MLKEM1024 = secp384r1mlkem1024 en NSS) ---------------------------------------------------------------------------
+HIGH_GROUP = "SecP384r1MLKEM1024"
+
+
+@needs
+def test_nss_client_completes_the_high_level_hybrid_group_with_our_psk_server():
+    with tempfile.TemporaryDirectory() as td:
+        srv, store, seen = psk_server(group=HIGH_GROUP)
+        out = nss_client(srv.port, nss_db(Path(td)), "secp384r1mlkem1024", psk_hex())
+        assert wait(lambda: "identity" in seen)
+        assert (seen["identity"], seen["group"], seen["cipher"], seen["version"]) == (KID, HIGH_GROUP, SUITE, "TLSv1.3")
+        assert "gnip" in out and wait(lambda: KID not in store._keys)
+        srv.close()
+
+
+@needs
+def test_our_psk_client_completes_the_high_level_hybrid_group_with_an_nss_server_that_authenticates_by_psk():
+    with tempfile.TemporaryDirectory() as td:
+        proc, port = start_nss_psk_server(Path(td), "hibrido1024")
+        c = P.connect_tcp("127.0.0.1", port, KID, KEY, timeout=8, suite=SUITE, group=HIGH_GROUP)
+        assert (c.version, c.group, c.cipher) == ("TLSv1.3", HIGH_GROUP, SUITE)
+        c._write_all(b"ping", 5)
+        assert c._read_exact(4, 5) == b"gnip"
+        c.close()
+        assert finish(proc) == {"ok": True, "version": 0x0304, "group": 4589, "suite": 0x1301, "auth": 9, "kea": 8, "read": 4}   # 4589 = secp384r1mlkem1024 en NSS
+

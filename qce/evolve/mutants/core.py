@@ -1,4 +1,4 @@
-"""Mutantes de core (12). Archivos que rompen: qce/core/chainlog.py, qce/core/encoding.py, qce/core/openssl_ffi.py, qce/core/policy.py."""
+"""Mutantes de core (14). Archivos que rompen: qce/core/chainlog.py, qce/core/encoding.py, qce/core/openssl_ffi.py, qce/core/policy.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
@@ -14,4 +14,6 @@ MUTANTS = [
     M("san-alnum-off", "qce/core/chainlog.py", (('return bool(re.search(r"[0-9]", tok) and re.search(r"[A-Za-z]", tok)) and _entropy(tok) >= 3.5', 'return False'),), "tokens alfanuméricos"),
     M("chain-expected-head-off", "qce/core/chainlog.py", (('if expected_head is not None and prev != expected_head:  # concurrencia optimista: leer-validar-escribir atómico', 'if False:'),), "concurrencia optimista (log)"),
     M("psk-lib-version-floor-off", "qce/core/openssl_ffi.py", (('if crypto.OpenSSL_version_num() < OPENSSL_MIN:', 'if False:'),), "PSK: OpenSSL ≥ 3.5"),
+    M('lvl-default-policy-includes-high', 'qce/core/policy.py', (('allowed_suites: tuple[str, ...] = ("QCE1-XMLKEM768-CHACHA", "QCE1-XMLKEM768-AESGCM")', 'allowed_suites: tuple[str, ...] = ("QCE1-XMLKEM768-CHACHA", "QCE1-XMLKEM768-AESGCM", "QCE1-XMLKEM1024-AESGCM")'),), 'niveles: la política por defecto no admite el nivel alto'),
+    M('lvl-high-suite-marked-standard', 'qce/core/policy.py', (('"Ed25519+ML-DSA-87", "AES-256-GCM", "allowed", "high"),', '"Ed25519+ML-DSA-87", "AES-256-GCM", "allowed", "standard"),'),), 'niveles: la suite alta declara el nivel alto'),
 ]

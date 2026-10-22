@@ -33,8 +33,9 @@ from ..core.errors import AuthenticationFailure, MalformedMessage, PolicyViolati
 GROUP = "X25519MLKEM768"
 CIPHERSUITE = "TLS_AES_256_GCM_SHA384"
 CIPHER_ID = b"\x13\x02"          # TLS_AES_256_GCM_SHA384: su hash (SHA-384) es el de los binders de la PSK
-GROUPS = ("X25519MLKEM768", "X25519")   # el segundo SOLO para interoperar con pilas sin híbrido (p. ej. GnuTLS 3.8): no protege frente a un ordenador cuántico
-REPORTED_GROUP_NAME = {"X25519MLKEM768": "X25519MLKEM768", "X25519": "x25519"}   # cómo informa OpenSSL (SSL_get0_group_name) cada grupo permitido
+GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519")   # X25519 SOLO para interoperar con pilas sin híbrido (p. ej. GnuTLS 3.8): no protege frente a un ordenador cuántico.
+# SecP384r1MLKEM1024 (P-384 + ML-KEM-1024, parámetros de nivel CNSA 2.0) es opcional: hay que pedirlo; el valor por defecto sigue siendo X25519MLKEM768. NO se admite ML-KEM «puro» (sin componente clásico).
+REPORTED_GROUP_NAME = {"X25519MLKEM768": "X25519MLKEM768", "SecP384r1MLKEM1024": "SecP384r1MLKEM1024", "X25519": "x25519"}   # cómo informa OpenSSL (SSL_get0_group_name) cada grupo permitido
 SUITES = {"TLS_AES_256_GCM_SHA384": b"\x13\x02", "TLS_AES_128_GCM_SHA256": b"\x13\x01"}   # la segunda solo por interoperabilidad (la PSK de otras herramientas va ligada a SHA-256)
 TLS13 = 0x0304
 PSK_INFO = b"QCE/TLS13-PSK/1"

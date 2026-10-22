@@ -9,6 +9,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from openssl_tool import find_openssl
 from qce.core import openssl_ffi as ffi
 from qce.core.errors import AuthenticationFailure, MalformedMessage, PolicyViolation
 from qce.qkd.sources import OneTimeKeys
@@ -150,9 +151,9 @@ def test_third_party_openssl_client_completes_the_same_handshake():
 
 @needs_lib
 def test_third_party_openssl_client_with_a_wrong_psk_is_rejected():
-    exe = "/opt/homebrew/bin/openssl"
-    if not os.path.exists(exe):
-        pytest.skip("sin openssl de Homebrew")
+    exe = find_openssl()
+    if exe is None:
+        pytest.skip("sin un openssl >= 3.5 (Homebrew o PATH)")
     store, srv = serve(suite="TLS_AES_128_GCM_SHA256")
     subprocess.run([exe, "s_client", "-connect", f"127.0.0.1:{srv.port}", "-tls1_3", "-groups", "X25519MLKEM768", "-ciphersuites", "TLS_AES_128_GCM_SHA256", "-psk", "00" * 32, "-psk_identity", KID.decode()],
                    input=b"", capture_output=True, timeout=20)
@@ -399,3 +400,47 @@ def test_closing_a_connection_closes_its_socket_at_once_on_both_ends_without_wai
     assert wait(lambda: "srv" in seen and seen["srv"].fileno() == -1)
     c.close()                                                              # cerrar dos veces no falla
     srv.close()
+
+
+# ---- grupo de nivel alto (P-384 + ML-KEM-1024): opcional, nunca por defecto, nunca sin componente clásico ----------------------------------------
+HIGH_GROUP = "SecP384r1MLKEM1024"
+
+
+@needs_lib
+def test_the_high_level_hybrid_group_completes_a_handshake_and_is_attested_on_both_sides():
+    seen = {}
+
+    def h(conn):
+        seen.update(group=conn.group, cipher=conn.cipher, version=conn.version, identity=conn.identity)
+        conn._write_all(conn._read_exact(4, 5)[::-1], 5)
+    store = OneTimeKeys({KID: KEY})
+    srv = P.PskServer(store, h, timeout=5.0, group=HIGH_GROUP).start()
+    c = P.connect_tcp("127.0.0.1", srv.port, KID, KEY, timeout=5, group=HIGH_GROUP)
+    c._write_all(b"ping", 5)
+    assert c._read_exact(4, 5) == b"gnip"
+    assert (c.version, c.group, c.cipher) == ("TLSv1.3", HIGH_GROUP, P.CIPHERSUITE)
+    assert wait(lambda: "identity" in seen) and seen["group"] == HIGH_GROUP and KID not in store._keys   # atestado en el servidor y clave consumida
+    c.close()
+    srv.close()
+
+
+def test_the_default_group_is_still_the_standard_hybrid_and_pure_mlkem_is_refused_before_touching_the_network():
+    assert P.GROUP == "X25519MLKEM768" and P.GROUPS[0] == "X25519MLKEM768" and HIGH_GROUP in P.GROUPS
+    store = OneTimeKeys({KID: KEY})
+    for bad in ("MLKEM1024", "MLKEM768", "SecP256r1MLKEM768", "mlkem1024"):                # ML-KEM sin componente clásico u otro grupo no previsto
+        with pytest.raises(PolicyViolation):
+            P.connect(socket.socket(), KID, KEY, timeout=1, group=bad)
+        with pytest.raises(PolicyViolation):
+            P.accept(None, store, group=bad)
+    assert KID in store._keys and KID not in store._reserved
+
+
+@needs_lib
+def test_a_default_group_client_cannot_talk_to_a_high_group_server_so_the_level_is_never_changed_silently():
+    store = OneTimeKeys({KID: KEY})
+    srv = P.PskServer(store, lambda c: None, timeout=3.0, group=HIGH_GROUP).start()
+    with pytest.raises((AuthenticationFailure, MalformedMessage, PolicyViolation)):
+        P.connect_tcp("127.0.0.1", srv.port, KID, KEY, timeout=3)                         # el cliente pide el grupo por defecto
+    assert wait(lambda: srv.failed_handshakes >= 1) and KID in store._keys
+    srv.close()
+
