@@ -3,6 +3,12 @@
 Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0 y `q-crypto-qkd-adapters` 1.0).
 **Estado: laboratorio, sin auditoría externa. Lee `LIMITATIONS.md` antes de confiar en nada.**
 
+> **Estado / Status:** laboratorio, sin revisión humana externa. *Research lab; no external human review.* **No usar en producción / Do not use in production.**
+>
+> **Transparencia sobre IA / AI disclosure:** el código, las pruebas, los modelos formales y la documentación los escribió una instancia de Claude (Anthropic) bajo puertas de verificación (pruebas, mutación, incidentes, paquete de revisión reproducible). Las firmas de personas que exige el método (puertas G5 y G6) siguen **pendientes**. *The code, tests, formal models and documentation were written by an instance of Claude (Anthropic) under verification gates; the human sign-offs the method requires (gates G5/G6) are still pending.*
+>
+> **Licencia / License:** [Apache-2.0](LICENSE) · [NOTICE](NOTICE) · [avisos de terceros](THIRD_PARTY_NOTICES.md) · **Vulnerabilidades / Security:** [SECURITY.md](SECURITY.md)
+
 ```bash
 cd ~/Claude/q-crypto-evolve
 .venv/bin/python -m qce test      # batería completa (≈1 s)

@@ -1,0 +1,12 @@
+Q-Crypto Evolve
+Copyright 2026 Darwing John Pérez Aranguren
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This project was written by an instance of Claude (Anthropic) under the direction
+of the copyright holder, inside a set of verification gates (tests, mutation
+testing, an incident ledger and a reproducible review package). The human review
+and sign-offs the method requires (gates G5 and G6) were pending when this notice
+was written; see LIMITATIONS.md.
+
+Third-party material and tools are listed in THIRD_PARTY_NOTICES.md.
