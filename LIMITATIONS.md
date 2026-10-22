@@ -2,14 +2,14 @@
 
 Este documento es parte del producto. Un resultado "verde" solo significa lo que la prueba comprueba.
 
-## Estado real (Q-Crypto Evolve v0.3-lab, 2026-10-17)
+## Estado real (Q-Crypto Evolve, revisado 2026-10-22)
 - **Laboratorio.** No hay despliegue, no hay claves de producción, no hay auditoría externa.
 - **Estado máximo alcanzable por el sistema:** `VERIFIED`. `RELEASE_APPROVED` exige firma humana (GATE 6) y no se simula.
 
 ## Criptografía
 - Primitivas: ML-KEM-768 (FIPS 203), ML-DSA-65 (FIPS 204), X25519, Ed25519, ChaCha20-Poly1305 / AES-256-GCM de
   `cryptography` 50.0.2 (OpenSSL 4.0.3 embebido). No se implementó ninguna primitiva propia.
-- **SLH-DSA no está incluido**: esta versión de `cryptography` no lo expone. Declarado, no simulado.
+- **SLH-DSA** (SLH-DSA-SHA2-128s) no lo expone `cryptography`: va por un puente `ctypes` al `libcrypto` del sistema (`docs/SLHDSA.md`), sin revisión humana y fuera del apretón (ver más abajo).
 - **Solo ML-KEM-768 / ML-DSA-65.** Otros conjuntos de parámetros no se han evaluado.
 - **El handshake `QCE1` es una composición propia** (inspirada en la idea de KEMTLS / X-Wing, **no es** ninguno de ellos y
   **no ha sido revisada por criptógrafos**). Para producción se recomienda TLS 1.3 con el grupo híbrido estándar
@@ -24,7 +24,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 
 ## Gestión de claves
 - El borrado de memoria en Python es **de mejor esfuerzo**: el intérprete puede haber copiado el secreto (GC, `bytes`
-  inmutables devueltas a los consumidores). Para custodia seria: KMS/HSM vía la interfaz `KeyBackend` (no implementada).
+  inmutables devueltas a los consumidores). Para custodia seria del almacén de claves (vault): KMS/HSM vía la interfaz `KeyBackend` (no implementada). La clave privada del servidor TLS sí puede vivir en un token PKCS#11 (`qce/transport/hsm_tls.py`, ver más abajo).
 - El vault cifrado (scrypt + ChaCha20-Poly1305) es de laboratorio. El `min_epoch` anti-restauración debe guardarse fuera del vault.
 - Los contadores AEAD no se persisten: cada sesión deriva claves nuevas, así que no hay riesgo de reutilización entre sesiones.
 
@@ -33,7 +33,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
   dispositivos con identidad por desafío-respuesta y un **simulador etiquetado `SIMULATION`**. Su política por defecto lo rechaza.
 - **Perfiles de protocolo (`qce/qkd/profiles.py`)**: validan testigos DECLARADOS por el dispositivo (presencia, plausibilidad física,
   umbrales). No verifican la física ni detectan a un equipo que mienta de forma consistente. Ver `docs/QKD_PROTOCOLS.md`.
-- No hay adaptador ETSI GS QKD 014 ni de fabricante alguno: no se inventa compatibilidad (skill `q-crypto-qkd-adapters`, §16).
+- Hay un adaptador ETSI GS QKD 014 (`qce/qkd/etsi014.py`), probado SOLO contra un emulador (simulación; ver más abajo); no hay adaptador de ningún fabricante ni KME real: no se inventa compatibilidad (skill `q-crypto-qkd-adapters`, §16).
 - Las pruebas son funcionales/de contrato; **no validan la seguridad física de ningún equipo QKD**.
 - Mezclar la clave QKD con el secreto poscuántico se hace mediante HKDF sobre el transcript; la composición **no ha sido revisada**
   como diseño de combinación de claves (ver ADR-3). No se afirma que sea "más segura" que PQC sola.
@@ -57,15 +57,15 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - La demo (`python -m qce demo`) introduce un fallo **conocido por construcción**; demuestra el ciclo, no la capacidad de
   descubrir fallos desconocidos.
 - `pip-audit` necesita red y consulta una base pública. Los hashes de artefactos y el SBOM existen desde 2026-10-19 (`docs/SUPPLY_CHAIN.md`): cubren la sustitución posterior a la publicación, no una dependencia ya maliciosa; las dependencias de prueba no están fijadas con hash.
-- El proyecto no está bajo control de versiones en esta carpeta; los snapshots de `releases/` hacen de punto de reversión.
+- El proyecto está bajo control de versiones (repositorio privado `daralaz77/q-crypto-evolve`); los snapshots de `releases/` siguen haciendo de punto de reversión verificado. Un repositorio de Git no sustituye al ancla externa de la raíz de confianza (ver arriba).
 
 ## Transporte TLS 1.3 (`qce/transport`)
 - Detalle y justificación en `docs/TLS13_TRANSPORT.md`. Lo esencial: Python 3.14 no permite elegir ni leer el grupo; se fija por `OPENSSL_CONF` y se **atestigua**, y solo funciona si el módulo se importa antes que `cryptography`.
-- **QKD no está integrado en este transporte** (el PSK externo de TLS 1.3 no existe en `ssl` de Python 3.14). La clave privada del servidor vive ahora en el `KeyStore` cifrado (`qce/transport/custody.py`; en claro solo en memoria y en una copia cifrada efímera), pero **no en un HSM**, la rotación no es automática y no hay revocación de certificados (CRL/OCSP).
+- **QKD no está integrado en ESTE transporte** (`qce/transport/tls13.py`, basado en `ssl`: el PSK externo de TLS 1.3 no existe en `ssl` de Python 3.14); va por la ruta PSK con el puente `ctypes` (`tls13_psk.py`, más abajo). La clave privada del servidor vive en el `KeyStore` cifrado (`qce/transport/custody.py`; en claro solo en memoria y en una copia cifrada efímera); con `hsm_tls.py` puede estar en un token PKCS#11 (probado solo con SoftHSM). La rotación no es automática (hay que llamar a `rotate_if_due`) y la revocación es por CRL explícita (sin OCSP).
 
 
 ## Capa interna QKD sobre TLS (QIL1, `qce/transport/qkd_layer.py`) — NO REVISADA
-- Composición propia escrita por instancias de Claude; ninguna persona experta la ha revisado. El paquete de revisión externa (`dist/`) es anterior y **no la incluye**.
+- Composición propia escrita por instancias de Claude; ninguna persona experta la ha revisado. El paquete de revisión externa actual (`python -m qce review-package`) sí incluye su especificación, modelo formal y comprobador de conformidad, pero ninguna persona lo ha revisado.
 - Es una cascada (TLS por fuera, QIL1 por dentro), no una mezcla en el calendario de claves de TLS. La ligadura usa `tls-unique`, que en TLS 1.3 no es estándar (RFC 9266 no está disponible en Python).
 - Modelo Tamarin simbólico (`formal/qil1.spthy`): no cubre la capa de registros, la física de QKD, unknown-key-share con varios servidores ni KCI estricto, y **acota los abortos a uno por clave** para terminar. Hay conformidad por trazas (`docs/QKD_LAYER_CONFORMANCE.md`, 7 sesiones), no una prueba del código.
 - Sin secreto hacia adelante propio; sin HSM; la clave QKD es simulada (`os.urandom`), no hay hardware real.
