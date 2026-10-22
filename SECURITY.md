@@ -15,3 +15,6 @@
 ## Alcance
 Dentro: `qce/`, `tests/`, los modelos formales (`formal/`), la especificación (`docs/QCE1_SPEC.md`, `docs/QKD_LAYER_SPEC.md`) y el kit de la nube (`docs/hsm_cloud/`, sin probar).
 Fuera: OpenSSL, NSS, GnuTLS, SoftHSM y demás herramientas de terceros (repórtalas a sus proyectos).
+
+## Alertas de secretos esperadas (falsos positivos) / Expected secret-scanning alerts
+Las pruebas de los escáneres de secretos (`tests/test_tooling.py`, `tests/test_keys_qkd_log.py` y sus copias en `releases/*/src/tests/`) contienen **cadenas falsas a propósito** (por ejemplo una `API_KEY` que empieza por `sk_live_` con relleno repetido, `password=hunter2` y una clave privada PEM de relleno `AAA`) para comprobar que los escáneres las detectan. No son credenciales reales. Cualquier alerta de GitHub sobre esos archivos se cierra como «usada en pruebas». *These are intentional fake strings used to test our own scanners, not real credentials.*
