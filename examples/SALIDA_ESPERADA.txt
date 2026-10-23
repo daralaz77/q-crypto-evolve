@@ -1,0 +1,7 @@
+[1] KME ETSI GS QKD 014 EMULADO escuchando en 127.0.0.1:51914 (TLS 1.3 con autenticación mutua; simulación, no es QKD real)
+[2] la SAE maestra pidió una clave: key_ID=4912c89c-2052-4a96-b77a-b5e9585231b7, 256 bits (la clave no se imprime)
+[3] TLS 1.3 con la clave del KME como PSK externa: versión=TLSv1.3, grupo=X25519MLKEM768, cifrado=TLS_AES_256_GCM_SHA384, PSK usada=True
+[3] la SAE esclava recogió la MISMA clave por su key_ID y devolvió el mensaje invertido: b'DKQ aloh' (si las claves difirieran, el apretón TLS habría fallado)
+[4] segunda recogida de la misma clave: rechazada (QKDDeviceError); el KME entrega cada key_ID una sola vez
+
+Listo. Todo lo anterior es simulación de laboratorio, sin revisión humana externa: ver LIMITATIONS.md.

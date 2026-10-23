@@ -9,6 +9,34 @@ Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0
 >
 > **Licencia / License:** [Apache-2.0](LICENSE) · [NOTICE](NOTICE) · [avisos de terceros](THIRD_PARTY_NOTICES.md) · **Vulnerabilidades / Security:** [SECURITY.md](SECURITY.md)
 
+## Pruébalo en 2 minutos
+
+Necesitas Python ≥ 3.11 y, para el último paso, OpenSSL ≥ 3.5 (en macOS: `brew install openssl@3`).
+
+```bash
+git clone https://github.com/daralaz77/q-crypto-evolve && cd q-crypto-evolve
+python3 -m venv .venv && .venv/bin/pip install -r requirements.lock
+.venv/bin/python examples/quickstart.py
+```
+
+Levanta un KME ETSI GS QKD 014 **emulado** (simulación, no hay QKD real), una SAE le pide una clave por HTTPS con TLS mutuo, la SAE par la recoge por su `key_ID`, y esa clave abre una conexión **TLS 1.3 estándar** con el grupo híbrido `X25519MLKEM768`. Así se ve la salida real: [`examples/SALIDA_ESPERADA.txt`](examples/SALIDA_ESPERADA.txt). Si no tienes OpenSSL ≥ 3.5, el script lo dice y se detiene en el paso 2 sin fingir.
+
+
+## Un KME de pruebas para tu cliente ETSI 014: `qce-kme`
+
+El emulador también se puede usar solo, como herramienta para probar clientes ETSI GS QKD 014 (por ejemplo, la sonda `qkdsec doctor`) sin un KME real. **Es una simulación:** las claves salen de `os.urandom`.
+
+```bash
+pip install git+https://github.com/daralaz77/q-crypto-evolve   # o:  pip install .  desde el clon
+qce-kme --port 8443 --dir ./kme-lab                            # crea la PKI y levanta el KME con TLS 1.3 mutuo
+```
+
+Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`. Implementa las formas `GET` y `POST` de `status`, `enc_keys` y `dec_keys`, los mensajes de error del estándar (400, 401, 503), y que solo la SAE esclava pueda recoger la clave, una sola vez. Un recorrido real con `curl`: [`examples/KME_CURL_SALIDA.txt`](examples/KME_CURL_SALIDA.txt) (script: [`examples/probar_con_curl.sh`](examples/probar_con_curl.sh)). Contraste con una herramienta independiente: [docs/ETSI014_ADAPTER.md](docs/ETSI014_ADAPTER.md).
+
+**Límites:** sin KME real probado, solo 1 clave por petición en el cliente, sin extensiones de fabricante. Está en `qce_kme.py`, fuera del código revisado (`qce/`).
+
+## Comandos del laboratorio
+
 ```bash
 cd ~/Claude/q-crypto-evolve
 .venv/bin/python -m qce test      # batería completa (≈1 s)

@@ -1,0 +1,12 @@
+== status (maestra)
+{"source_KME_ID": "KME-A", "target_KME_ID": "KME-B", "master_SAE_ID": "sae-master", "slave_SAE_ID": "sae-slave", "key_size": 256, "stored_key_count": 0, "max_key_count": 32, "max_key_per_request": 4, "max_key_size": 1024, "min_key_size": 64, "max_SAE_ID_count": 0}
+== enc_keys (maestra)
+{"keys": [{"key_ID": "21fb5252-ab41-42cb-9b58-86c453e8f018", "key": "<clave de 256 bits, omitida>"}]}
+
+KID=21fb5252-ab41-42cb-9b58-86c453e8f018
+== dec_keys (esclava)
+{"keys": [{"key_ID": "21fb5252-ab41-42cb-9b58-86c453e8f018", "key": "<clave de 256 bits, omitida>"}]}
+== dec_keys otra vez (esclava)
+{"message": "one or more keys specified are not found on KME"}
+== maestra intenta recoger
+{"message": "SAE no autorizada para esta operaci\u00f3n"} [HTTP 401]
