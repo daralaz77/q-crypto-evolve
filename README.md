@@ -35,6 +35,10 @@ Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`
 
 **Límites:** sin KME real probado, solo 1 clave por petición en el cliente, sin extensiones de fabricante. Está en `qce_kme.py`, fuera del código revisado (`qce/`).
 
+## Caso de estudio
+
+[**Qué encuentra una herramienta independiente en código escrito por una IA bajo puertas de verificación**](docs/CASO_DE_ESTUDIO.md): 33 incidentes, 612 pruebas, 389 mutantes y dos defectos reales que solo halló un tercero (`qkdsec`). Incluye lo que NO demuestra.
+
 ## Comandos del laboratorio
 
 ```bash
