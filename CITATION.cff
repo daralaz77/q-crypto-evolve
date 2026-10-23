@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software or its case study, please cite them as below. / Si usas este software o su caso de estudio, cítalos así."
+title: "Q-Crypto Evolve"
+abstract: "Research laboratory for hybrid post-quantum cryptography with QKD key delivery (ETSI GS QKD 014) and a TLS 1.3 bridge using the delivered key as an external PSK. Written by an AI (Claude, Anthropic) under verification gates; no external human review. Not for production use."
+type: software
+version: 0.1.0
+date-released: 2026-10-23
+doi: 10.5281/zenodo.23584676
+license: Apache-2.0
+repository-code: "https://github.com/daralaz77/q-crypto-evolve"
+authors:
+  - family-names: "Pérez Aranguren"
+    given-names: "Darwing John"
+    orcid: "https://orcid.org/0009-0007-5187-5295"
+keywords:
+  - post-quantum cryptography
+  - quantum key distribution
+  - ETSI GS QKD 014
+  - TLS 1.3
+  - mutation testing
+  - AI-generated code
+preferred-citation:
+  type: report
+  title: "What an Independent Tool Finds in AI-Written Code Under Verification Gates: A Case Study of Q-Crypto Evolve"
+  authors:
+    - family-names: "Pérez Aranguren"
+      given-names: "Darwing John"
+      orcid: "https://orcid.org/0009-0007-5187-5295"
+  doi: 10.5281/zenodo.23583892
+  year: 2026
+  month: 10
+  publisher:
+    name: Zenodo
