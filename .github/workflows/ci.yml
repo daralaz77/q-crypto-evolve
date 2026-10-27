@@ -43,12 +43,12 @@ jobs:
       - name: Batería completa
         run: .venv/bin/python -m pytest -q
 
-      - name: INC-0029, repetición de la prueba de GnuTLS
+      - name: INC-0029, repetición de la prueba de GnuTLS (x100)
         if: always()
         run: |
           # Cuenta lo que realmente corrió: «0 fallos» con todo saltado sería un resultado vacío (la lección de INC-0002).
           fails=0; ran=0
-          for i in $(seq 1 10); do
+          for i in $(seq 1 100); do
             out=$(.venv/bin/python -m pytest -o addopts="" -p no:cacheprovider tests/test_tls13_psk_gnutls.py -q -rs 2>&1) || fails=$((fails + 1))
             echo "$out" | tail -1
             n=$(echo "$out" | tail -1 | sed -n 's/^\([0-9][0-9]*\) passed.*/\1/p')
@@ -56,6 +56,6 @@ jobs:
           done
           {
             echo "### INC-0029 en ${{ matrix.arch }} (nativo)"
-            echo "Prueba de GnuTLS repetida 10 veces: **$fails ejecuciones con fallos**, $ran pruebas pasadas en total."
+            echo "Prueba de GnuTLS repetida 100 veces: **$fails ejecuciones con fallos**, $ran pruebas pasadas en total."
           } | tee -a "$GITHUB_STEP_SUMMARY"
           if [ "$ran" -eq 0 ]; then echo "Ninguna prueba de GnuTLS corrió (¿saltadas?): el resultado no vale."; exit 1; fi
