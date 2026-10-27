@@ -30,10 +30,10 @@ La primera ejecución en Linux dio 6 fallos y destapó **tres defectos reales** 
 3. Mi propia herramienta de medida usaba `ps`, que el contenedor mínimo no trae; ahora lee `/proc/self/statm` en Linux. Y el crecimiento de memoria con 16 hilos era arenas de `malloc` y pilas de los hilos, no una fuga: con una ronda de calentamiento y tres rondas medidas, memoria, descriptores e hilos quedan constantes.
 
 ## 4. Lo que sigue sin comprobarse
-- **Windows** y **Linux x86_64 NATIVO**: no probados; otras versiones de OpenSSL ≥ 3.5; redes reales con pérdida.
+- **Windows**: no probado. **Linux x86_64 NATIVO**: la batería completa pasa en la CI de GitHub Actions (2026-10-27), pero las mediciones de fuga y carga de este documento no se repitieron allí. Tampoco: otras versiones de OpenSSL ≥ 3.5; redes reales con pérdida.
 
 ### 3b. Actualización 2026-10-22: x86_64 (emulado) y la medida de fugas
-- Suite completa en Debian 13 **arm64 nativo**: 581 pasan, 27 saltadas, 0 fallos. En **x86_64 emulado**: 580 pasan y 1 falla (un fallo intermitente de GnuTLS 3.8.9, INC-0029, causa no establecida; no ocurre en macOS ni en arm64 nativos, y el `s_server` de OpenSSL no lo provoca).
+- Suite completa en Debian 13 **arm64 nativo**: 581 pasan, 27 saltadas, 0 fallos. En **x86_64 emulado**: 580 pasan y 1 falla (un fallo intermitente de GnuTLS 3.8.9, INC-0029; no ocurre en macOS, ni en arm64 nativo, ni en **x86_64 nativo**: la CI repitió la prueba 100 veces en cada uno y dio 0 fallos en 500 pruebas, así que se atribuye, como PROBABLE, a la emulación; el `s_server` de OpenSSL tampoco lo provoca).
 - **La medida de fugas por RSS daba un falso positivo en x86_64** (4,45 MB > 4,0 MB), y se resolvió con datos: 14 rondas de 960 apretones con `malloc_trim` entre rondas, Python plano (0,17 → 0,18 MB), RSS +0,7 MB por ronda; pero `mallinfo2` (bytes EN USO) crece solo +1,4 B por contexto y +2,7 B por apretón completo. Es fragmentación de glibc, no una fuga. Desde entonces, donde hay glibc la prueba mide los bytes en uso (tope 0,5 MB) y en el resto el RSS (INC-0030).
 - Un descarte por capas del crecimiento del RSS (callbacks de ctypes, contextos, objetos SSL, sesiones PSK) no encontró ninguna fuga en el puente.
 - Seguridad de memoria del propio OpenSSL y del puente ante entradas hostiles más allá de las probadas; canales laterales.

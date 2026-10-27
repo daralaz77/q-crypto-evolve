@@ -62,7 +62,7 @@ De los dos resultados que la sonda seguía marcando, **ninguno era defecto nuest
 - **Las «auditorías independientes» internas fueron de otras instancias de la misma IA**, con sus mismos sesgos: no cuentan como revisión independiente.
 - **La mutación mide si las pruebas detectan fallos inyectados, no si el código es correcto.** Y las pruebas las escribió la misma IA.
 - **Las pruebas de seguridad criptográfica reposan en ML-KEM/ML-DSA** (supuestos de dureza) y en OpenSSL, no en este código. El puente TLS por `ctypes` es nuestro y **no está revisado**.
-- **Un incidente sigue abierto (INC-0029):** GnuTLS 3.8.9 contra nuestro servidor PSK falla entre el 15 % y el 66 % de los apretones **solo** en x86_64 emulado; en macOS y Linux arm64 pasa 80 de 80. Sin causa establecida; requiere una máquina x86_64 nativa.
+- **Un incidente (INC-0029) seguía abierto al publicarse este informe y se cerró después:** GnuTLS 3.8.9 contra nuestro servidor PSK fallaba entre el 15 % y el 66 % de los apretones **solo** en x86_64 emulado. El 27 de octubre de 2026, la integración continua en x86_64 y arm64 **nativos** (Debian 13, GnuTLS 3.8.9) repitió la prueba 100 veces por arquitectura: 0 fallos en 500 pruebas. Se cerró atribuyéndolo, como **probable** y sin mecanismo demostrado, a la emulación. No descarta una tasa de fallo muy baja; la CI lo vigila en cada cambio. (El preprint de Zenodo v1.0 lo describe como abierto, que era el estado de ese día.)
 - **No es FIPS 140-3.** Hay un análisis (`docs/FIPS_140_3.md`) y un alcance acotado, no una certificación.
 
 ## 7. Lecciones que creemos útiles a otros
