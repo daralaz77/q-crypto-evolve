@@ -6,16 +6,16 @@
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
-      "detail": "cadenas de registro íntegras (92 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
+      "detail": "cadenas de registro íntegras (93 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.22
+      "seconds": 0.24
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
       "detail": "612 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 86.53
+      "seconds": 88.57
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -37,7 +37,7 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 3720.7,
+          "seconds": 3697.3,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,37 +46,37 @@
           "checked": 3
         }
       },
-      "seconds": 3722.35
+      "seconds": 3699.53
     },
     {
       "gate": "G4-REGRESION",
       "status": "pass",
-      "detail": "32 incidentes históricos reproducidos y siguen corregidos",
+      "detail": "33 incidentes históricos reproducidos y siguen corregidos",
       "evidence": {
-        "checked": 32
+        "checked": 33
       },
-      "seconds": 24.1
+      "seconds": 24.13
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
-      "detail": "sin declaración firmada del implementador para este código",
+      "detail": "sin revisión firmada de un agente distinto del implementador para este código exacto",
       "evidence": {},
-      "seconds": 0.01
+      "seconds": 0.02
     },
     {
       "gate": "G6-AUTORIZACION",
-      "status": "skipped",
-      "detail": "sin autorización humana firmada para este código exacto",
+      "status": "pass",
+      "detail": "autorización humana válida: ['darwing']",
       "evidence": {},
       "seconds": 0.0
     }
   ],
   "metrics": {
     "tests_passed": 612,
-    "total_seconds": 3833.2,
+    "total_seconds": 3812.5,
     "incidents_total": 33,
-    "incidents_resolved": 32,
+    "incidents_resolved": 33,
     "recurring_patterns": [
       "18 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
       "9 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
