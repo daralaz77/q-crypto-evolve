@@ -1,0 +1,56 @@
+name: CI
+
+# Corre la batería completa en Debian 13 (OpenSSL 3.5, GnuTLS 3.8.9) sobre x86_64 y arm64 NATIVOS de GitHub, con el mismo contenedor en ambos:
+# así la única diferencia entre las dos columnas es la arquitectura. Sirve para decidir INC-0029 (GnuTLS contra el servidor PSK fallaba solo en x86_64 EMULADO).
+# Solo lee el repositorio; no publica nada ni usa secretos.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Debian 13 ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    container: debian:trixie
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Dependencias del sistema
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 python3-venv gnutls-bin openssl ca-certificates
+          openssl version
+          gnutls-cli --version | head -1
+          uname -m
+
+      - name: Entorno de Python (versiones fijadas)
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet -r requirements.lock pytest==9.1.1 hypothesis==6.170.1
+
+      - name: Batería completa
+        run: .venv/bin/python -m pytest -q
+
+      - name: INC-0029, repetición de la prueba de GnuTLS
+        if: always()
+        run: |
+          fails=0
+          for i in $(seq 1 10); do
+            .venv/bin/python -m pytest tests/test_tls13_psk_gnutls.py -q -x >/dev/null 2>&1 || fails=$((fails + 1))
+          done
+          {
+            echo "### INC-0029 en ${{ matrix.arch }} (nativo)"
+            echo "Prueba de GnuTLS repetida 10 veces: **$fails fallos**."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
