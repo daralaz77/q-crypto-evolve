@@ -1,0 +1,49 @@
+name: Mutación semanal
+
+# La prueba de mutación completa (389 mutantes) es el 97 % del tiempo de las puertas (benchmarks/TIEMPOS_PUERTAS.md), así que no corre en cada push:
+# corre cada semana y a demanda. Falla si sobrevive algún mutante o si el canario del arnés no es fiable (ruta de endurecimiento, ítem 0.5).
+# Solo lee el repositorio; no publica nada ni usa secretos.
+on:
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    name: Mutación completa (Debian 13 x86_64)
+    runs-on: ubuntu-24.04
+    container: debian:trixie
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Dependencias del sistema
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 python3-venv gnutls-bin openssl ca-certificates
+          openssl version
+
+      - name: Entorno de Python (versiones fijadas)
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet -r requirements.lock pytest==9.1.1 hypothesis==6.170.1
+
+      - name: Prueba de mutación completa
+        run: |
+          start=$(date +%s)
+          .venv/bin/python -m qce mutate | tee mutation.json
+          code=${PIPESTATUS[0]}
+          secs=$(( $(date +%s) - start ))
+          {
+            echo "### Mutación semanal"
+            echo "Duración: ${secs} s. Código de salida: ${code} (0 = ningún mutante sobrevivió)."
+            echo '```json'
+            grep -E '"(total|scored|killed|score|canary_ok)"' mutation.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -q '"canary_ok": true' mutation.json || { echo "El canario del arnés no es fiable: el resultado no vale."; exit 1; }
+          exit "$code"
+        shell: bash
