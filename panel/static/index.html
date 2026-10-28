@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q-Crypto Evolve · Panel</title>
+<link rel="stylesheet" href="/panel.css">
+<script src="/boot.js"></script>
+</head>
+<body>
+<header class="top">
+  <div>
+    <p class="eyebrow">Laboratorio · solo lectura</p>
+    <h1>Q-Crypto Evolve</h1>
+  </div>
+  <div class="top-actions">
+    <span id="actualizado" class="muted"></span>
+    <button id="mov" type="button" aria-pressed="false"></button>
+    <button id="refrescar" type="button">Actualizar</button>
+  </div>
+</header>
+
+<main id="app" aria-live="polite">
+  <p class="muted">Cargando…</p>
+</main>
+
+<footer>
+  <p>Este panel solo lee los archivos del proyecto: no ejecuta nada, no escribe y no toca claves. Lo que muestra no es una auditoría externa. La verdad está en <code>python -m qce gates</code> y <code>LIMITATIONS.md</code>.</p>
+</footer>
+<script src="/app.js"></script>
+</body>
+</html>

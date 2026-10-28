@@ -92,3 +92,9 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 
 ## HSM en la nube (kit preparado, NO probado)
 - `docs/hsm_cloud/` prepara la prueba con Google Cloud KMS (protección HSM) + una VM Linux amd64: la biblioteca PKCS#11 de Google solo existe para Linux y Windows, no macOS. **No se ha ejecutado contra Google**: solo la lógica de `verify_kms.py` se probó con SoftHSM. Riesgos abiertos: si la clave pública `RSA_SIGN_PSS` sirve como certificado TLS, compatibilidad con `pkcs11-provider`, latencia por apretón y `fork`. Está fuera de las puertas a propósito.
+
+## Panel y demo guiada (`panel/`, `site/`)
+- Son herramientas de **presentación**, fuera del hash del `release_id` y fuera de las puertas G1–G6: sus pruebas (`panel/tests`, `site/tests`) corren aparte y en CI, pero no cuentan en G2 ni están cubiertas por la prueba de mutación.
+- El panel es de solo lectura y local; no verifica firmas ni la integridad de `qce/` más allá de recalcular el `release_id`. Lo que muestra no sustituye a `python -m qce gates`.
+- La demo muestra trazas grabadas de una simulación (KME emulado): no es una medición de QKD real ni una revisión del código.
+
