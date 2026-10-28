@@ -9,9 +9,9 @@ Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0
 >
 > **Licencia / License:** [Apache-2.0](LICENSE) · [NOTICE](NOTICE) · [avisos de terceros](THIRD_PARTY_NOTICES.md) · **Vulnerabilidades / Security:** [SECURITY.md](SECURITY.md)
 
-[![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23584676.svg)](https://doi.org/10.5281/zenodo.23584676) [![Case study DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23583892.svg)](https://doi.org/10.5281/zenodo.23583892)
+[![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23584676.svg)](https://doi.org/10.5281/zenodo.23584676) [![Case study DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23583891.svg)](https://doi.org/10.5281/zenodo.23583891)
 
-**Cítalo / Cite:** código [10.5281/zenodo.23584676](https://doi.org/10.5281/zenodo.23584676) (v0.1.0) · informe *What an Independent Tool Finds in AI-Written Code Under Verification Gates* [10.5281/zenodo.23583892](https://doi.org/10.5281/zenodo.23583892) · [`CITATION.cff`](CITATION.cff)
+**Cítalo / Cite:** código [10.5281/zenodo.23584676](https://doi.org/10.5281/zenodo.23584676) (v0.1.0) · informe *What an Independent Tool Finds in AI-Written Code Under Verification Gates* [10.5281/zenodo.23583891](https://doi.org/10.5281/zenodo.23583891) · [`CITATION.cff`](CITATION.cff)
 
 ## Pruébalo en 2 minutos
 
