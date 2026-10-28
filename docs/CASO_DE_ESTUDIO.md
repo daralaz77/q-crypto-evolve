@@ -22,7 +22,7 @@ Seis puertas mecánicas que un agente no puede relajar para que una prueba pase:
 | G1 Integridad | cadenas de registro con hash íntegras, dependencias fijadas con hash, SBOM, umbrales que no se debilitan | pasa |
 | G2 Funcionalidad | batería de pruebas, con vectores oficiales NIST ACVP y fuzzing | **612 pruebas**, pasan |
 | G3 Seguridad | sin secretos ni malos usos, dependencias limpias y **mutación completa** | pasa (**389 mutantes**; exige puntuación 1,0, un mutante «canario» sin efecto que debe sobrevivir y un tope de equivalentes declarados) |
-| G4 Regresión | cada incidente histórico se reproduce y sigue corregido | 32 de 33 incidentes reproducidos (el 33.º sigue abierto, §6) |
+| G4 Regresión | cada incidente histórico se reproduce y sigue corregido | 33 de 33 incidentes reproducidos (INC-0029 cerrado en la v1.1, §6) |
 | G5 Independencia | declaración firmada de **una persona revisora distinta del implementador** | **pendiente** |
 | G6 Autorización | autorización humana firmada para el código exacto | firmada por el titular |
 
@@ -31,7 +31,7 @@ Cada fallo se registra en un libro de incidentes encadenado por hash con causa r
 **La IA no firma las puertas humanas.** Firma una declaración de autoría y nada más.
 
 ## 4. Lo que el método atrapó por sí solo
-33 incidentes en los primeros días del repositorio (el historial empieza el 17 de octubre de 2026). Los encontraron las propias pruebas, la mutación, la atestación del transporte y **auditorías adversariales hechas por subagentes, es decir, por otras instancias de la misma IA** (no por personas ni por herramientas de terceros). Por causa: 18 de código, 9 de pruebas insuficientes, 3 de configuración y 2 de especificación (más uno abierto sin clasificar). Los más instructivos son los que **un test verde habría dejado pasar**:
+33 incidentes en los primeros días del repositorio (el historial empieza el 17 de octubre de 2026). Los encontraron las propias pruebas, la mutación, la atestación del transporte y **auditorías adversariales hechas por subagentes, es decir, por otras instancias de la misma IA** (no por personas ni por herramientas de terceros). Por causa: 18 de código, 9 de pruebas insuficientes, 3 de configuración y 2 de especificación (más INC-0029, cerrado como probable artefacto de la emulación, §6). Los más instructivos son los que **un test verde habría dejado pasar**:
 
 - **INC-0002 — la mutación pasaba en vacío** (lo halló una auditoría adversarial de un subagente, con prueba de concepto). La puntuación 1,0 era falsa: el entorno aislado no copiaba un archivo, la colección de pruebas fallaba y cualquier código de salida ≠ 0 se contaba como «mutante detectado». Se arregló exigiendo una línea base verde, mutantes mínimos y el canario.
 - **INC-0018 — un servidor que comparaba solo 16 de los 32 bytes del MAC pasaba toda la batería.** Las pruebas alteraban bytes al azar y la cola del mensaje casi nunca se tocaba. Lo destapó un mutante que sobrevivía, no una prueba.
@@ -62,7 +62,7 @@ De los dos resultados que la sonda seguía marcando, **ninguno era defecto nuest
 - **Las «auditorías independientes» internas fueron de otras instancias de la misma IA**, con sus mismos sesgos: no cuentan como revisión independiente.
 - **La mutación mide si las pruebas detectan fallos inyectados, no si el código es correcto.** Y las pruebas las escribió la misma IA.
 - **Las pruebas de seguridad criptográfica reposan en ML-KEM/ML-DSA** (supuestos de dureza) y en OpenSSL, no en este código. El puente TLS por `ctypes` es nuestro y **no está revisado**.
-- **Un incidente (INC-0029) seguía abierto al publicarse este informe y se cerró después:** GnuTLS 3.8.9 contra nuestro servidor PSK fallaba entre el 15 % y el 66 % de los apretones **solo** en x86_64 emulado. El 27 de octubre de 2026, la integración continua en x86_64 y arm64 **nativos** (Debian 13, GnuTLS 3.8.9) repitió la prueba 100 veces por arquitectura: 0 fallos en 500 pruebas. Se cerró atribuyéndolo, como **probable** y sin mecanismo demostrado, a la emulación. No descarta una tasa de fallo muy baja; la CI lo vigila en cada cambio. (El preprint de Zenodo v1.0 lo describe como abierto, que era el estado de ese día.)
+- **Un incidente (INC-0029) seguía abierto al publicarse este informe y se cerró después:** GnuTLS 3.8.9 contra nuestro servidor PSK fallaba entre el 15 % y el 66 % de los apretones **solo** en x86_64 emulado. El 27 de octubre de 2026, la integración continua en x86_64 y arm64 **nativos** (Debian 13, GnuTLS 3.8.9) repitió la prueba 100 veces por arquitectura: 0 fallos en 500 pruebas. Se cerró atribuyéndolo, como **probable** y sin mecanismo demostrado, a la emulación. No descarta una tasa de fallo muy baja; la CI lo vigila en cada cambio. (El preprint de Zenodo v1.0 lo describe como abierto, que era el estado de ese día; la v1.1 lo corrige.)
 - **No es FIPS 140-3.** Hay un análisis (`docs/FIPS_140_3.md`) y un alcance acotado, no una certificación.
 
 ## 7. Lecciones que creemos útiles a otros
@@ -73,7 +73,7 @@ De los dos resultados que la sonda seguía marcando, **ninguno era defecto nuest
 5. **Publica los incidentes.** El libro de errores es la evidencia más honesta de que el método funciona, y de dónde no.
 
 ## 8. Cómo reproducirlo
-- Repositorio: <https://github.com/daralaz77/q-crypto-evolve>, commit `151631e`.
+- Repositorio: <https://github.com/daralaz77/q-crypto-evolve>, commit `ace04e1`.
 - Demostración en un comando: `examples/quickstart.py` (salida en `examples/SALIDA_ESPERADA.txt`).
 - Emulador independiente: `pip install git+https://github.com/daralaz77/q-crypto-evolve` y `qce-kme`.
 - Paquete de revisión: `python -m qce review-package` (release `b3dfc708179da391`), con guía en `REPRODUCCION.md`.
