@@ -13,6 +13,8 @@ Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0
 
 **Cítalo / Cite:** código [10.5281/zenodo.23584676](https://doi.org/10.5281/zenodo.23584676) (v0.1.0) · informe *What an Independent Tool Finds in AI-Written Code Under Verification Gates* [10.5281/zenodo.23583891](https://doi.org/10.5281/zenodo.23583891) · [`CITATION.cff`](CITATION.cff)
 
+**Demo guiada / Guided demo:** <https://daralaz77.github.io/q-crypto-evolve/> (trazas reales, simulación; código en [`site/`](site/)) · **Panel local de solo lectura:** [`panel/`](panel/README.md)
+
 ## Pruébalo en 2 minutos
 
 Necesitas Python ≥ 3.11 y, para el último paso, OpenSSL ≥ 3.5 (en macOS: `brew install openssl@3`).
