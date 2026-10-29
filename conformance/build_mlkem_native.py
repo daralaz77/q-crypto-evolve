@@ -1,9 +1,10 @@
 """Descarga mlkem-native (commit fijado, SHA-256 verificado) y lo compila como biblioteca compartida SIN usar aleatoriedad propia (solo la API `derand`).
 
   python conformance/build_mlkem_native.py        # imprime la ruta de la biblioteca; luego: export QCE_MLKEM_NATIVE_LIB=<ruta>
-El código descargado es NO CONFIABLE hasta compilarlo: se extrae a un directorio nuevo bajo conformance/build/ (ignorado por git) y se compila allí;
+El código descargado es NO CONFIABLE hasta compilarlo: se extrae a un directorio nuevo bajo ~/.cache/qce-conformance/build (fuera del repositorio) y se compila allí;
 no se ejecuta nada de él fuera del compilador. Fuente: https://github.com/pq-code-package/mlkem-native (v2.0.0). Licencia: Apache-2.0 OR ISC OR MIT."""
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -12,9 +13,10 @@ import urllib.request
 from pathlib import Path
 
 COMMIT = "d1b2fe782888bdb761a50336012923180be7f502"
-SHA256 = "7c7a10464ba3c62d5657a70da495539ab7f28e464cff80eb9d8173e2bc91c4d3"
+SHA256 = (Path(__file__).resolve().parent / "mlkem-native.sha256").read_text().split()[0]
 URL = f"https://codeload.github.com/pq-code-package/mlkem-native/tar.gz/{COMMIT}"
-BUILD = Path(__file__).resolve().parent / "build"
+CACHE = Path(os.environ.get("QCE_CONFORMANCE_CACHE", Path.home() / ".cache" / "qce-conformance"))  # FUERA del repositorio: el escáner de secretos recorre el árbol
+BUILD = CACHE / "build"
 
 
 def build() -> Path:

@@ -1,21 +1,21 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "b3dfc708179da391",
+  "release_id": "7904c2a474f61b7b",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
-      "detail": "cadenas de registro íntegras (93 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
+      "detail": "cadenas de registro íntegras (96 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.24
+      "seconds": 0.21
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "612 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "613 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 88.57
+      "seconds": 85.39
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -37,7 +37,7 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 3697.3,
+          "seconds": 3647.3,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,40 +46,40 @@
           "checked": 3
         }
       },
-      "seconds": 3699.53
+      "seconds": 3648.49
     },
     {
       "gate": "G4-REGRESION",
       "status": "pass",
-      "detail": "33 incidentes históricos reproducidos y siguen corregidos",
+      "detail": "34 incidentes históricos reproducidos y siguen corregidos",
       "evidence": {
-        "checked": 33
+        "checked": 34
       },
-      "seconds": 24.13
+      "seconds": 24.59
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
-      "detail": "sin revisión firmada de un agente distinto del implementador para este código exacto",
+      "detail": "sin declaración firmada del implementador para este código",
       "evidence": {},
-      "seconds": 0.02
+      "seconds": 0.0
     },
     {
       "gate": "G6-AUTORIZACION",
-      "status": "pass",
-      "detail": "autorización humana válida: ['darwing']",
+      "status": "skipped",
+      "detail": "sin autorización humana firmada para este código exacto",
       "evidence": {},
       "seconds": 0.0
     }
   ],
   "metrics": {
-    "tests_passed": 612,
-    "total_seconds": 3812.5,
-    "incidents_total": 33,
-    "incidents_resolved": 33,
+    "tests_passed": 613,
+    "total_seconds": 3758.7,
+    "incidents_total": 34,
+    "incidents_resolved": 34,
     "recurring_patterns": [
       "18 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
-      "9 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
+      "10 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
       "3 incidentes con causa 'configuracion': revisar el diseño, no solo el síntoma",
       "2 incidentes con causa 'especificacion': revisar el diseño, no solo el síntoma"
     ]

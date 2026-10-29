@@ -12,7 +12,7 @@ sys.path.insert(0, str(HERE))
 import differential  # noqa: E402
 import run_wycheproof as rw  # noqa: E402
 
-have_vectors = all((HERE / "vectors" / n).exists() for n in rw.MANIFEST["files"])
+have_vectors = all((rw.VECTORS_DIR / n).exists() for n in rw.MANIFEST["files"])
 needs_vectors = pytest.mark.skipif(not have_vectors, reason="faltan vectores: python conformance/fetch_vectors.py")
 needs_cli = pytest.mark.skipif(not shutil.which("openssl"), reason="no hay openssl en el PATH")
 

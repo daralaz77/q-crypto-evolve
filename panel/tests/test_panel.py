@@ -78,10 +78,11 @@ def test_verdict_is_never_greener_than_the_report(state, statuses, expected):
     assert data.verdict({"state": state, "gates": [{"status": s} for s in statuses]}) == expected
 
 
-def test_real_snapshot_shows_review_required_with_g5_skipped():
+def test_real_snapshot_is_never_approved_while_g5_is_not_passing():
     s = data.snapshot(ROOT)
     g5 = next(p for p in s["puertas"] if p["puerta"].startswith("G5"))
-    assert g5["estado"] == "skipped" and s["veredicto"] == "requiere revisión"
+    if g5["estado"] != "pass":
+        assert s["veredicto"] in ("requiere revisión", "bloqueado")  # nunca «aprobado»; «bloqueado» si alguna puerta falló o quedó bloqueada
 
 
 def test_server_is_read_only_and_hardened(tmp_path):

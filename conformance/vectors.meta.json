@@ -1,0 +1,8 @@
+{
+ "source": "https://github.com/C2SP/wycheproof",
+ "commit": "d17cc89fa5c8f4f4d378b5385ebf75da5d0926c9",
+ "path": "testvectors_v1",
+ "license_note": "Wycheproof se publica bajo Apache-2.0; los vectores no se copian al repositorio: se descargan en el momento.",
+ "trust": "Los hashes se calcularon al descargar por primera vez DESDE ese commit (confianza en el primer uso); el commit fija el contenido y el hash detecta cambios posteriores en el archivo local.",
+ "hashes": "vectors.sha256 (formato sha256sum)"
+}

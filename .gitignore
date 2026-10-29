@@ -6,5 +6,3 @@ __pycache__/
 vault*.bin
 dist/
 .DS_Store
-conformance/vectors/*.json
-conformance/build/

@@ -9,10 +9,12 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from cryptography.hazmat.primitives.asymmetric import mldsa, mlkem
 
 HERE = Path(__file__).resolve().parent
-MANIFEST = json.loads((HERE / "vectors.manifest.json").read_text())
+from fetch_vectors import DEST as VECTORS_DIR, MANIFEST  # noqa: E402
 KEM = {"768": (mlkem.MLKEM768PrivateKey, mlkem.MLKEM768PublicKey, 1184, 1088), "1024": (mlkem.MLKEM1024PrivateKey, mlkem.MLKEM1024PublicKey, 1568, 1568)}
 DSA = {"65": mldsa.MLDSA65PublicKey, "87": mldsa.MLDSA87PublicKey}
 MINIMUM = {"mlkem_768_test": 150, "mlkem_1024_test": 150, "mlkem_768_encaps_test": 200, "mlkem_1024_encaps_test": 200,
@@ -20,9 +22,9 @@ MINIMUM = {"mlkem_768_test": 150, "mlkem_1024_test": 150, "mlkem_768_encaps_test
 
 
 def load(name: str, tamper=None) -> dict:
-    raw = (HERE / "vectors" / f"{name}.json").read_bytes()
+    raw = (VECTORS_DIR / f"{name}.json").read_bytes()
     if hashlib.sha256(raw).hexdigest() != MANIFEST["files"][f"{name}.json"]:
-        raise SystemExit(f"{name}: el hash no coincide con vectors.manifest.json")
+        raise SystemExit(f"{name}: el hash no coincide con vectors.sha256")
     data = json.loads(raw)
     return tamper(name, data) if tamper else data
 

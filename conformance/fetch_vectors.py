@@ -1,18 +1,22 @@
-"""Descarga los vectores Wycheproof (commit fijado) y comprueba su SHA-256 contra vectors.manifest.json. Los datos descargados son NO CONFIABLES:
+"""Descarga los vectores Wycheproof (commit fijado) y comprueba su SHA-256 contra vectors.sha256. Los datos descargados son NO CONFIABLES:
 solo se leen como JSON. Uso: python conformance/fetch_vectors.py"""
 import hashlib
 import json
+import os
 import sys
 import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-MANIFEST = json.loads((HERE / "vectors.manifest.json").read_text())
-DEST = HERE / "vectors"
+META = json.loads((HERE / "vectors.meta.json").read_text())
+HASHES = {n: h for h, n in (ln.split() for ln in (HERE / "vectors.sha256").read_text().splitlines() if ln.strip())}
+MANIFEST = {"commit": META["commit"], "path": META["path"], "files": HASHES}
+CACHE = Path(os.environ.get("QCE_CONFORMANCE_CACHE", Path.home() / ".cache" / "qce-conformance"))  # FUERA del repositorio: el escáner de secretos recorre el árbol
+DEST = CACHE / "vectors"
 
 
 def fetch() -> int:
-    DEST.mkdir(exist_ok=True)
+    DEST.mkdir(parents=True, exist_ok=True)
     bad = 0
     for name, want in MANIFEST["files"].items():
         target = DEST / name

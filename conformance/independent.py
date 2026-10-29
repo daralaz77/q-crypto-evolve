@@ -1,6 +1,6 @@
 """Segunda implementación INDEPENDIENTE de ML-KEM: mlkem-native (PQCA, v2.0.0, commit d1b2fe78, Apache-2.0 OR ISC OR MIT), compilada aparte.
 
-La biblioteca se compila con `conformance/build_mlkem_native.sh` (o a mano) y se indica con QCE_MLKEM_NATIVE_LIB o `--lib`. Aquí hace dos cosas:
+La biblioteca se compila con `conformance/build_mlkem_native.py` (o a mano) y se indica con QCE_MLKEM_NATIVE_LIB o `--lib`. Aquí hace dos cosas:
   1. Ejecuta los vectores Wycheproof que `cryptography` NO puede ejecutar: encapsulación con aleatoriedad fija (`enc_derand`) y desencapsulación
      con clave expandida (`semi_expanded_decaps`, `check_pk`, `check_sk`). Así los vectores también prueban a mlkem-native.
   2. Diferencial contra `cryptography`/OpenSSL con semillas aleatorias: misma clave pública, encapsular con uno y desencapsular con el otro,
@@ -139,7 +139,7 @@ def differential_native(nat: Native, n_rounds: int = 25) -> dict:
 if __name__ == "__main__":
     lib = sys.argv[sys.argv.index("--lib") + 1] if "--lib" in sys.argv else os.environ.get("QCE_MLKEM_NATIVE_LIB")
     if not lib or not Path(lib).exists():
-        sys.exit("indica la biblioteca con --lib o QCE_MLKEM_NATIVE_LIB (ver conformance/build_mlkem_native.sh)")
+        sys.exit("indica la biblioteca con --lib o QCE_MLKEM_NATIVE_LIB (ver conformance/build_mlkem_native.py)")
     n = int(sys.argv[sys.argv.index("--n") + 1]) if "--n" in sys.argv else 25
     nat = Native(lib)
     rep = {"wycheproof_nativo": wycheproof_native(nat), "diferencial": differential_native(nat, n)}

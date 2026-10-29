@@ -3,6 +3,9 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -15,7 +18,9 @@ needs = pytest.mark.skipif(not SCEN.exists(), reason="sin escenarios de custodia
 def scenario(name):
     env = {k: v for k, v in os.environ.items() if k != "OPENSSL_CONF"}
     env["PYTHONPATH"] = str(ROOT)
-    r = subprocess.run([sys.executable, str(SCEN), name], capture_output=True, text=True, timeout=120, env=env, cwd=ROOT)
+    with tempfile.TemporaryDirectory(prefix="qce-scn-tmp-") as own_tmp:  # INC-0034: temporal PROPIO; el escenario cuenta sus `qce-key-*` aquí, no en el /tmp compartido
+        env["TMPDIR"] = own_tmp
+        r = subprocess.run([sys.executable, str(SCEN), name], capture_output=True, text=True, timeout=120, env=env, cwd=ROOT)
     assert r.returncode == 0, r.stderr[-1000:]
     return json.loads(r.stdout.strip().splitlines()[-1])
 
@@ -122,3 +127,32 @@ def test_a_revoked_certificate_is_rejected_by_clients_that_check_the_crl_and_a_m
     assert r["without_crl_still_accepted"] == "aloh"              # sin comprobar la CRL se acepta: por eso la comprobación es explícita (límite declarado)
     assert r["foreign_crl"] == "SSLCertVerificationError"         # una CRL que no es de la CA del certificado = no hay CRL válida: falla cerrado
     assert r["crl_entries"] == 1
+
+
+@needs
+def test_inc_0034_other_processes_creating_key_dirs_in_the_shared_tmp_do_not_fake_a_leftover():
+    """INC-0034: la prueba de «no queda copia temporal» mide un directorio temporal COMPARTIDO; otro proceso paralelo que cree un `qce-key-*` en
+    esa ventana aparecía como sobrante. Aquí un hilo crea y borra directorios `qce-key-*` en el temporal compartido MIENTRAS corre el escenario."""
+    stop, made = threading.Event(), []
+
+    def noisy_neighbour():
+        base = Path(tempfile.gettempdir())
+        n = 0
+        while not stop.is_set():
+            d = base / f"qce-key-race{os.getpid()}x{n}"
+            d.mkdir(exist_ok=True)
+            made.append(d)
+            n += 1
+            time.sleep(0.01)
+
+    t = threading.Thread(target=noisy_neighbour, daemon=True)
+    t.start()
+    try:
+        r = scenario("serve_and_no_plaintext_key")
+    finally:
+        stop.set()
+        t.join()
+        for d in made:
+            d.rmdir()
+    assert made, "el vecino ruidoso no llegó a crear ningún directorio: la prueba no probó nada"
+    assert r["leftover_temp_dirs"] == []
