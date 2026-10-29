@@ -88,3 +88,41 @@ def test_differential_finds_no_differences_between_the_two_openssl_builds():
 def test_canary_differential_reports_a_forced_difference(monkeypatch):
     monkeypatch.setattr(differential, "pub_der", lambda pub: b"x")
     assert not differential.run(1)["ok"]
+
+
+# ---- segunda implementación independiente (mlkem-native), solo si está compilada ----
+import os  # noqa: E402
+
+import independent  # noqa: E402
+
+LIB = os.environ.get("QCE_MLKEM_NATIVE_LIB")
+needs_native = pytest.mark.skipif(not (LIB and Path(LIB).exists() and have_vectors), reason="falta QCE_MLKEM_NATIVE_LIB (python conformance/build_mlkem_native.py) o los vectores")
+
+
+@needs_native
+def test_native_passes_the_wycheproof_vectors_that_cryptography_cannot_run():
+    rep = independent.wycheproof_native(independent.Native(LIB))
+    assert rep["ok"], rep
+    assert rep["archivos"]["mlkem_768_semi_expanded_decaps_test"]["ejecutadas"] >= 5  # clave expandida: lo que cryptography no importa
+
+
+@needs_native
+def test_native_and_cryptography_agree_on_random_seeds():
+    rep = independent.differential_native(independent.Native(LIB), 10)
+    assert rep["ok"], rep
+
+
+@needs_native
+def test_canary_native_runner_fails_when_an_expected_secret_is_altered():
+    def tamper(name, data):
+        if name == "mlkem_768_semi_expanded_decaps_test":
+            d = copy.deepcopy(data)
+            next(t for g in d["testGroups"] for t in g["tests"] if t["result"] == "valid")["K"] = "00" * 32
+            return d
+        return data
+    assert not independent.wycheproof_native(independent.Native(LIB), tamper)["ok"]
+
+
+def test_build_script_pins_a_commit_and_a_sha256():
+    import build_mlkem_native as b
+    assert len(b.COMMIT) == 40 and len(b.SHA256) == 64 and b.COMMIT in b.URL

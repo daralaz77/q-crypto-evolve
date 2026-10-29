@@ -32,7 +32,7 @@ jobs:
       - name: Dependencias del sistema
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends python3 python3-venv gnutls-bin openssl ca-certificates
+          apt-get install -y --no-install-recommends python3 python3-venv gnutls-bin openssl ca-certificates gcc libc6-dev
           openssl version
           gnutls-cli --version | head -1
           uname -m
@@ -48,6 +48,8 @@ jobs:
       - name: Panel, demo, conformidad Wycheproof, CBOM (fuera del release_id)
         run: |
           .venv/bin/python conformance/fetch_vectors.py
+          export QCE_MLKEM_NATIVE_LIB="$(.venv/bin/python conformance/build_mlkem_native.py | tail -1)"
+          .venv/bin/python conformance/independent.py --n 15
           .venv/bin/python -m pytest panel/tests site/tests conformance/tests tools/tests -o addopts="" -p no:cacheprovider -q
 
       - name: INC-0029, repetición de la prueba de GnuTLS (x100)
