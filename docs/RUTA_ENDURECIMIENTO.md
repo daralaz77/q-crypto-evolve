@@ -19,7 +19,7 @@ Cada ítem tiene su prueba de validación. Un ítem sin prueba que falle al romp
 | 0.2 | Informe y citas al día (v1.1, DOI de concepto) | Zenodo muestra v1.1; README y CITATION citan 23583891 | Hecho 2026-10-27 |
 | 0.3 | Contactos para revisión humana (G5) | Mensajes 2–7 y 9 enviados | Hecho; esperar respuestas |
 | 0.4 | Medir cuánto tarda cada puerta y qué parte es la mutación | Tabla de tiempos por puerta en `benchmarks/` | Pendiente |
-| 0.5 | Ejecutar la mutación en CI como trabajo aparte (semanal), sin bloquear cada push | Trabajo programado verde con puntuación 1.0 | Pendiente |
+| 0.5 | Ejecutar la mutación en CI como trabajo aparte (semanal), sin bloquear cada push | Trabajo programado verde con puntuación 1.0 | Flujo creado. El primer intento (6 trabajadores, 120 s) abortó tras 1 h 51 min: el canario salió «detectado». Diagnóstico en CI: 6 copias del canario en paralelo tardan ~220 s (>120 s) y 1 de 6 falló por INC-0034. Con 3 trabajadores, 900 s y TMPDIR aislado (`benchmarks/mutation_ci.py`) las 6 copias pasan (~137 s). La ejecución completa corrió después; ver el estado más abajo |
 
 ## Fase 1 — Preparar el terreno (cambios pequeños, aún sin aplicar)
 
@@ -33,6 +33,7 @@ Escribir los cambios en una rama y **no** fusionarlos a `main` hasta la Fase 2. 
 | 1.4 | Rotación automática (planificador) y OCSP/CRL con distribución | `LIMITATIONS.md`: hay que llamar a `rotate_if_due`; sin OCSP; sin `crl_file` el cliente no comprueba | Prueba con reloj simulado: el certificado vencido se rota sin llamada manual |
 | 1.5 | Guardar `min_epoch` del almacén fuera del vault | T9: responsabilidad del operador | Prueba: restaurar un vault antiguo con el `min_epoch` externo falla |
 | 1.6 | Firmar cada transición del workflow con la clave del actor | `LIMITATIONS.md`: `role` y `actor_id` se afirman, no se autentican | Prueba: una transición sin firma válida se rechaza |
+| 1.8 | Dar a `tests/test_tls_custody.py::test_server_works_and_no_private_key_ever_sits_in_a_file` un TMPDIR propio (mide el /tmp compartido y falla si otro proceso crea un `qce-key-*` a la vez) | INC-0034, abierto: 1 de 6 copias paralelas del canario en CI | Prueba que lanza dos procesos a la vez y no falla; la prueba original sigue fallando si queda un directorio propio sin borrar |
 | 1.7 | Hacer observable el descarte de la clave KEM efímera | T19 sin prueba (mutante declarado equivalente) | Prueba que falla si la clave sigue accesible tras el handshake |
 
 ## Fase 2 — Paquete único y revisión humana (G5)
