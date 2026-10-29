@@ -9,6 +9,7 @@ Por qué existe: en el primer intento en GitHub Actions (4 vCPU, 6 trabajadores,
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,12 +28,15 @@ def _isolated_pytest(work: Path, timeout: int) -> subprocess.CompletedProcess:
     directorios `qce-key-*` del /tmp COMPARTIDO antes y después; si otro proceso paralelo crea uno en esa ventana, la prueba falla
     sin que el código tenga nada (1 de 6 copias del canario falló así). Aislar el TMPDIR evita la carrera sin tocar `tests/`.
     """
-    tmp = work / ".tmp"
-    tmp.mkdir(exist_ok=True)
-    return subprocess.run([sys.executable, "-B", "-m", "pytest", "-x", "-q", "-p", "no:cacheprovider"], cwd=work,
-                          capture_output=True, text=True, timeout=timeout,
-                          env={"PYTHONPATH": str(work), "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
-                               "HYPOTHESIS_STORAGE_DIRECTORY": str(work / ".h"), "TMPDIR": str(tmp)})
+    # FUERA del árbol del mutante: dentro, la CLI rechaza guardar claves «dentro del repositorio» (control correcto que rompía 6/6 copias).
+    tmp = tempfile.mkdtemp(prefix="qce-mut-tmp-")
+    try:
+        return subprocess.run([sys.executable, "-B", "-m", "pytest", "-x", "-q", "-p", "no:cacheprovider"], cwd=work,
+                              capture_output=True, text=True, timeout=timeout,
+                              env={"PYTHONPATH": str(work), "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
+                                   "HYPOTHESIS_STORAGE_DIRECTORY": str(work / ".h"), "TMPDIR": tmp})
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 mutation._pytest = _isolated_pytest
