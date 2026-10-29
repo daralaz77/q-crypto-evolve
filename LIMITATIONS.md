@@ -47,7 +47,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
   confirmados con PoC (el más grave: la puntuación de mutación era vacía). Todos tienen prueba de regresión en
   `tests/test_audit_findings.py`. Sigue siendo **otra instancia de Claude**, no una auditoría externa humana.
 - Las cadenas de hashes (incidentes, tareas, historial, auditoría de claves) detectan manipulación parcial. Quien reescriba
-  **toda** la cadena y no haya ancla externa no es detectado.
+  **toda** la cadena y no haya ancla externa no es detectado. **Desde 2026-10-29 hay un ancla externa** (`tools/anchor.py` + `.github/workflows/anchor.yml`): cada push a `main` firma con Sigstore un resumen de la cabeza de la cadena y del registro de confianza; solo protege **desde que existe** (no cubre lo anterior) y depende de que el flujo y la cuenta de GitHub no estén comprometidos a la vez.
 - El registro de confianza de revisores/aprobadores (`trust/registry.json`) vive en el repositorio. Un agente con permiso de
   escritura podría registrar su propia clave: en producción debe anclarse fuera (HSM, raíz offline, firma humana del registro).
 - "Revisión independiente" aquí son identidades distintas con claves distintas. **Si todas las usa la misma instancia de

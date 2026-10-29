@@ -1,0 +1,44 @@
+name: Ancla externa del libro de incidentes
+
+# Firma con Sigstore (atestación de GitHub, registrada en un registro de transparencia público) un resumen DETERMINISTA del estado del libro de
+# incidentes, del registro de confianza y de las firmas humanas (tools/anchor.py). No usa secretos propios; no hace commits ni crea releases (un release
+# publicado crearía un registro en Zenodo). Cualquiera puede regenerar el resumen de un commit y comprobar su atestación: `python tools/anchor.py --verify-commit <sha> --repo dueño/repo`.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anchor:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Resumen determinista (falla si la cadena está rota)
+        run: |
+          python -m pip install --quiet -r requirements.lock
+          python tools/anchor.py --commit "$GITHUB_SHA" > anchor.json
+          cat anchor.json
+          { echo "### Ancla del libro"; echo '```json'; cat anchor.json; echo '```'; echo "SHA-256 del resumen: $(sha256sum anchor.json | cut -d' ' -f1)"; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: anchor.json
+      - name: Comprobar de extremo a extremo (regenerar desde git y verificar la atestación)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify anchor.json --repo "$GITHUB_REPOSITORY"
+          python tools/anchor.py --verify-commit "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"

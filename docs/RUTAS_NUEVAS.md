@@ -22,6 +22,8 @@ Fecha: 2026-10-29. Complementa `docs/COMPARATIVA_PQC.md` (herramientas y brechas
 | R9 | **Fuentes de entropía cuánticas validadas (SP 800-90B / ESV)** mezcladas **con** `os.urandom`, nunca en su lugar | El simulador QKD usa `os.urandom`; no hay interfaz de entropía enchufable | **[PROBABLE, declarado por proveedores]**: ID Quantique, QuintessenceLabs, Quantinuum; verificar en la base del CMVP | Medio, y **sin hardware** no se puede probar | **Sí** |
 | R10 | **GS QKD 004 y 020 de ETSI** (otras interfaces de entrega de claves) | Solo tenemos el adaptador 014 | **[NO VERIFICADO]**: solo vi una referencia en un resumen de 2026 | Medio | Probablemente fuera de `qce/` |
 
+> **Estado de R1 (2026-10-29): implementada** como `tools/anchor.py` + `.github/workflows/anchor.yml`; ver `tools/README.md`.
+
 ## 2. Rutas que miré y **no** recomiendo ahora
 - **Pruebas de conocimiento nulo poscuánticas** (STARK, retículos): las pruebas siguen siendo mucho mayores que las clásicas (una fuente habla de ~1.000×) y no resuelven ninguna brecha nuestra.
 - **PAKE poscuántico** (`draft-vos-cfrg-pqpake-02`, Apple/UC Irvine): solo aplica si el producto tuviera inicio de sesión con contraseña; no lo tiene.
