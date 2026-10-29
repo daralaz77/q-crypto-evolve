@@ -72,12 +72,42 @@ def diagnose() -> int:
     return int(any(r["codigo"] != 0 for r in res))
 
 
+def explain(names: list[str]) -> int:
+    """Aplica cada mutante SOLO y muestra qué pruebas lo detectan (o que ninguna) EN ESTE ENTORNO, más lo que ve `ssl` por defecto."""
+    import ssl
+    print("OpenSSL:", ssl.OPENSSL_VERSION, "| minimum_version por defecto (cliente):", ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).minimum_version)
+    rc = 0
+    for name in names:
+        m = next(x for x in mutation.MUTANTS if x.name == name)
+        with tempfile.TemporaryDirectory() as td:
+            work = Path(td)
+            mutation._sandbox(ROOT, work)
+            f = work / m.path
+            src = f.read_text()
+            for old, new in m.edits:
+                src = src.replace(old, new)
+            f.write_text(src)
+            r = mutation._pytest(work, TIMEOUT)
+            print(f"=== {name}: pytest devolvió {r.returncode} ({'detectado' if r.returncode == 1 else 'SUPERVIVIENTE' if r.returncode == 0 else 'error'})")
+            print((r.stdout + r.stderr)[-1500:])
+            rc |= int(r.returncode == 0)
+    return rc
+
+
 def full() -> int:
     mutation.WORKERS = WORKERS
-    r = mutation.run_mutants(ROOT, timeout=TIMEOUT)
-    print(json.dumps({k: v for k, v in r.items() if k != "detail"}, indent=2))
+    # Los mutantes `hsm-*` solo se detectan con el laboratorio SoftHSM + proveedor PKCS#11 (sus pruebas se SALTAN sin él, también en este contenedor):
+    # evaluarlos aquí daría «supervivientes» falsos. Se excluyen de forma EXPLÍCITA y se listan; la puerta G3 local los evalúa. QCE_MUT_INCLUDE_HSM=1 los incluye.
+    skipped = [] if os.environ.get("QCE_MUT_INCLUDE_HSM") else [m.name for m in mutation.MUTANTS if m.name.startswith("hsm-")]
+    only = [m.name for m in mutation.MUTANTS if m.name not in skipped]
+    r = mutation.run_mutants(ROOT, only=only, timeout=TIMEOUT)
+    out = {k: v for k, v in r.items() if k != "detail"}
+    out["no_evaluados_aqui_por_falta_del_laboratorio_hsm"] = skipped
+    print(json.dumps(out, indent=2))
     return int(bool(r["survivors"]))
 
 
 if __name__ == "__main__":
+    if "--explain" in sys.argv:
+        sys.exit(explain(sys.argv[sys.argv.index("--explain") + 1].split(",")))
     sys.exit(diagnose() if "--diagnose" in sys.argv else full())

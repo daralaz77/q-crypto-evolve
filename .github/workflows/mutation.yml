@@ -12,7 +12,7 @@ on:
       modo:
         description: "completa = los 389 mutantes; diagnostico = 6 copias del canario en paralelo (minutos)"
         type: choice
-        options: [completa, diagnostico]
+        options: [completa, diagnostico, explicar-tls]
         default: completa
 
 permissions:
@@ -43,6 +43,11 @@ jobs:
       - name: Prueba de mutación completa
         run: |
           start=$(date +%s)
+          if [ "${{ inputs.modo }}" = "explicar-tls" ]; then
+            .venv/bin/python benchmarks/mutation_ci.py --explain tls-client-min-version-off,tls-server-min-version-off 2>&1 | tee diag.txt
+            { echo "### Mutantes de versión mínima TLS, en este entorno"; echo '```'; head -c 6000 diag.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [ "${{ inputs.modo }}" = "diagnostico" ]; then
             .venv/bin/python benchmarks/mutation_ci.py --diagnose 2>&1 | tee diag.txt
             { echo "### Diagnóstico del canario"; echo '```'; head -c 6000 diag.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
