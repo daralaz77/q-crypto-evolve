@@ -1,0 +1,19 @@
+{
+ "source": "https://github.com/C2SP/wycheproof",
+ "commit": "d17cc89fa5c8f4f4d378b5385ebf75da5d0926c9",
+ "path": "testvectors_v1",
+ "license_note": "Wycheproof se publica bajo Apache-2.0; los vectores no se copian al repositorio: se descargan en el momento.",
+ "trust": "Los hashes se calcularon al descargar por primera vez DESDE ese commit (confianza en el primer uso); el commit fija el contenido y el hash detecta cambios posteriores en el archivo local.",
+ "files": {
+  "mldsa_65_verify_test.json": "1ca235f61928421a173a171780beb00264ae9155dc33c52a11e1766cc7979034",
+  "mldsa_87_verify_test.json": "54adffe10f6dad7941ffd97f77ad4e5c85cb3a54d44cf5ce1c95cb1757b9ba14",
+  "mlkem_1024_encaps_test.json": "da41e8daf57e40a6b334a722e3f56067817352f5583fdb2434da1a2cd611358e",
+  "mlkem_1024_keygen_seed_test.json": "cd9241bf5d65a78e005866ea2c660615c17f50caa9afc2b96fd1573cc65617b5",
+  "mlkem_1024_semi_expanded_decaps_test.json": "a4a7c88152df3d8d4b3f33aad584167dfaff67195cfde08aac4b981030b4d05c",
+  "mlkem_1024_test.json": "17c5b764d78c05522f1980fcb41d82add573f11de5d13004ae0b83bf46d9c43a",
+  "mlkem_768_encaps_test.json": "9d4381f94c40853bba430245b94968b7390d9175aacd9f1ae4e250a71c78b713",
+  "mlkem_768_keygen_seed_test.json": "fde5abe284396f4cb3c4610b90d680f0b57782e94c3365c97aee59e24881ebe4",
+  "mlkem_768_semi_expanded_decaps_test.json": "e4438ab7d4dd7b6ace7165e45aeed4403082f981f86300c8369f69d3d071060a",
+  "mlkem_768_test.json": "c59c067ae794c343df575dd90f6f7458f51881b11a22d6e9d8677c8d9ee21e90"
+ }
+}

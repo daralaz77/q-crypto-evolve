@@ -43,8 +43,10 @@ jobs:
       - name: Batería completa
         run: .venv/bin/python -m pytest -q
 
-      - name: Panel y demo (fuera del release_id)
-        run: .venv/bin/python -m pytest panel/tests site/tests -o addopts="" -p no:cacheprovider -q
+      - name: Panel, demo, conformidad Wycheproof, CBOM (fuera del release_id)
+        run: |
+          .venv/bin/python conformance/fetch_vectors.py
+          .venv/bin/python -m pytest panel/tests site/tests conformance/tests tools/tests -o addopts="" -p no:cacheprovider -q
 
       - name: INC-0029, repetición de la prueba de GnuTLS (x100)
         if: always()

@@ -70,6 +70,17 @@ Fecha de la investigación: 2026-10-29. Alcance: bibliotecas, protocolos, están
 
 Recomiendo **A ahora, B con el revisor, C cuando haya RFC**.
 
+## 5b. Avance de la ruta A (2026-10-29)
+
+| Brecha | Resultado real | Dónde |
+|---|---|---|
+| B2 vectores | **1.587 casos Wycheproof pasan** (ML-KEM-768/1024: ida y vuelta, rechazo implícito, longitudes malas, desbordamiento de módulo; ML-DSA-65/87: verificación con 451 firmas de borde). Sin fallos. Quedan sin ejecutar los de clave de desencapsulación expandida (la API no los importa) | `conformance/run_wycheproof.py` |
+| B3 diferencial | 100 rondas (25 × ML-KEM-768/1024 y ML-DSA-65/87) entre OpenSSL 4.0.3 (embebido en `cryptography`) y 3.6.4 (CLI del sistema): **0 diferencias**. Es la misma familia de código; **no** es una implementación independiente | `conformance/differential.py` |
+| B4 CBOM | CBOM CycloneDX 1.6 generada desde la política real (18 componentes); marca como vulnerables X25519, Ed25519 y la PKI ECDSA P-256 del transporte. **Sin validar contra el esquema oficial** | `tools/cbom.py`, `benchmarks/cbom.cdx.json` |
+| B6 cadena de suministro | Flujo `security.yml`: CodeQL, Scorecard (sin publicar), zizmor y procedencia firmada del paquete (a demanda), con acciones fijadas por SHA | `.github/workflows/security.yml` |
+
+Los canarios de `conformance/tests` comprueban que los ejecutores fallan si se altera un vector; así un verde no puede estar vacío.
+
 ## 6. Fuentes (secundarias salvo las dos primeras)
 
 - [RFC 10024](https://www.rfc-editor.org/info/rfc10024/) (primaria) · [OpenSSL: CVEs y proveedor FIPS](https://openssl-library.org/news/fips-cve/) (primaria)

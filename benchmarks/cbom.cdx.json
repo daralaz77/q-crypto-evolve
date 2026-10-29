@@ -1,0 +1,528 @@
+{
+ "bomFormat": "CycloneDX",
+ "components": [
+  {
+   "bom-ref": "crypto/algorithm/aes-256-gcm",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "256",
+     "primitive": "ae"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "AES-256-GCM",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/symmetric/aead.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/chacha20-poly1305",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "256",
+     "primitive": "ae"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "CHACHA20-POLY1305",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/symmetric/aead.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/ecdsa-p256",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 0,
+     "parameterSetIdentifier": "secp256r1",
+     "primitive": "signature"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "ECDSA-P256",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "true"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/transport/pki.py (PKI de laboratorio del transporte TLS: la autenticación NO es poscuántica)"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/ed25519",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 0,
+     "parameterSetIdentifier": "curve25519",
+     "primitive": "signature"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "Ed25519",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "true"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/hybrid.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/hkdf-sha256",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "SHA-256",
+     "primitive": "kdf"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "HKDF-SHA256",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/symmetric/aead.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/hmac-sha256",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "SHA-256",
+     "primitive": "mac"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "HMAC-SHA256",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/symmetric/aead.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/ml-dsa-65",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 3,
+     "parameterSetIdentifier": "65",
+     "primitive": "signature"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "ML-DSA-65",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/hybrid.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/ml-dsa-87",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "87",
+     "primitive": "signature"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "ML-DSA-87",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/hybrid.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/ml-kem-1024",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "1024",
+     "primitive": "kem"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "ML-KEM-1024",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/hybrid.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/ml-kem-768",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 3,
+     "parameterSetIdentifier": "768",
+     "primitive": "kem"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "ML-KEM-768",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/hybrid.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/slh-dsa-sha2-128s",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 1,
+     "parameterSetIdentifier": "SHA2-128s",
+     "primitive": "signature"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "SLH-DSA-SHA2-128s",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/slhdsa.py (puente ctypes, fuera del apretón)"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/x25519",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 0,
+     "parameterSetIdentifier": "curve25519",
+     "primitive": "kem"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "X25519",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "true"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/pqc/hybrid.py"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/algorithm/scrypt",
+   "cryptoProperties": {
+    "algorithmProperties": {
+     "nistQuantumSecurityLevel": 5,
+     "parameterSetIdentifier": "scrypt",
+     "primitive": "kdf"
+    },
+    "assetType": "algorithm"
+   },
+   "name": "scrypt",
+   "properties": [
+    {
+     "name": "qce:quantum-vulnerable",
+     "value": "false"
+    },
+    {
+     "name": "qce:where",
+     "value": "qce/key_management/keystore.py (almacén cifrado)"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/protocol/qce1-xmlkem768-chacha",
+   "cryptoProperties": {
+    "assetType": "protocol",
+    "protocolProperties": {
+     "cipherSuites": [
+      {
+       "algorithms": [
+        "crypto/algorithm/x25519",
+        "crypto/algorithm/ml-kem-768",
+        "crypto/algorithm/ed25519",
+        "crypto/algorithm/ml-dsa-65",
+        "crypto/algorithm/chacha20-poly1305"
+       ],
+       "name": "QCE1-XMLKEM768-CHACHA"
+      }
+     ],
+     "type": "other",
+     "version": "QCE1"
+    }
+   },
+   "name": "QCE1-XMLKEM768-CHACHA",
+   "properties": [
+    {
+     "name": "qce:policy-status",
+     "value": "allowed"
+    },
+    {
+     "name": "qce:in-default-policy",
+     "value": "true"
+    },
+    {
+     "name": "qce:level",
+     "value": "standard"
+    },
+    {
+     "name": "qce:reviewed-by-human",
+     "value": "false"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/protocol/qce1-xmlkem768-aesgcm",
+   "cryptoProperties": {
+    "assetType": "protocol",
+    "protocolProperties": {
+     "cipherSuites": [
+      {
+       "algorithms": [
+        "crypto/algorithm/x25519",
+        "crypto/algorithm/ml-kem-768",
+        "crypto/algorithm/ed25519",
+        "crypto/algorithm/ml-dsa-65",
+        "crypto/algorithm/aes-256-gcm"
+       ],
+       "name": "QCE1-XMLKEM768-AESGCM"
+      }
+     ],
+     "type": "other",
+     "version": "QCE1"
+    }
+   },
+   "name": "QCE1-XMLKEM768-AESGCM",
+   "properties": [
+    {
+     "name": "qce:policy-status",
+     "value": "allowed"
+    },
+    {
+     "name": "qce:in-default-policy",
+     "value": "true"
+    },
+    {
+     "name": "qce:level",
+     "value": "standard"
+    },
+    {
+     "name": "qce:reviewed-by-human",
+     "value": "false"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/protocol/qce1-xmlkem1024-aesgcm",
+   "cryptoProperties": {
+    "assetType": "protocol",
+    "protocolProperties": {
+     "cipherSuites": [
+      {
+       "algorithms": [
+        "crypto/algorithm/x25519",
+        "crypto/algorithm/ml-kem-1024",
+        "crypto/algorithm/ed25519",
+        "crypto/algorithm/ml-dsa-87",
+        "crypto/algorithm/aes-256-gcm"
+       ],
+       "name": "QCE1-XMLKEM1024-AESGCM"
+      }
+     ],
+     "type": "other",
+     "version": "QCE1"
+    }
+   },
+   "name": "QCE1-XMLKEM1024-AESGCM",
+   "properties": [
+    {
+     "name": "qce:policy-status",
+     "value": "allowed"
+    },
+    {
+     "name": "qce:in-default-policy",
+     "value": "false"
+    },
+    {
+     "name": "qce:level",
+     "value": "high"
+    },
+    {
+     "name": "qce:reviewed-by-human",
+     "value": "false"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/protocol/qce0-x25519-chacha",
+   "cryptoProperties": {
+    "assetType": "protocol",
+    "protocolProperties": {
+     "cipherSuites": [
+      {
+       "algorithms": [
+        "crypto/algorithm/x25519",
+        "crypto/algorithm/ed25519",
+        "crypto/algorithm/chacha20-poly1305"
+       ],
+       "name": "QCE0-X25519-CHACHA"
+      }
+     ],
+     "type": "other",
+     "version": "QCE1"
+    }
+   },
+   "name": "QCE0-X25519-CHACHA",
+   "properties": [
+    {
+     "name": "qce:policy-status",
+     "value": "forbidden"
+    },
+    {
+     "name": "qce:in-default-policy",
+     "value": "false"
+    },
+    {
+     "name": "qce:level",
+     "value": "standard"
+    },
+    {
+     "name": "qce:reviewed-by-human",
+     "value": "false"
+    }
+   ],
+   "type": "cryptographic-asset"
+  },
+  {
+   "bom-ref": "crypto/protocol/tls-1.3-psk",
+   "cryptoProperties": {
+    "assetType": "protocol",
+    "protocolProperties": {
+     "cipherSuites": [
+      {
+       "algorithms": [
+        "crypto/algorithm/aes-256-gcm"
+       ],
+       "name": "TLS_AES_256_GCM_SHA384"
+      }
+     ],
+     "type": "tls",
+     "version": "1.3"
+    }
+   },
+   "name": "TLS 1.3 con PSK externa de QKD",
+   "properties": [
+    {
+     "name": "qce:key-exchange-groups",
+     "value": "X25519MLKEM768, SecP384r1MLKEM1024"
+    },
+    {
+     "name": "qce:authentication",
+     "value": "certificados ECDSA P-256 de la PKI de laboratorio (no poscuánticos)"
+    },
+    {
+     "name": "qce:reviewed-by-human",
+     "value": "false"
+    }
+   ],
+   "type": "cryptographic-asset"
+  }
+ ],
+ "metadata": {
+  "component": {
+   "bom-ref": "q-crypto-evolve",
+   "name": "q-crypto-evolve",
+   "type": "library"
+  },
+  "properties": [
+   {
+    "name": "qce:laboratory",
+    "value": "true"
+   },
+   {
+    "name": "qce:quantum-vulnerable-algorithms-present",
+    "value": "ECDSA-P256, Ed25519, X25519"
+   },
+   {
+    "name": "qce:note",
+    "value": "Los híbridos combinan un componente clásico y uno poscuántico: el clásico figura como vulnerable aunque la suite resista."
+   }
+  ]
+ },
+ "serialNumber": "urn:uuid:d14804a1-385e-5e2a-8758-98436bc9f593",
+ "specVersion": "1.6",
+ "version": 1
+}
