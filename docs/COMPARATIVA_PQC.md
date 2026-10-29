@@ -79,6 +79,12 @@ Recomiendo **A ahora, B con el revisor, C cuando haya RFC**.
 | B4 CBOM | CBOM CycloneDX 1.6 generada desde la política real (18 componentes); marca como vulnerables X25519, Ed25519 y la PKI ECDSA P-256 del transporte. **Sin validar contra el esquema oficial** | `tools/cbom.py`, `benchmarks/cbom.cdx.json` |
 | B6 cadena de suministro | Flujo `security.yml`: CodeQL, Scorecard (sin publicar), zizmor y procedencia firmada del paquete (a demanda), con acciones fijadas por SHA | `.github/workflows/security.yml` |
 
+**Lo que encontraron los análisis nuevos en nuestro propio repositorio (hechos, no suposiciones):**
+- **zizmor**: 3 avisos reales de severidad media (`checkout` dejaba las credenciales en el repositorio local en `ci.yml`, `mutation.yml` y `pages.yml`). Corregidos con `persist-credentials: false`; el flujo vuelve a estar en verde.
+- **CodeQL**: 3 alertas `py/path-injection` en `panel/server.py` (mi panel). Probablemente falsos positivos (la ruta se comprobaba contra la carpeta estática y las pruebas de recorrido de directorios pasaban), pero la defensa era más débil de lo necesario: ahora el servidor usa una **lista cerrada de archivos** y la ruta pedida nunca construye un camino. 2 alertas `py/insecure-protocol` en `qce/transport/tls13.py:98` y `:275` (`wrap_socket`): **sin triar**; el archivo está dentro del `release_id`, así que cualquier cambio exige repetir las puertas. Hay que revisar que todos los contextos TLS que llegan ahí fijen `minimum_version = TLS 1.3` (hay pruebas que lo comprueban, pero CodeQL no lo ve en ese punto).
+- **Scorecard** (10 alertas, no publicadas): sin protección de ramas, sin revisión de código (un solo mantenedor), sin fuzzing integrado, `pip install` sin hashes en los flujos, sin badge de buenas prácticas OpenSSF, repositorio con menos de 90 días. Son decisiones tuyas o trabajo pendiente, no defectos de código.
+- **Procedencia**: el trabajo de atestación del paquete fuente se ejecutó con éxito; no verifiqué la atestación con `gh attestation verify` (no tengo el archivo localmente).
+
 Los canarios de `conformance/tests` comprueban que los ejecutores fallan si se altera un vector; así un verde no puede estar vacío.
 
 ## 6. Fuentes (secundarias salvo las dos primeras)

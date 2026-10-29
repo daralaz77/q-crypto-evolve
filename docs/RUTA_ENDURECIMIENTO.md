@@ -34,6 +34,7 @@ Escribir los cambios en una rama y **no** fusionarlos a `main` hasta la Fase 2. 
 | 1.5 | Guardar `min_epoch` del almacén fuera del vault | T9: responsabilidad del operador | Prueba: restaurar un vault antiguo con el `min_epoch` externo falla |
 | 1.6 | Firmar cada transición del workflow con la clave del actor | `LIMITATIONS.md`: `role` y `actor_id` se afirman, no se autentican | Prueba: una transición sin firma válida se rechaza |
 | 1.8 | Dar a `tests/test_tls_custody.py::test_server_works_and_no_private_key_ever_sits_in_a_file` un TMPDIR propio (mide el /tmp compartido y falla si otro proceso crea un `qce-key-*` a la vez) | INC-0034, abierto: 1 de 6 copias paralelas del canario en CI | Prueba que lanza dos procesos a la vez y no falla; la prueba original sigue fallando si queda un directorio propio sin borrar |
+| 1.9 | Triar las 2 alertas CodeQL `py/insecure-protocol` de `qce/transport/tls13.py` (líneas 98 y 275): comprobar que todo contexto TLS fija `minimum_version` TLS 1.3 y, si hace falta, hacerlo explícito en ese punto | CodeQL, 2026-10-29 | Alerta cerrada por la herramienta y prueba que falla si un contexto permite menos de TLS 1.3 |
 | 1.7 | Hacer observable el descarte de la clave KEM efímera | T19 sin prueba (mutante declarado equivalente) | Prueba que falla si la clave sigue accesible tras el handshake |
 
 ## Fase 2 — Paquete único y revisión humana (G5)

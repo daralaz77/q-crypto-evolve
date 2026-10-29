@@ -16,6 +16,7 @@ import data  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
+ASSETS = {"/": "index.html", "/index.html": "index.html", "/panel.css": "panel.css", "/app.js": "app.js", "/boot.js": "boot.js"}
 CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 
@@ -46,9 +47,11 @@ def make_handler(root: Path):
             if path == "/api/estado":
                 body = json.dumps(data.snapshot(root), ensure_ascii=False).encode()
                 return self._send(200, body, "application/json; charset=utf-8", head_only)
-            name = "index.html" if path == "/" else path.lstrip("/")
-            f = (STATIC / name).resolve()
-            if STATIC.resolve() not in f.parents or f.suffix not in TYPES or not f.is_file():
+            name = ASSETS.get(path)  # lista cerrada: la ruta pedida NUNCA se usa para construir un camino de archivo
+            if name is None:
+                return self._send(404, b"no encontrado", "text/plain; charset=utf-8", head_only)
+            f = STATIC / name
+            if not f.is_file():
                 return self._send(404, b"no encontrado", "text/plain; charset=utf-8", head_only)
             self._send(200, f.read_bytes(), TYPES[f.suffix], head_only)
 
