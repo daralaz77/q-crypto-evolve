@@ -48,7 +48,10 @@ def build(root: Path, commit: str | None = None) -> dict:
 
 
 def _git_head(root: Path) -> str | None:
-    r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
+    try:
+        r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
+    except FileNotFoundError:  # sin git (p. ej. el contenedor mínimo de CI): el commit se pasa con --commit
+        return None
     return r.stdout.strip() if r.returncode == 0 else None
 
 

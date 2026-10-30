@@ -95,8 +95,8 @@ def test_changing_the_trust_registry_or_the_signatures_changes_the_anchor(proj):
 
 def test_verify_commit_regenerates_the_same_anchor_from_a_git_archive():
     head = anchor._git_head(ROOT)
-    if not head:
-        pytest.skip("no es un repositorio git")
+    if not head or not shutil.which("tar"):
+        pytest.skip("sin git o sin repositorio git")
     import subprocess
     import tempfile
     with tempfile.TemporaryDirectory() as td:
