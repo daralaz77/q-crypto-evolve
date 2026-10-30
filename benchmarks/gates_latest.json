@@ -1,52 +1,30 @@
 {
   "version": "0.3.0-lab",
   "release_id": "7904c2a474f61b7b",
-  "state": "REVIEW_REQUIRED",
+  "state": "FAILED",
   "gates": [
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
       "detail": "cadenas de registro íntegras (96 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.21
+      "seconds": 0.25
     },
     {
       "gate": "G2-FUNCIONALIDAD",
-      "status": "pass",
-      "detail": "613 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
-      "evidence": {},
-      "seconds": 85.39
+      "status": "fail",
+      "detail": "pruebas fallidas",
+      "evidence": {
+        "tail": "   proc.kill()\n            proc.wait(5)\n>       raise AssertionError(\"selfserv no llegó a escuchar tras cuatro intentos\")\nE       AssertionError: selfserv no llegó a escuchar tras cuatro intentos\n\ntests/test_interop_nss.py:300: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_interop_nss.py::test_our_certificate_client_completes_hybrid_tls13_with_an_nss_server\nFAILED tests/test_interop_nss.py::test_our_certificate_client_refuses_an_nss_server_that_only_offers_a_classical_group\n2 failed, 611 passed, 3 skipped in 148.66s (0:02:28)\n"
+      },
+      "seconds": 148.94
     },
     {
       "gate": "G3-SEGURIDAD",
-      "status": "pass",
-      "detail": "sin malos usos, sin secretos, mutación completa, dependencias limpias",
-      "evidence": {
-        "misuse": [],
-        "secrets": [],
-        "mutation": {
-          "total": 389,
-          "scored": 383,
-          "killed": 383,
-          "score": 1.0,
-          "survivors": [],
-          "declared_equivalent": [
-            "keys-aad-ignores-generation",
-            "hs-direction-binding-off",
-            "prof-keybinding-off",
-            "rel-path-check-off",
-            "tls-config-allows-tls12"
-          ],
-          "seconds": 3647.3,
-          "canary_ok": true
-        },
-        "dependencies": {
-          "status": "limpia",
-          "vulnerabilities": [],
-          "checked": 3
-        }
-      },
-      "seconds": 3648.49
+      "status": "fail",
+      "detail": "error interno de la puerta: RuntimeError: línea base del sandbox NO es verde; la mutación no es válida:\nill()\n            proc.wait(5)\n>       raise AssertionError(\"selfserv no llegó a escuchar tras cuatro intentos\")\nE       AssertionError: selfserv no llegó a escuchar tras cuatro intentos\n\ntests/test_interop_nss.py:300: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_interop_nss.py::test_our_certificate_client_completes_hybrid_tls13_with_an_nss_server\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+      "evidence": {},
+      "seconds": 79.83
     },
     {
       "gate": "G4-REGRESION",
@@ -55,26 +33,26 @@
       "evidence": {
         "checked": 34
       },
-      "seconds": 24.59
+      "seconds": 24.17
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
-      "detail": "sin declaración firmada del implementador para este código",
+      "detail": "sin revisión firmada de un agente distinto del implementador para este código exacto",
       "evidence": {},
       "seconds": 0.0
     },
     {
       "gate": "G6-AUTORIZACION",
-      "status": "skipped",
-      "detail": "sin autorización humana firmada para este código exacto",
+      "status": "pass",
+      "detail": "autorización humana válida: ['darwing']",
       "evidence": {},
       "seconds": 0.0
     }
   ],
   "metrics": {
-    "tests_passed": 613,
-    "total_seconds": 3758.7,
+    "tests_passed": 611,
+    "total_seconds": 253.2,
     "incidents_total": 34,
     "incidents_resolved": 34,
     "recurring_patterns": [
