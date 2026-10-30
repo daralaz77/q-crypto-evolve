@@ -25,6 +25,7 @@ from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
 from cryptography.x509.oid import NameOID  # noqa: E402
 
+from . import pki  # noqa: E402
 from ..core.errors import KeyStateError, QCEError  # noqa: E402
 from ..key_management.keystore import KeyStore, Purpose, State  # noqa: E402
 
@@ -40,8 +41,8 @@ class TlsKeyCustody:
         self._certs.mkdir(parents=True, exist_ok=True)
 
     # ---- provisión --------------------------------------------------------------------------------------------------
-    def provision_key(self, ttl_s: float, generation: int = 1) -> str:
-        key = ec.generate_private_key(ec.SECP256R1())
+    def provision_key(self, ttl_s: float, generation: int = 1, algorithm: str = "ecdsa-p256") -> str:
+        key = pki.new_private_key(algorithm)
         der = key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
         kid = self._store.create(Purpose.TLS, ttl_s, secret=der, generation=generation)
         self._store.activate(kid)  # ACTIVE pero inutilizable para servir hasta instalar un certificado
@@ -54,7 +55,7 @@ class TlsKeyCustody:
     def csr_pem(self, key_id: str, name: str) -> bytes:
         key = self._private_key(key_id, "sign")
         csr = (x509.CertificateSigningRequestBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)]))
-               .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False).sign(key, hashes.SHA256()))
+               .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False).sign(key, pki.signing_hash(key)))
         return csr.public_bytes(serialization.Encoding.PEM)
 
     def install_certificate(self, key_id: str, cert_pem: bytes, name: str) -> None:
@@ -76,10 +77,9 @@ class TlsKeyCustody:
             raise CertificateRejected("el certificado no cubre el nombre del servidor")
         (self._certs / f"{key_id}.pem").write_bytes(cert_pem)
 
-    def provision_with_lab_ca(self, ca_key, ca_cert: x509.Certificate, name: str, ttl_s: float, generation: int = 1) -> str:
+    def provision_with_lab_ca(self, ca_key, ca_cert: x509.Certificate, name: str, ttl_s: float, generation: int = 1, algorithm: str = "ecdsa-p256") -> str:
         """Atajo de laboratorio: genera clave, firma la CSR con la CA de laboratorio e instala el certificado."""
-        from . import pki
-        kid = self.provision_key(ttl_s, generation)
+        kid = self.provision_key(ttl_s, generation, algorithm)
         csr = x509.load_pem_x509_csr(self.csr_pem(kid, name))
         cert = pki.sign_csr(ca_key, ca_cert, csr)
         self.install_certificate(kid, cert.public_bytes(serialization.Encoding.PEM), name)
