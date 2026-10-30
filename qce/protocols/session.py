@@ -155,7 +155,10 @@ class ServerHandshake:
         self._state = "failed"  # un único intento: cualquier error deja el handshake cerrado (y con QCEError, no AttributeError)
         ct, mac_c = unpack(m3, T_CF, 2)
         kem, self._kem = self._kem, None  # la clave efímera se descarta pase lo que pase: secreto hacia adelante
-        ss = kem.decapsulate(ct)
+        try:
+            ss = kem.decapsulate(ct)
+        finally:
+            kem.destroy()  # observable: `destroyed` pasa a True aunque la desencapsulación falle
         secret = ss + (self._qkd_key or b"")
         th = _h(self._m1, self._m2, ct)
         c2s, s2c, ck = _derive(secret, th)

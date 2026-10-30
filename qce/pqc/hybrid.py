@@ -100,6 +100,8 @@ class HybridKemPrivateKey:
                    level.mlkem_private.from_seed_bytes(seed[32:]), level)
 
     def seed(self) -> bytes:
+        if self._x is None or self._m is None:
+            raise AuthenticationFailure("clave KEM efímera ya descartada")
         from cryptography.hazmat.primitives.serialization import NoEncryption, PrivateFormat
         x = self._x.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
         return x + self._m.private_bytes_raw()
@@ -108,7 +110,18 @@ class HybridKemPrivateKey:
     def public_bytes(self) -> bytes:
         return self._pk
 
+    @property
+    def destroyed(self) -> bool:
+        return self._x is None and self._m is None
+
+    def destroy(self) -> None:
+        """Suelta las referencias a las claves privadas (X25519 y ML-KEM). Es de MEJOR ESFUERZO en Python: el intérprete puede haber copiado el secreto
+        (ver LIMITATIONS.md); lo que SÍ se garantiza y se prueba es que el objeto deja de poder desencapsular y que `destroyed` lo refleja."""
+        self._x = self._m = None
+
     def decapsulate(self, ct: bytes) -> bytes:
+        if self._x is None or self._m is None:
+            raise AuthenticationFailure("clave KEM efímera ya descartada")
         if len(ct) != self.level.kem_ct_len:
             raise MalformedMessage("texto cifrado KEM de longitud inválida")
         try:

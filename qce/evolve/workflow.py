@@ -5,6 +5,7 @@ reconstruye SIEMPRE desde el registro: no hay estado en memoria que un agente pu
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -14,6 +15,7 @@ import re
 
 from ..core.chainlog import ChainLog
 from ..core.errors import QCEError
+from ..pqc.hybrid import hybrid_verify
 
 ID_OK = re.compile(r"^(?![0-9a-fA-F]{32,}$)[A-Za-z0-9._-]{1,40}$")
 MAIN = ["CREATED", "ANALYZED", "APPROVED_FOR_IMPLEMENTATION", "IMPLEMENTED", "TESTING",
@@ -80,9 +82,24 @@ class Task:
     implementer_ids: list[str] = field(default_factory=list)
 
 
+CTX_TRANSITION = b"QCE1/workflow-transition"
+
+
+def transition_payload(head: str, task_id: str, cur: str, to: str, role: str, actor_id: str, evidence: list[str] | None,
+                       blocking_findings: list[str] | None) -> bytes:
+    """Bytes que firma el actor: ligan la transición al ESTADO EXACTO del registro (`head`) y a la tarea, así una firma no se puede reutilizar en otra transición ni repetir."""
+    body = json.dumps({"head": head, "task": task_id, "from": cur, "to": to, "role": role, "actor": actor_id,
+                       "evidence": list(evidence or []), "findings": sorted(blocking_findings or [])}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(body.encode()).digest()
+
+
 class Workflow:
-    def __init__(self, path: str | Path, approval_verifier: Callable[[str], bool] | None = None) -> None:
+    def __init__(self, path: str | Path, approval_verifier: Callable[[str], bool] | None = None,
+                 actor_keys: Callable[[str], bytes | None] | None = None) -> None:
         self.log = ChainLog(path)
+        # Con `actor_keys` (actor_id → clave pública híbrida registrada o None), CADA transición exige la firma del actor; sin él, el comportamiento histórico
+        # (los actor_id se afirman, no se autentican: ver LIMITATIONS.md).
+        self._actor_keys = actor_keys
         # RELEASE_APPROVED exige comprobar la declaración firmada; sin verificador configurado se FALLA CERRADO.
         self._verify_approval = approval_verifier
 
@@ -126,11 +143,24 @@ class Workflow:
     def get(self, task_id: str) -> dict:
         return self._tasks()[task_id]
 
+    def signing_payload(self, task_id: str, to: str, role: str, actor_id: str, evidence: list[str] | None = None,
+                        blocking_findings: list[str] | None = None) -> bytes:
+        """Lo que el actor debe firmar (con CTX_TRANSITION) para esta transición, sobre el estado ACTUAL del registro."""
+        return transition_payload(self.log.head(), task_id, self._tasks()[task_id]["final_state"], to, role, actor_id, evidence, blocking_findings)
+
     def transition(self, task_id: str, to: str, role: str, actor_id: str, evidence: list[str] | None = None,
-                   blocking_findings: list[str] | None = None) -> None:
+                   blocking_findings: list[str] | None = None, signature: bytes | None = None) -> None:
         head = self.log.head()  # todo lo validado se refiere a ESTE estado del registro
         t = self._tasks()[task_id]
         cur = t["final_state"]
+        if self._actor_keys is not None:
+            pub = self._actor_keys(actor_id)
+            if pub is None or not signature:
+                raise QCEError("transición sin firma de un actor registrado")
+            try:
+                hybrid_verify(pub, transition_payload(head, task_id, cur, to, role, actor_id, evidence, blocking_findings), signature, CTX_TRANSITION)
+            except Exception as exc:  # noqa: BLE001  (cualquier fallo de verificación = rechazo; no se filtra el motivo)
+                raise QCEError("firma de la transición inválida") from exc
         allowed = set(NEXT.get(cur, set()))
         if cur == "REVIEW_REQUIRED" and t.get("resume_to"):
             allowed.add(t["resume_to"])  # solo se vuelve a donde se estaba
@@ -160,6 +190,8 @@ class Workflow:
                 raise QCEError("falta una declaración de aprobación firmada y verificable (approval:<ref>)")
         rec = {"kind": "transition", "task_id": task_id, "from": cur, "to": to, "role": role, "actor": actor_id,
                "evidence": evidence or [], **extra}
+        if self._actor_keys is not None:
+            rec["signed"] = True
         if blocking_findings:
             if not all(isinstance(f, str) and ID_OK.match(f) for f in blocking_findings):
                 raise QCEError("identificador de hallazgo inválido")
