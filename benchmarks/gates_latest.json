@@ -1,30 +1,52 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "7904c2a474f61b7b",
-  "state": "FAILED",
+  "release_id": "bf24938b31116bea",
+  "state": "REVIEW_REQUIRED",
   "gates": [
     {
       "gate": "G1-INTEGRIDAD",
       "status": "pass",
-      "detail": "cadenas de registro íntegras (96 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
+      "detail": "cadenas de registro íntegras (97 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
       "seconds": 0.25
     },
     {
       "gate": "G2-FUNCIONALIDAD",
-      "status": "fail",
-      "detail": "pruebas fallidas",
-      "evidence": {
-        "tail": "   proc.kill()\n            proc.wait(5)\n>       raise AssertionError(\"selfserv no llegó a escuchar tras cuatro intentos\")\nE       AssertionError: selfserv no llegó a escuchar tras cuatro intentos\n\ntests/test_interop_nss.py:300: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_interop_nss.py::test_our_certificate_client_completes_hybrid_tls13_with_an_nss_server\nFAILED tests/test_interop_nss.py::test_our_certificate_client_refuses_an_nss_server_that_only_offers_a_classical_group\n2 failed, 611 passed, 3 skipped in 148.66s (0:02:28)\n"
-      },
-      "seconds": 148.94
+      "status": "pass",
+      "detail": "669 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "evidence": {},
+      "seconds": 94.45
     },
     {
       "gate": "G3-SEGURIDAD",
-      "status": "fail",
-      "detail": "error interno de la puerta: RuntimeError: línea base del sandbox NO es verde; la mutación no es válida:\nill()\n            proc.wait(5)\n>       raise AssertionError(\"selfserv no llegó a escuchar tras cuatro intentos\")\nE       AssertionError: selfserv no llegó a escuchar tras cuatro intentos\n\ntests/test_interop_nss.py:300: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_interop_nss.py::test_our_certificate_client_completes_hybrid_tls13_with_an_nss_server\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
-      "evidence": {},
-      "seconds": 79.83
+      "status": "pass",
+      "detail": "sin malos usos, sin secretos, mutación completa, dependencias limpias",
+      "evidence": {
+        "misuse": [],
+        "secrets": [],
+        "mutation": {
+          "total": 414,
+          "scored": 408,
+          "killed": 408,
+          "score": 1.0,
+          "survivors": [],
+          "declared_equivalent": [
+            "keys-aad-ignores-generation",
+            "hs-direction-binding-off",
+            "prof-keybinding-off",
+            "rel-path-check-off",
+            "tls-config-allows-tls12"
+          ],
+          "seconds": 4461.1,
+          "canary_ok": true
+        },
+        "dependencies": {
+          "status": "limpia",
+          "vulnerabilities": [],
+          "checked": 3
+        }
+      },
+      "seconds": 4462.72
     },
     {
       "gate": "G4-REGRESION",
@@ -33,31 +55,31 @@
       "evidence": {
         "checked": 34
       },
-      "seconds": 24.17
+      "seconds": 31.0
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
-      "detail": "sin revisión firmada de un agente distinto del implementador para este código exacto",
+      "detail": "sin declaración firmada del implementador para este código",
       "evidence": {},
       "seconds": 0.0
     },
     {
       "gate": "G6-AUTORIZACION",
-      "status": "pass",
-      "detail": "autorización humana válida: ['darwing']",
+      "status": "skipped",
+      "detail": "sin autorización humana firmada para este código exacto",
       "evidence": {},
       "seconds": 0.0
     }
   ],
   "metrics": {
-    "tests_passed": 611,
-    "total_seconds": 253.2,
-    "incidents_total": 34,
+    "tests_passed": 669,
+    "total_seconds": 4588.4,
+    "incidents_total": 35,
     "incidents_resolved": 34,
     "recurring_patterns": [
       "18 incidentes con causa 'codigo': revisar el diseño, no solo el síntoma",
-      "10 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
+      "11 incidentes con causa 'prueba_insuficiente': revisar el diseño, no solo el síntoma",
       "3 incidentes con causa 'configuracion': revisar el diseño, no solo el síntoma",
       "2 incidentes con causa 'especificacion': revisar el diseño, no solo el síntoma"
     ]
