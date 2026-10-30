@@ -15,7 +15,6 @@ desconocida, reservada o consumida, o fuera de plazo, no hay conexión. No depen
 from __future__ import annotations
 
 import ctypes
-import os
 import select
 import socket
 import struct

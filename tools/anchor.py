@@ -49,7 +49,7 @@ def build(root: Path, commit: str | None = None) -> dict:
 
 def _git_head(root: Path) -> str | None:
     try:
-        r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
+        r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=30)
     except FileNotFoundError:  # sin git (p. ej. el contenedor mínimo de CI): el commit se pasa con --commit
         return None
     return r.stdout.strip() if r.returncode == 0 else None
@@ -77,15 +77,15 @@ def extends(root: Path, anchored: dict) -> tuple[bool, str]:
 
 
 def verify_commit(sha: str, repo: str) -> int:
-    sha = subprocess.run(["git", "rev-parse", sha], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()  # SHA COMPLETO: el resumen incluye el commit tal cual y el flujo usa el completo
+    sha = subprocess.run(["git", "rev-parse", sha], cwd=ROOT, capture_output=True, text=True, check=True, timeout=30).stdout.strip()  # SHA COMPLETO: el resumen incluye el commit tal cual y el flujo usa el completo
     with tempfile.TemporaryDirectory(prefix="qce-anchor-") as td:
         tree = Path(td) / "tree"
         tree.mkdir()
-        tar = subprocess.run(["git", "archive", sha], cwd=ROOT, capture_output=True, check=True).stdout
-        subprocess.run(["tar", "-x", "-C", str(tree)], input=tar, check=True)
+        tar = subprocess.run(["git", "archive", sha], cwd=ROOT, capture_output=True, check=True, timeout=120).stdout
+        subprocess.run(["tar", "-x", "-C", str(tree)], input=tar, check=True, timeout=120)
         out = Path(td) / "anchor.json"
-        out.write_text(render(build(tree, commit=sha)))
-        r = subprocess.run(["gh", "attestation", "verify", str(out), "--repo", repo], capture_output=True, text=True)
+        out.write_text(render(build(tree, commit=sha)), encoding="utf-8")
+        r = subprocess.run(["gh", "attestation", "verify", str(out), "--repo", repo], capture_output=True, text=True, timeout=120)
         print(r.stdout + r.stderr)
         return r.returncode
 
@@ -93,7 +93,7 @@ def verify_commit(sha: str, repo: str) -> int:
 if __name__ == "__main__":
     a = sys.argv
     if "--extends" in a:
-        ok, why = extends(ROOT, json.loads(Path(a[a.index("--extends") + 1]).read_text()))
+        ok, why = extends(ROOT, json.loads(Path(a[a.index("--extends") + 1]).read_text(encoding="utf-8")))
         print(why)
         sys.exit(0 if ok else 1)
     if "--verify-commit" in a:

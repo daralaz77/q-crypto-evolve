@@ -56,7 +56,7 @@ def config_path() -> Path:
         os.chmod(_cnf_dir.name, 0o700)
     p = Path(_cnf_dir.name) / "openssl-hybrid.cnf"
     if not p.exists():
-        p.write_text(OPENSSL_CNF)
+        p.write_text(OPENSSL_CNF, encoding="utf-8")
         p.chmod(0o600)
     return p
 

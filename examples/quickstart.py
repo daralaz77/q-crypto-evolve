@@ -51,7 +51,7 @@ def main() -> int:
         kme = EmulatedKME(srv_ctx, MASTER, SLAVE).start()
         say(1, f"KME ETSI GS QKD 014 EMULADO escuchando en 127.0.0.1:{kme.port} (TLS 1.3 con autenticación mutua; simulación, no es QKD real)")
 
-        fp = hashlib.sha256(ssl.PEM_cert_to_DER_cert(scert.read_text())).digest()
+        fp = hashlib.sha256(ssl.PEM_cert_to_DER_cert(scert.read_text(encoding="utf-8"))).digest()
 
         def client_ctx(cert, key):
             c = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

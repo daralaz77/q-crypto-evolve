@@ -52,10 +52,10 @@ def diagnose() -> int:
             work = Path(td)
             mutation._sandbox(ROOT, work)
             f = work / canary.path
-            src = f.read_text()
+            src = f.read_text(encoding="utf-8")
             for old, new in canary.edits:
                 src = src.replace(old, new)
-            f.write_text(src)
+            f.write_text(src, encoding="utf-8")
             t = time.time()
             try:
                 r = mutation._pytest(work, TIMEOUT)
@@ -83,10 +83,10 @@ def explain(names: list[str]) -> int:
             work = Path(td)
             mutation._sandbox(ROOT, work)
             f = work / m.path
-            src = f.read_text()
+            src = f.read_text(encoding="utf-8")
             for old, new in m.edits:
                 src = src.replace(old, new)
-            f.write_text(src)
+            f.write_text(src, encoding="utf-8")
             r = mutation._pytest(work, TIMEOUT)
             print(f"=== {name}: pytest devolvió {r.returncode} ({'detectado' if r.returncode == 1 else 'SUPERVIVIENTE' if r.returncode == 0 else 'error'})")
             print((r.stdout + r.stderr)[-1500:])

@@ -107,7 +107,7 @@ def build(root: Path, out_dir: Path) -> tuple[Path, str]:
             zi.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(zi, contents[name], compresslevel=9)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    (out_dir / (target.name + ".sha256")).write_text(f"{digest}  {target.name}\n")
+    (out_dir / (target.name + ".sha256")).write_text(f"{digest}  {target.name}\n", encoding="utf-8")
     return target, digest
 
 

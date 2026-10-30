@@ -101,7 +101,7 @@ def _safe_rel(root: Path, rel_path: str) -> Path:
 def save_release(root: Path, manifest: dict) -> Path:
     d = root / "releases" / manifest["release_id"]
     d.mkdir(parents=True, exist_ok=True)
-    (d / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
+    (d / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
     src = d / "src"
     if src.exists():
         shutil.rmtree(src)
@@ -114,7 +114,7 @@ def save_release(root: Path, manifest: dict) -> Path:
 
 def verify_release(root: Path, release_id: str) -> None:
     d = root / "releases" / release_id
-    m = json.loads((d / "manifest.json").read_text())
+    m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
     expected = hashlib.sha256(json.dumps(m["files"], sort_keys=True).encode()).hexdigest()[:16]
     if release_id != expected or m.get("release_id") != expected:  # el id compromete el contenido: no se puede editar un snapshot
         raise IntegrityError("el release_id no corresponde al contenido del manifiesto")
@@ -130,14 +130,14 @@ def mark_stable(root: Path, release_id: str, approver: str) -> None:
     if not approver or approver not in approvals.valid_statements(root, release_id, "approver"):
         raise QCEError("marcar estable requiere una declaración firmada y válida de un aprobador registrado")
     verify_release(root, release_id)
-    new_seq = json.loads((root / "releases" / release_id / "manifest.json").read_text()).get("sequence", 0)
+    new_seq = json.loads((root / "releases" / release_id / "manifest.json").read_text(encoding="utf-8")).get("sequence", 0)
     cur = root / "releases" / "STABLE"
     if cur.exists():
-        old = json.loads(cur.read_text())["release_id"]
-        old_seq = json.loads((root / "releases" / old / "manifest.json").read_text()).get("sequence", 0)
+        old = json.loads(cur.read_text(encoding="utf-8"))["release_id"]
+        old_seq = json.loads((root / "releases" / old / "manifest.json").read_text(encoding="utf-8")).get("sequence", 0)
         if new_seq < old_seq:
             raise QCEError("downgrade del snapshot estable rechazado (secuencia menor)")
-    cur.write_text(json.dumps({"release_id": release_id, "approver": approver}))
+    cur.write_text(json.dumps({"release_id": release_id, "approver": approver}), encoding="utf-8")
 
 
 def rollback(root: Path, release_id: str | None = None) -> list[str]:
@@ -146,7 +146,7 @@ def rollback(root: Path, release_id: str | None = None) -> list[str]:
     No toca vault, claves, contadores, registros de auditoría ni el libro de incidentes:
     revertirlos podría resucitar claves revocadas o borrar evidencia.
     """
-    st = json.loads((root / "releases" / "STABLE").read_text())
+    st = json.loads((root / "releases" / "STABLE").read_text(encoding="utf-8"))
     if release_id is None:
         release_id = st["release_id"]
     if release_id != st["release_id"] and not approvals.valid_statements(root, release_id, "approver"):
@@ -155,7 +155,7 @@ def rollback(root: Path, release_id: str | None = None) -> list[str]:
         raise IntegrityError("el marcador STABLE ya no tiene una firma de aprobador válida")
     verify_release(root, release_id)
     d = root / "releases" / release_id
-    manifest = json.loads((d / "manifest.json").read_text())
+    manifest = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
     plan = []
     for rel in manifest["files"]:
         dst = _safe_rel(root, rel)  # comprobación previa de TODAS las rutas antes de escribir nada

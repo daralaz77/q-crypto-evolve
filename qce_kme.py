@@ -11,6 +11,7 @@ Este archivo vive fuera de `qce/` a propósito: no forma parte del código revis
 from __future__ import annotations
 
 import argparse
+import re
 import ssl
 import sys
 import tempfile
@@ -19,6 +20,9 @@ from pathlib import Path
 
 from qce.qkd.etsi014_emulator import EmulatedKME
 from qce.transport import pki
+
+
+SAE_NAME = re.compile(r"[A-Za-z0-9._-]{1,63}")  # el nombre es el CN del certificado y parte del nombre de archivo de su clave: sin rutas ni espacios
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--key-size debe ser un múltiplo de 8")
     if a.master == a.slave:
         ap.error("la SAE maestra y la esclava deben ser distintas")
+    for opt, name in (("--master", a.master), ("--slave", a.slave)):
+        if not SAE_NAME.fullmatch(name) or name.startswith("."):
+            ap.error(f"{opt}: solo letras, cifras, «.», «_» y «-» (hasta 63 caracteres), sin empezar por «.»")
+    if not 0 <= a.port <= 65535 or a.days < 1 or a.max_keys < 1:
+        ap.error("--port debe estar entre 0 y 65535, y --days y --max-keys deben ser al menos 1")
 
     out = Path(a.dir) if a.dir else Path(tempfile.mkdtemp(prefix="qce-kme-"))
     out.mkdir(parents=True, exist_ok=True)

@@ -90,12 +90,15 @@ def decode_hello(data: bytes) -> tuple[bytes, bytes]:
 
 
 class Layer:
-    """Capa de registros: ChaCha20-Poly1305, una clave por dirección, nonce = contador de 96 bits, AAD = etiqueta + th."""
+    """Capa de registros: ChaCha20-Poly1305, una clave por dirección, nonce = contador de 96 bits, AAD = etiqueta + th.
+    Un candado por dirección: el contador ES el nonce, así que leerlo, cifrar, incrementarlo y enviar es una sola sección crítica (dos hilos que escriban a la vez
+    cifrarían con el mismo nonce, y el receptor, que exige el orden del contador, rechazaría la sesión)."""
 
     def __init__(self, sock, send_key: bytes, recv_key: bytes, th: bytes) -> None:
         self._sock, self._th = sock, th
         self._send, self._recv = ChaCha20Poly1305(send_key), ChaCha20Poly1305(recv_key)
         self._n_out = self._n_in = 0
+        self._wlock, self._rlock = threading.Lock(), threading.Lock()
 
     def _aad(self) -> bytes:
         return REC_AAD_LABEL + self._th
@@ -103,22 +106,24 @@ class Layer:
     def write(self, data: bytes) -> None:
         if len(data) > MAX_PLAINTEXT:
             raise MalformedMessage("mensaje demasiado grande para un registro")
-        if self._n_out >= MAX_RECORDS:
-            raise KeyStateError("se agotó el contador de registros: abra otra sesión")
-        ct = self._send.encrypt(self._n_out.to_bytes(12, "big"), data, self._aad())
-        self._n_out += 1
-        tls13.send_frame(self._sock, ct)
+        with self._wlock:
+            if self._n_out >= MAX_RECORDS:
+                raise KeyStateError("se agotó el contador de registros: abra otra sesión")
+            ct = self._send.encrypt(self._n_out.to_bytes(12, "big"), data, self._aad())
+            self._n_out += 1
+            tls13.send_frame(self._sock, ct)
 
     def read(self) -> bytes:
-        if self._n_in >= MAX_RECORDS:
-            raise KeyStateError("se agotó el contador de registros: abra otra sesión")
-        ct = tls13.recv_frame(self._sock)
-        try:
-            pt = self._recv.decrypt(self._n_in.to_bytes(12, "big"), ct, self._aad())
-        except Exception as exc:  # InvalidTag: manipulado, repetido, reordenado o de otra sesión
-            raise AuthenticationFailure("registro de la capa QKD no autentica") from exc
-        self._n_in += 1
-        return pt
+        with self._rlock:
+            if self._n_in >= MAX_RECORDS:
+                raise KeyStateError("se agotó el contador de registros: abra otra sesión")
+            ct = tls13.recv_frame(self._sock)
+            try:
+                pt = self._recv.decrypt(self._n_in.to_bytes(12, "big"), ct, self._aad())
+            except Exception as exc:  # InvalidTag: manipulado, repetido, reordenado o de otra sesión
+                raise AuthenticationFailure("registro de la capa QKD no autentica") from exc
+            self._n_in += 1
+            return pt
 
     @property
     def transcript_hash(self) -> bytes:

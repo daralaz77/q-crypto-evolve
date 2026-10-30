@@ -80,7 +80,7 @@ def validate_thresholds(th: dict) -> dict:
 
 def load_thresholds(root: Path) -> dict:
     p = root / "gates.json"
-    th = json.loads(p.read_text()) if p.exists() else dict(DEFAULT_THRESHOLDS)
+    th = json.loads(p.read_text(encoding="utf-8")) if p.exists() else dict(DEFAULT_THRESHOLDS)
     return validate_thresholds(th)
 
 
@@ -111,7 +111,7 @@ def _g1_integrity(c: _Ctx) -> GateResult:
     stable = c.root / "releases" / "STABLE"
     if stable.exists():
         try:
-            rel.verify_release(c.root, json.loads(stable.read_text())["release_id"])
+            rel.verify_release(c.root, json.loads(stable.read_text(encoding="utf-8"))["release_id"])
         except Exception as exc:
             problems.append(f"snapshot estable no verifica: {exc}")
     for k, v in strictest_baseline(c.history).items():  # trinquete contra el MÁS estricto jamás registrado
@@ -126,8 +126,8 @@ def _g1_integrity(c: _Ctx) -> GateResult:
     if not lock.exists():
         problems.append("falta requirements.lock")
     else:
-        frozen = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True).stdout.lower().splitlines()
-        for line in lock.read_text().lower().splitlines():
+        frozen = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True, timeout=120).stdout.lower().splitlines()
+        for line in lock.read_text(encoding="utf-8").lower().splitlines():
             if line and line not in frozen:
                 problems.append(f"dependencia instalada difiere del lock: {line}")
     from . import supply_chain

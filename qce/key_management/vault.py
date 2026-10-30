@@ -6,10 +6,10 @@ KDF: scrypt. El `epoch` creciente permite rechazar la restauración de un estado
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import struct
-import tempfile
 from pathlib import Path
 from typing import Protocol
 
@@ -17,6 +17,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+from ..core.atomic import atomic_write
 from ..core.errors import AuthenticationFailure, IntegrityError
 from .keystore import KeyRecord, KeyStore, Purpose, State
 
@@ -27,14 +28,15 @@ SCRYPT_N = 2**15
 
 class EpochAnchor:
     """Ancla del `epoch` MÍNIMO aceptable, guardada FUERA del vault (otro archivo, idealmente en otro medio). Sin ella, quien restaure una copia antigua del vault
-    restaura también su `epoch` y la comprobación `epoch < min_epoch` se cumple a sí misma. Monótona: no admite retroceder. Archivo 0600, escritura atómica."""
+    restaura también su `epoch` y la comprobación `epoch < min_epoch` se cumple a sí misma. Monótona: no admite retroceder, tampoco entre procesos que la
+    adelantan a la vez (leer-comparar-reemplazar va bajo `flock`). Archivo 0600, escritura atómica."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
 
     def read(self) -> int:
         try:
-            d = json.loads(self.path.read_text())
+            d = json.loads(self.path.read_text(encoding="utf-8"))
             n = d["epoch"]
             if not isinstance(n, int) or n < 0:
                 raise ValueError
@@ -45,20 +47,11 @@ class EpochAnchor:
             raise IntegrityError("el ancla de epoch está dañada") from exc
 
     def advance(self, epoch: int) -> None:
-        if epoch < self.read():
-            raise IntegrityError("el ancla de epoch no puede retroceder")
-        fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".epoch-")
-        try:
-            os.fchmod(fd, 0o600)
-            with os.fdopen(fd, "w") as fh:
-                fh.write(json.dumps({"epoch": epoch}))
-                fh.flush()
-                os.fsync(fh.fileno())
-            os.replace(tmp, self.path)
-        except BaseException:
-            if os.path.exists(tmp):
-                os.unlink(tmp)
-            raise
+        with open(self.path.with_name(self.path.name + ".lock"), "w") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            if epoch < self.read():
+                raise IntegrityError("el ancla de epoch no puede retroceder")
+            atomic_write(self.path, json.dumps({"epoch": epoch}).encode(), prefix=".epoch-")
 
 
 def save_anchored(store: KeyStore, path: str | Path, passphrase: str, anchor: EpochAnchor, n: int = SCRYPT_N) -> None:
@@ -94,19 +87,7 @@ def save(store: KeyStore, path: str | Path, passphrase: str, n: int = SCRYPT_N) 
         "secret": r.secret.hex() if r.secret is not None else None,
     } for r in (store.info(k) for k in store.all_ids())]).encode()
     blob = header + ChaCha20Poly1305(_kdf(passphrase.encode(), salt, n)).encrypt(nonce, payload, header)
-    p = Path(path)
-    fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".vault-")
-    try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(blob)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, p)  # escritura atómica
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+    atomic_write(path, blob, prefix=".vault-")
 
 
 def load(path: str | Path, passphrase: str, min_epoch: int = 0, **store_kwargs) -> KeyStore:
