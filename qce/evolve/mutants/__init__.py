@@ -2,6 +2,7 @@
 from . import cli
 from . import core
 from . import evolve
+from . import fase1
 from . import key_management
 from . import learning
 from . import pqc
@@ -24,6 +25,7 @@ ALL = [
     *cli.MUTANTS,
     *core.MUTANTS,
     *evolve.MUTANTS,
+    *fase1.MUTANTS,
     *key_management.MUTANTS,
     *learning.MUTANTS,
     *pqc.MUTANTS,
