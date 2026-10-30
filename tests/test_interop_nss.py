@@ -148,7 +148,7 @@ import json, sys
 from qce.transport import tls13
 pem, port = sys.argv[1], int(sys.argv[2])
 try:
-    s = tls13.connect(tls13.client_context(pem), "127.0.0.1", port, server_hostname="localhost", timeout=8)
+    s = tls13.connect(tls13.client_context(pem), "localhost", port, server_hostname="localhost", timeout=8)  # "localhost": selfserv escucha en la familia que resuelva (INC-0035)
     s.sendall(b"GET / HTTP/1.0\\r\\n\\r\\n")
     print(json.dumps({"ok": True, "version": s.version(), "data": s.recv(15).decode()}))
 except Exception as exc:
@@ -291,9 +291,11 @@ def nss_server(tmp: Path, groups: str):
         proc = subprocess.Popen([SELFSERV, "-d", db, "-n", "srv", "-p", str(port), "-V", "tls1.3:tls1.3", "-I", groups], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         end = time.time() + 8
         while time.time() < end and proc.poll() is None:
-            with socket.socket() as probe:
-                if probe.connect_ex(("127.0.0.1", port)) == 0:
-                    return proc, port, pem
+            try:
+                socket.create_connection(("localhost", port), timeout=0.5).close()     # IPv4 o IPv6, la que resuelva localhost (INC-0035)
+                return proc, port, pem
+            except OSError:
+                pass
             time.sleep(0.05)
         proc.kill()
         proc.wait(5)
