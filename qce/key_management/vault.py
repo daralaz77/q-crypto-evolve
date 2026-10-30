@@ -25,6 +25,55 @@ VERSION = 1
 SCRYPT_N = 2**15
 
 
+class EpochAnchor:
+    """Ancla del `epoch` MÍNIMO aceptable, guardada FUERA del vault (otro archivo, idealmente en otro medio). Sin ella, quien restaure una copia antigua del vault
+    restaura también su `epoch` y la comprobación `epoch < min_epoch` se cumple a sí misma. Monótona: no admite retroceder. Archivo 0600, escritura atómica."""
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+
+    def read(self) -> int:
+        try:
+            d = json.loads(self.path.read_text())
+            n = d["epoch"]
+            if not isinstance(n, int) or n < 0:
+                raise ValueError
+            return n
+        except FileNotFoundError:
+            return 0
+        except (ValueError, KeyError, TypeError) as exc:  # ancla ilegible: NO se asume 0 (eso permitiría cualquier restauración)
+            raise IntegrityError("el ancla de epoch está dañada") from exc
+
+    def advance(self, epoch: int) -> None:
+        if epoch < self.read():
+            raise IntegrityError("el ancla de epoch no puede retroceder")
+        fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".epoch-")
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w") as fh:
+                fh.write(json.dumps({"epoch": epoch}))
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, self.path)
+        except BaseException:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
+
+
+def save_anchored(store: KeyStore, path: str | Path, passphrase: str, anchor: EpochAnchor, n: int = SCRYPT_N) -> None:
+    """Guarda el vault y, SOLO después, adelanta el ancla externa al `epoch` guardado."""
+    save(store, path, passphrase, n)
+    anchor.advance(store.epoch)
+
+
+def load_anchored(path: str | Path, passphrase: str, anchor: EpochAnchor, **store_kwargs) -> KeyStore:
+    """Carga exigiendo `epoch` >= el del ancla externa: una copia antigua del vault (con su epoch antiguo) se rechaza."""
+    store = load(path, passphrase, min_epoch=anchor.read(), **store_kwargs)
+    anchor.advance(store.epoch)
+    return store
+
+
 class KeyBackend(Protocol):
     """Interfaz para sustituir el vault por un KMS o HSM real."""
 

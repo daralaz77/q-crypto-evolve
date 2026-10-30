@@ -18,7 +18,7 @@ from .mutants import ALL as MUTANTS  # noqa: E402  (datos en evolve/mutants/, un
 from .mutants._base import Mutant  # noqa: E402
 
 
-SANDBOX_FILES = ("pytest.ini", "THREAT_MODEL.md", "LIMITATIONS.md", "gates.json", "requirements.lock", "requirements.hashes.txt", "sbom.cdx.json")
+SANDBOX_FILES = ("pytest.ini", "THREAT_MODEL.md", "LIMITATIONS.md", "gates.json", "requirements.lock", "requirements.hashes.txt", "requirements-test.hashes.txt", "sbom.cdx.json")
 
 
 def _sandbox(root: Path, work: Path) -> None:

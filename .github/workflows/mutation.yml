@@ -14,6 +14,10 @@ on:
         type: choice
         options: [completa, diagnostico, explicar-tls]
         default: completa
+      solo:
+        description: "opcional: nombres de mutantes separados por comas (solo esos y el canario)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -38,9 +42,11 @@ jobs:
       - name: Entorno de Python (versiones fijadas)
         run: |
           python3 -m venv .venv
-          .venv/bin/pip install --quiet -r requirements.lock pytest==9.1.1 hypothesis==6.170.1
+          .venv/bin/pip install --quiet --require-hashes -r requirements.hashes.txt -r requirements-test.hashes.txt
 
       - name: Prueba de mutación completa
+        env:
+          QCE_MUT_ONLY: ${{ inputs.solo }}
         run: |
           start=$(date +%s)
           if [ "${{ inputs.modo }}" = "explicar-tls" ]; then

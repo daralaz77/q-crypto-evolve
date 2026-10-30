@@ -148,12 +148,14 @@ def client_layer(sock, key_id: bytes, qkd_key: bytes, rng: Callable[[int], bytes
     return Layer(sock, _expand(qkd_key, th, INFO_C2S), _expand(qkd_key, th, INFO_S2C), th)
 
 
-def server_layer(sock, source, server_cert_der: bytes, rng: Callable[[int], bytes] = os.urandom) -> Layer:
+def server_layer(sock, source, server_cert_der: bytes, rng: Callable[[int], bytes] = os.urandom, limiter=None) -> Layer:
     """Servidor. `source` ofrece `reserve(kid) -> clave | None`, `commit(kid)` y `release(kid)`: la clave se RESERVA al recibir un HELLO bien
     formado, se CONSUME solo si el cliente demuestra poseerla, y se LIBERA si el apretón falla o caduca (`HANDSHAKE_TIMEOUT`). Así quien solo
     conoce el identificador no puede gastar la clave (T43); el consumo único se mantiene para todo apretón completado (modelo: `key_single_use`)."""
     bind = _binding(sock)
     fp = cert_fingerprint(server_cert_der)
+    if limiter is not None:  # ANTES de reservar ninguna clave: un origen que insiste no puede retener claves (T5/T43)
+        limiter.check(str(sock.getpeername()[0]))
     previous = sock.gettimeout()
     sock.settimeout(HANDSHAKE_TIMEOUT)
     try:

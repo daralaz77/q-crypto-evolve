@@ -107,6 +107,12 @@ def full() -> int:
     # evaluarlos aquí daría «supervivientes» falsos. Se excluyen de forma EXPLÍCITA y se listan; la puerta G3 local los evalúa. QCE_MUT_INCLUDE_HSM=1 los incluye.
     skipped = [] if os.environ.get("QCE_MUT_INCLUDE_HSM") else [m.name for m in mutation.MUTANTS if m.name.startswith("hsm-")]
     only = [m.name for m in mutation.MUTANTS if m.name not in skipped]
+    if os.environ.get("QCE_MUT_ONLY"):  # solo estos (y el canario): p. ej. para evaluar mutantes recién añadidos sin repetir los 400
+        want = set(os.environ["QCE_MUT_ONLY"].split(","))
+        unknown = want - {m.name for m in mutation.MUTANTS}
+        if unknown:
+            raise SystemExit(f"mutantes desconocidos en QCE_MUT_ONLY: {sorted(unknown)}")
+        only = [m.name for m in mutation.MUTANTS if m.name in want or m.name.startswith("CANARY")]
     r = mutation.run_mutants(ROOT, only=only, timeout=TIMEOUT)
     out = {k: v for k, v in r.items() if k != "detail"}
     out["no_evaluados_aqui_por_falta_del_laboratorio_hsm"] = skipped

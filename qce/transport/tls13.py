@@ -211,8 +211,10 @@ def recv_frame(sock: ssl.SSLSocket, max_size: int = MAX_FRAME) -> bytes:
 class TlsServer:
     """Servidor de mensajes con hilo por conexión (laboratorio). `handler(conn, peer_cert)` recibe la conexión ya autenticada."""
 
-    def __init__(self, ctx: ssl.SSLContext, handler, host: str = "127.0.0.1", port: int = 0) -> None:
+    def __init__(self, ctx: ssl.SSLContext, handler, host: str = "127.0.0.1", port: int = 0, limiter=None) -> None:
         self._ctx, self._handler = ctx, handler
+        self._limiter = limiter  # OriginRateLimiter opcional: se aplica ANTES del apretón TLS (rechazo barato)
+        self.rate_limited = 0
         self._ls = socket.socket()
         self._ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._ls.bind((host, port))
@@ -229,9 +231,13 @@ class TlsServer:
     def _loop(self) -> None:
         while not self._stop:
             try:
-                raw, _ = self._ls.accept()
+                raw, addr = self._ls.accept()
             except OSError:
                 return
+            if self._limiter is not None and not self._limiter.allow(str(addr[0])):
+                self.rate_limited += 1
+                raw.close()  # sin hilo, sin apretón TLS, sin criptografía
+                continue
             threading.Thread(target=self._one, args=(raw,), daemon=True).start()
 
     def set_context(self, ctx: ssl.SSLContext) -> None:
