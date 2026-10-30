@@ -138,3 +138,67 @@ def test_canary_native_runner_fails_when_an_expected_secret_is_altered():
 def test_build_script_pins_a_commit_and_a_sha256():
     import build_mlkem_native as b
     assert len(b.COMMIT) == 40 and len(b.SHA256) == 64 and b.COMMIT in b.URL
+
+
+# ---- B1: autenticación ML-DSA en TLS 1.3 con las herramientas actuales ----
+import tempfile  # noqa: E402
+
+import tls_mldsa_probe as probe  # noqa: E402
+
+
+@needs_cli
+def test_tls13_handshake_with_mldsa_certificates_works_in_openssl_and_python_ssl():
+    for alg in ("ML-DSA-65", "ML-DSA-87"):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            probe.make_pki(d, alg)
+            cli, py = probe.cli_handshake(d), probe.python_ssl_handshake(d)
+            assert cli["ok"] and cli["firma_de_par"] == alg.lower().replace("-", "")
+            assert py["ok"] and py["version"] == "TLSv1.3"
+
+
+@needs_cli
+def test_canary_a_client_trusting_a_different_ca_must_fail_the_mldsa_handshake():
+    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        da, db = Path(a), Path(b)
+        probe.make_pki(da, "ML-DSA-65")
+        probe.make_pki(db, "ML-DSA-65")
+        (da / "ca.pem").write_bytes((db / "ca.pem").read_bytes())  # el cliente confía en OTRA CA
+        assert not probe.cli_handshake(da)["ok"]
+        assert not probe.python_ssl_handshake(da)["ok"]
+
+
+# ---- ML-DSA: segunda implementación independiente (mldsa-native), solo si está compilada ----
+import independent_dsa  # noqa: E402
+
+DSA_LIB = os.environ.get("QCE_MLDSA_NATIVE_LIB")
+needs_dsa = pytest.mark.skipif(not (DSA_LIB and Path(DSA_LIB).exists() and have_vectors), reason="falta QCE_MLDSA_NATIVE_LIB (python conformance/build_mldsa_native.py) o los vectores")
+
+
+@needs_dsa
+def test_mldsa_native_passes_wycheproof_and_reproduces_deterministic_signatures_byte_for_byte():
+    rep = independent_dsa.wycheproof_native(independent_dsa.NativeDsa(DSA_LIB))
+    assert rep["ok"], rep
+    assert rep["archivos"]["mldsa_65_sign_seed_test"]["firma_determinista_identica_al_vector"] >= 90
+
+
+@needs_dsa
+def test_mldsa_native_and_cryptography_agree_on_random_seeds():
+    assert independent_dsa.differential_native(independent_dsa.NativeDsa(DSA_LIB), 8)["ok"]
+
+
+@needs_dsa
+def test_canary_a_deterministic_reference_signature_that_does_not_reproduce_is_reported():
+    def tamper(name, data):
+        if name == "mldsa_65_sign_seed_test":
+            d = copy.deepcopy(data)
+            t = next(t for g in d["testGroups"] for t in g["tests"] if t["result"] == "valid" and "msg" in t and "Randomized" not in t.get("flags", []))
+            t["sig"] = t["sig"][:-2] + ("00" if t["sig"][-2:] != "00" else "01")
+            return d
+        return data
+    assert not independent_dsa.wycheproof_native(independent_dsa.NativeDsa(DSA_LIB), tamper)["ok"]
+
+
+def test_mldsa_build_script_pins_a_commit_and_a_sha256():
+    import build_mldsa_native as b
+    assert len(b.COMMIT) == 40 and len(b.SHA256) == 64 and b.COMMIT in b.URL

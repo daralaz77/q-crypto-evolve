@@ -53,6 +53,8 @@ jobs:
           .venv/bin/python tools/validate_cbom.py
           export QCE_MLKEM_NATIVE_LIB="$(.venv/bin/python conformance/build_mlkem_native.py | tail -1)"
           .venv/bin/python conformance/independent.py --n 15
+          export QCE_MLDSA_NATIVE_LIB="$(.venv/bin/python conformance/build_mldsa_native.py | tail -1)"
+          .venv/bin/python conformance/independent_dsa.py --n 15
           .venv/bin/python -m pytest panel/tests site/tests conformance/tests tools/tests -o addopts="" -p no:cacheprovider -q
 
       - name: INC-0029, repetición de la prueba de GnuTLS (x100)

@@ -23,6 +23,17 @@ python conformance/independent.py --n 25
 ```
 mlkem-native (PQCA; C verificado con CBMC según su proyecto, sin que yo lo reprodujera) ejecuta además lo que `cryptography` no puede: encapsulación con aleatoriedad fija (ciphertext y secreto idénticos a los vectores) y **desencapsulación con clave expandida** (`semi_expanded_decaps`, incluidas las claves con hash o clave de encapsulación embebida corruptas). Resultado: 1.077 vectores ejecutados sin fallos (los casos de longitud mala no caben en la API de tamaño fijo de C y se omiten y cuentan) y 50 rondas diferenciales contra `cryptography` sin diferencias.
 
+## ML-DSA: firma de Wycheproof y segunda implementación independiente (mldsa-native)
+```bash
+python conformance/build_mldsa_native.py     # mldsa-native v2.0.0, commit 834a90d5, 1,92 MB, SHA-256 fijado; se compila aparte
+python conformance/independent_dsa.py --lib ~/.cache/qce-conformance/build-mldsa/libmldsanative-834a90d5.dylib --n 25    # .so en Linux
+```
+- **Firma Wycheproof contra `cryptography`** (`mldsa_65/87_sign_seed_test`): 201 casos sin fallos (la clave pública derivada coincide; la firma de referencia verifica; la nuestra también; contexto largo y semilla de longitud mala se rechazan; 34 casos «solo μ» se verifican con `verify_mu`). La firma de OpenSSL es aleatorizada, así que no se compara byte a byte.
+- **mldsa-native** (PQCA; verificado con CBMC según su proyecto, sin que yo lo reprodujera): verificación Wycheproof 198 (ML-DSA-65) y 229 (ML-DSA-87) casos y firma desde semilla 101 y 92 casos, todo sin fallos; **las firmas deterministas se reproducen byte a byte** con los vectores no aleatorizados (100 de 101 y 91 de 92: los dos restantes llevan la etiqueta `Randomized`). Más 50 rondas diferenciales contra `cryptography` sin diferencias.
+
+## Autenticación ML-DSA en TLS 1.3 (brecha B1)
+`python conformance/tls_mldsa_probe.py` genera una PKI ECDSA P-256 (como la del transporte actual) y otras con ML-DSA-65/87, y hace el apretón TLS 1.3 con `openssl s_server/s_client` (grupo X25519MLKEM768) y con el módulo `ssl` de Python (el que usa `qce.transport`). **Funciona con ambos**. Mensajes del servidor en un apretón con certificado hoja único: ECDSA P-256 **1.794 bytes**; ML-DSA-65 **10.155** (5,7×); ML-DSA-87 **13.431** (7,5×). Con una cadena con intermedia el tamaño casi se duplicaría. No probado: `qce.transport` con estos certificados (su `pki.py` genera ECDSA), autenticación mutua, CRL, NSS y GnuTLS.
+
 ## Límites (léelos)
 - Wycheproof y las pruebas diferenciales **no** son una auditoría ni una verificación de tiempo constante.
 - **`cryptography` no ejecuta `mlkem_*_semi_expanded_decaps_test`** (no importa claves de desencapsulación expandidas, solo semillas) ni compara `dk` del archivo `keygen_seed`; esos casos los cubre mlkem-native (sección anterior), no las primitivas que usa el proyecto.
