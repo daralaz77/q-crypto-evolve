@@ -57,9 +57,12 @@ def run(name):
             deadline = time.time() + 5
             while time.time() < deadline and sch.rotations == 0:
                 time.sleep(0.05)
+            t = sch._thread
+            t0 = time.time()
             sch.stop()
             out = {"rotated_without_manual_call": sch.rotations >= 1, "active_changed": cu.active_id() != kid1,
-                   "server_serves": ok(tls13.client_context(ca), srv.port), "thread_stopped": sch._thread is None}
+                   "server_serves": ok(tls13.client_context(ca), srv.port), "thread_stopped": sch._thread is None,
+                   "thread_really_dead": not t.is_alive(), "stop_was_prompt": (time.time() - t0) < 2.0}
         elif name == "no_scheduler":
             clock.t += 3100                          # el reloj avanza y NADIE llama a nada
             time.sleep(0.4)

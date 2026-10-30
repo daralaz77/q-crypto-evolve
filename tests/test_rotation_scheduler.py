@@ -28,6 +28,7 @@ def test_tick_rotates_only_when_due_and_the_server_keeps_serving():
 def test_background_thread_rotates_with_no_manual_call_and_stops_cleanly():
     out = scenario("thread")
     assert out["rotated_without_manual_call"] and out["active_changed"] and out["server_serves"] and out["thread_stopped"]
+    assert out["thread_really_dead"] and out["stop_was_prompt"]  # stop() de verdad detiene el hilo, no solo suelta la referencia
 
 
 def test_an_already_expired_key_is_recovered():

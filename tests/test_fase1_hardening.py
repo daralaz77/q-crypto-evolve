@@ -81,8 +81,9 @@ def test_anchor_rejects_a_restored_old_copy_of_the_vault(tmp_path):
     vault.save_anchored(ks, v, "frase", anchor, n=2**14)
     assert anchor.read() == ks.epoch
     shutil.copy(old, v)  # el atacante restaura la copia antigua
-    with pytest.raises(IntegrityError):
+    with pytest.raises(IntegrityError, match="restauración de estado antiguo"):  # rechazado POR EL VAULT con el ancla (no solo por advance())
         vault.load_anchored(v, "frase", anchor)
+    assert anchor.read() == ks.epoch  # y el ancla no se movió
 
 
 def test_canary_without_the_external_anchor_the_old_copy_loads_silently(tmp_path):
@@ -151,9 +152,9 @@ def test_unsigned_or_unregistered_actor_is_rejected(tmp_path, actors):
     keys, lookup = actors
     wf = Workflow(tmp_path / "t.jsonl", actor_keys=lookup)
     wf.create(_task())
-    with pytest.raises(QCEError):
+    with pytest.raises(QCEError, match="sin firma"):
         wf.transition("T1", "ANALYZED", "ARCHITECT", "arq")  # sin firma
-    with pytest.raises(QCEError):
+    with pytest.raises(QCEError, match="sin firma"):
         wf.transition("T1", "ANALYZED", "ARCHITECT", "intruso", signature=b"x" * 10)  # actor no registrado
     assert wf.state("T1") == "CREATED"
 
@@ -171,15 +172,27 @@ def test_canary_a_signature_by_another_actor_or_for_another_transition_is_reject
     assert wf.state("T1") == "CREATED"
 
 
-def test_a_signature_cannot_be_replayed_on_a_later_state_of_the_log(tmp_path, actors):
+def test_a_signature_cannot_be_used_after_the_log_has_advanced(tmp_path, actors):
+    """La transición T1 → ANALYZED SIGUE siendo posible; solo cambió la cabeza del registro. Sin la cabeza en lo firmado, la firma vieja se aceptaría."""
     keys, lookup = actors
     wf = Workflow(tmp_path / "t.jsonl", actor_keys=lookup)
     wf.create(_task("T1"))
-    sig = keys["arq"].sign(wf.signing_payload("T1", "ANALYZED", "ARCHITECT", "arq"), CTX_TRANSITION)
-    wf.transition("T1", "ANALYZED", "ARCHITECT", "arq", signature=sig)
-    wf.create(_task("T2"))  # el registro avanzó: la cabeza ya no es la firmada
-    with pytest.raises(QCEError):
+    sig = keys["arq"].sign(wf.signing_payload("T1", "ANALYZED", "ARCHITECT", "arq"), CTX_TRANSITION)  # firmada sobre la cabeza ACTUAL, sin aplicar
+    wf.create(_task("T2"))  # el registro avanza por otro lado
+    assert wf.state("T1") == "CREATED"
+    with pytest.raises(QCEError, match="firma de la transición inválida"):
         wf.transition("T1", "ANALYZED", "ARCHITECT", "arq", signature=sig)
+
+
+def test_a_signature_made_for_one_actor_id_cannot_be_presented_as_another_id_sharing_the_key(tmp_path):
+    """Dos identificadores que apuntan a la MISMA clave pública (alias): la firma debe ir ligada al actor_id, no solo a la clave."""
+    k = HybridSigPrivateKey.generate()
+    wf = Workflow(tmp_path / "t.jsonl", actor_keys=lambda a: k.public_bytes if a in ("arq", "arq-alias") else None)
+    wf.create(_task())
+    sig = k.sign(wf.signing_payload("T1", "ANALYZED", "ARCHITECT", "arq"), CTX_TRANSITION)
+    with pytest.raises(QCEError, match="firma de la transición inválida"):
+        wf.transition("T1", "ANALYZED", "ARCHITECT", "arq-alias", signature=sig)
+    wf.transition("T1", "ANALYZED", "ARCHITECT", "arq", signature=sig)  # con su propio id sí
 
 
 def test_without_actor_keys_the_historic_unsigned_behaviour_is_unchanged(tmp_path):
