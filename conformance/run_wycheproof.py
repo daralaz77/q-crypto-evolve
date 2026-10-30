@@ -17,8 +17,9 @@ HERE = Path(__file__).resolve().parent
 from fetch_vectors import DEST as VECTORS_DIR, MANIFEST  # noqa: E402
 KEM = {"768": (mlkem.MLKEM768PrivateKey, mlkem.MLKEM768PublicKey, 1184, 1088), "1024": (mlkem.MLKEM1024PrivateKey, mlkem.MLKEM1024PublicKey, 1568, 1568)}
 DSA = {"65": mldsa.MLDSA65PublicKey, "87": mldsa.MLDSA87PublicKey}
+DSA_PRIV = {"65": mldsa.MLDSA65PrivateKey, "87": mldsa.MLDSA87PrivateKey}
 MINIMUM = {"mlkem_768_test": 150, "mlkem_1024_test": 150, "mlkem_768_encaps_test": 200, "mlkem_1024_encaps_test": 200,
-           "mlkem_768_keygen_seed_test": 90, "mlkem_1024_keygen_seed_test": 90, "mldsa_65_verify_test": 190, "mldsa_87_verify_test": 220}
+           "mlkem_768_keygen_seed_test": 90, "mlkem_1024_keygen_seed_test": 90, "mldsa_65_verify_test": 190, "mldsa_87_verify_test": 220, "mldsa_65_sign_seed_test": 70, "mldsa_87_sign_seed_test": 70}
 
 
 def load(name: str, tamper=None) -> dict:
@@ -109,9 +110,43 @@ def run_dsa_verify(level: str, data: dict, out: dict) -> None:
                 out["fallos"].append(t["tcId"])
 
 
+def run_dsa_sign(level: str, data: dict, out: dict) -> None:
+    """Firma ML-DSA a partir de la SEMILLA: la clave pública derivada debe coincidir; la firma del vector debe verificar con ella; la nuestra también
+    (la firma de OpenSSL es aleatorizada: se verifica, no se compara byte a byte). Contexto de más de 255 bytes o semilla de longitud mala: deben rechazarse."""
+    priv_t = DSA_PRIV[level]
+    out.setdefault("firma_identica_al_vector", 0)
+    for g in data["testGroups"]:
+        seed, pk = bytes.fromhex(g["privateSeed"]), bytes.fromhex(g["publicKey"] or "")  # los grupos de semilla de longitud mala no traen clave pública
+        for t in g["tests"]:
+            out["ejecutadas"] += 1
+            msg = bytes.fromhex(t["msg"]) if "msg" in t else None  # los casos «Internal» traen solo mu (firma sobre μ externo)
+            ctx = bytes.fromhex(t["ctx"]) if t.get("ctx") else None
+            if t["result"] == "valid":
+                try:
+                    priv = priv_t.from_seed_bytes(seed)
+                    pub = priv.public_key()
+                    ok = pub.public_bytes_raw() == pk
+                    if msg is None:
+                        pub.verify_mu(bytes.fromhex(t["sig"]), bytes.fromhex(t["mu"]))  # firma de referencia sobre μ debe verificar
+                        out["solo_mu_verificados"] = out.get("solo_mu_verificados", 0) + 1
+                    else:
+                        pub.verify(bytes.fromhex(t["sig"]), msg, ctx)  # la firma de referencia debe verificar
+                        mine = priv.sign(msg, ctx)
+                        pub.verify(mine, msg, ctx)  # y la nuestra también
+                        out["firma_identica_al_vector"] += int(mine == bytes.fromhex(t["sig"]))
+                except Exception as e:  # noqa: BLE001
+                    ok = False
+                    out["errores"].append(f"tc{t['tcId']}: {e!r}")
+            else:  # contexto demasiado largo o semilla de longitud mala
+                ok = _raises(lambda: priv_t.from_seed_bytes(seed).sign(msg or b"", ctx))
+            if not ok:
+                out["fallos"].append(t["tcId"])
+
+
 def run_all(tamper=None) -> dict:
     plan = [(f"mlkem_{n}_test", run_kem_roundtrip, n) for n in KEM] + [(f"mlkem_{n}_keygen_seed_test", run_kem_keygen, n) for n in KEM] \
-        + [(f"mlkem_{n}_encaps_test", run_kem_encaps, n) for n in KEM] + [(f"mldsa_{n}_verify_test", run_dsa_verify, n) for n in DSA]
+        + [(f"mlkem_{n}_encaps_test", run_kem_encaps, n) for n in KEM] + [(f"mldsa_{n}_verify_test", run_dsa_verify, n) for n in DSA] \
+        + [(f"mldsa_{n}_sign_seed_test", run_dsa_sign, n) for n in DSA]
     report = {"commit_vectores": MANIFEST["commit"], "archivos": {}, "ok": True}
     for name, fn, level in plan:
         out = {"ejecutadas": 0, "fallos": [], "errores": []}

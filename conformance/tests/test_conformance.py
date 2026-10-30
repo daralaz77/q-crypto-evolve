@@ -37,6 +37,18 @@ def test_canary_a_wrong_expected_secret_is_reported():
 
 
 @needs_vectors
+def test_canary_a_reference_signature_that_does_not_verify_is_reported():
+    def tamper(name, data):
+        if name == "mldsa_65_sign_seed_test":
+            d = copy.deepcopy(data)
+            t = next(t for g in d["testGroups"] for t in g["tests"] if t["result"] == "valid")
+            t["sig"] = "00" + t["sig"][2:]  # firma de referencia corrompida: tiene que dejar de verificar
+            return d
+        return data
+    assert not rw.run_all(tamper)["ok"]
+
+
+@needs_vectors
 def test_canary_an_invalid_signature_declared_valid_is_reported():
     def tamper(name, data):
         if name == "mldsa_65_verify_test":

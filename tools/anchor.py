@@ -74,6 +74,7 @@ def extends(root: Path, anchored: dict) -> tuple[bool, str]:
 
 
 def verify_commit(sha: str, repo: str) -> int:
+    sha = subprocess.run(["git", "rev-parse", sha], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()  # SHA COMPLETO: el resumen incluye el commit tal cual y el flujo usa el completo
     with tempfile.TemporaryDirectory(prefix="qce-anchor-") as td:
         tree = Path(td) / "tree"
         tree.mkdir()

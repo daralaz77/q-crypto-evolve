@@ -48,6 +48,9 @@ jobs:
       - name: Panel, demo, conformidad Wycheproof, CBOM (fuera del release_id)
         run: |
           .venv/bin/python conformance/fetch_vectors.py
+          .venv/bin/python conformance/fetch_schemas.py
+          .venv/bin/pip install --quiet jsonschema==4.25.1
+          .venv/bin/python tools/validate_cbom.py
           export QCE_MLKEM_NATIVE_LIB="$(.venv/bin/python conformance/build_mlkem_native.py | tail -1)"
           .venv/bin/python conformance/independent.py --n 15
           .venv/bin/python -m pytest panel/tests site/tests conformance/tests tools/tests -o addopts="" -p no:cacheprovider -q
