@@ -40,6 +40,8 @@ Escribir los cambios en una rama y **no** fusionarlos a `main` hasta la Fase 2. 
 | 1.7 | Hacer observable el descarte de la clave KEM efímera | T19 sin prueba (mutante declarado equivalente) | Prueba que falla si la clave sigue accesible tras el handshake; **Hecho en la rama** (`HybridKemPrivateKey.destroy()` y `destroyed`; el servidor lo llama aunque el apretón falle; el descarte sigue siendo de mejor esfuerzo en Python). |
 
 > **Estado (2026-10-30, actualizado):** los ítems 1.1–1.7, 1.10 (ML-DSA en el transporte TLS 1.3) y 1.11 (INC-0035) están **fusionados en `main`**. Los 25 mutantes de la Fase 1 se detectan todos (CI, 25 de 25). `qce gates` completo sobre `release_id` bf24938b31116bea: **G1, G2 (669 pruebas), G3 (mutación completa) y G4 en pass**; G5 y G6 omitidas, sin firmas humanas sobre este código. La firma G6 anterior (7904c2a4) **ya no cubre** este código. **Sigue pendiente:** 1.4 (distribución de OCSP/CRL; solo está el planificador de rotación) y la Fase 2 completa (revisor humano).
+>
+> **Revisión de calidad y seguridad (2026-10-30), fusionada en `main`:** atomicidad del ancla y del vault (`qce/core/atomic.py`), candados en QIL1 y en el broker, límite de tasa IPv6 por /64, validación de `release_id`/rol en las firmas y de argumentos de `qce_kme`, `encoding` y `timeout` explícitos. 24 pruebas nuevas y 20 mutantes nuevos (434 en total, todos detectados). `qce gates` completo sobre `release_id` **bad2720cc01ea919**: G1, G2 (693 pruebas), G3 y G4 en pass. **G6 firmada** por `darwing` (2818e12); **G5 pendiente** (sin declaración para este código), por lo que el estado es `REVIEW_REQUIRED`. Las firmas anteriores (bf24938b, 7904c2a4) ya no cubren este código.
 
 ## Fase 2 — Paquete único y revisión humana (G5)
 
