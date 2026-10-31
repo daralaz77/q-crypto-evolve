@@ -54,7 +54,7 @@ def load_key(path: Path) -> HybridSigPrivateKey:
     mode = path.stat().st_mode & 0o777
     if mode & 0o077:
         raise QCEError(f"la clave privada es accesible a otros usuarios (permisos {oct(mode)}); use chmod 600")
-    text = path.read_text().strip()
+    text = path.read_text(encoding="utf-8").strip()
     if len(text) != SEED_HEX_LEN:
         raise QCEError("archivo de clave con formato inválido")
     try:
@@ -68,7 +68,7 @@ def parse_public(text: str) -> bytes:
     if not re.fullmatch(r"[0-9a-fA-F]+", text):   # lo hexadecimal nunca es una ruta (y una cadena de 4 KB como ruta falla en Linux con «nombre demasiado largo»)
         try:
             if Path(text).expanduser().is_file():
-                text = Path(text).expanduser().read_text().strip()
+                text = Path(text).expanduser().read_text(encoding="utf-8").strip()
         except OSError:
             raise QCEError("la clave pública no es hexadecimal ni un archivo legible") from None
     try:
@@ -91,7 +91,7 @@ def sign(root: Path, key_path: Path, role: str, signer: str, release_id: str, ve
     """Firma una declaración. Comprueba antes que la clave corresponde a la identidad registrada con ese rol, y después que la firma verifica."""
     import json
     reg_file = root / "trust" / "registry.json"
-    reg = json.loads(reg_file.read_text()) if reg_file.exists() else {}
+    reg = json.loads(reg_file.read_text(encoding="utf-8")) if reg_file.exists() else {}
     entry = reg.get(signer)
     if entry is None:
         raise QCEError(f"la identidad {signer!r} no está registrada (use `identity register`)")

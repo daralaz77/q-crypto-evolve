@@ -6,6 +6,7 @@ Es una defensa de CAPA DE APLICACIÓN: no sustituye a un cortafuegos ni a la pro
 """
 from __future__ import annotations
 
+import ipaddress
 import threading
 import time
 from collections import OrderedDict
@@ -19,6 +20,18 @@ class RateLimited(PolicyViolation):
 
 
 class OriginRateLimiter:
+    @staticmethod
+    def origin_key(address: str) -> str:
+        """Clave del cubo: IPv4 tal cual; IPv6 por su prefijo /64 (quien controla una red IPv6 suele controlar un /64 entero, y sin esto cada dirección sería «otro
+        origen»); una IPv4 asignada a IPv6 cuenta como su IPv4; lo que no es una IP no se toca."""
+        try:
+            ip = ipaddress.ip_address(address.split("%", 1)[0])
+        except ValueError:
+            return address
+        if ip.version == 6:
+            return str(ip.ipv4_mapped) if ip.ipv4_mapped else str(ipaddress.ip_network((ip, 64), strict=False))
+        return str(ip)
+
     def __init__(self, rate_per_s: float, burst: int, max_origins: int = 4096, clock: Callable[[], float] = time.monotonic) -> None:
         if rate_per_s <= 0 or burst < 1 or max_origins < 1:
             raise ValueError("parámetros de límite inválidos")
@@ -28,6 +41,7 @@ class OriginRateLimiter:
         self.denied = 0
 
     def allow(self, origin: str) -> bool:
+        origin = self.origin_key(origin)
         now = self._clock()
         with self._lock:
             tokens, last = self._buckets.pop(origin, (float(self.burst), now))

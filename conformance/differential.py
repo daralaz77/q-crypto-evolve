@@ -22,11 +22,11 @@ DSA = {"ML-DSA-65": (mldsa.MLDSA65PrivateKey, mldsa.MLDSA65PublicKey), "ML-DSA-8
 
 
 def sh(*args: str, cwd: Path) -> None:
-    subprocess.run([CLI, *args], cwd=cwd, check=True, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"})
+    subprocess.run([CLI, *args], cwd=cwd, check=True, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"}, timeout=120)
 
 
 def cli_version() -> str:
-    return subprocess.run([CLI, "version"], capture_output=True, text=True).stdout.strip()
+    return subprocess.run([CLI, "version"], capture_output=True, text=True, timeout=30).stdout.strip()
 
 
 def pub_der(pub) -> bytes:
@@ -77,14 +77,14 @@ def dsa_round(name: str, d: Path, diffs: list) -> None:
     sig = mine.sign(msg)  # cryptography firma, CLI verifica
     (d / "s2.bin").write_bytes(sig)
     r = subprocess.run([CLI, "pkeyutl", "-verify", "-pubin", "-keyform", "DER", "-inkey", "dp.der", "-rawin", "-in", "m.bin", "-sigfile", "s2.bin"],
-                       cwd=d, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"})
+                       cwd=d, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"}, timeout=120)
     if r.returncode != 0:
         diffs.append(f"{name}: una firma hecha por cryptography no la acepta el CLI")
     bad = bytearray(sig)
     bad[10] ^= 1  # firma alterada: AMBOS deben rechazarla
     (d / "s3.bin").write_bytes(bytes(bad))
     r = subprocess.run([CLI, "pkeyutl", "-verify", "-pubin", "-keyform", "DER", "-inkey", "dp.der", "-rawin", "-in", "m.bin", "-sigfile", "s3.bin"],
-                       cwd=d, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"})
+                       cwd=d, capture_output=True, env={"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"}, timeout=120)
     try:
         mine.public_key().verify(bytes(bad), msg)
         mine_accepts = True

@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 
 COMMIT = "d1b2fe782888bdb761a50336012923180be7f502"
-SHA256 = (Path(__file__).resolve().parent / "mlkem-native.sha256").read_text().split()[0]
+SHA256 = (Path(__file__).resolve().parent / "mlkem-native.sha256").read_text(encoding="utf-8").split()[0]
 URL = f"https://codeload.github.com/pq-code-package/mlkem-native/tar.gz/{COMMIT}"
 CACHE = Path(os.environ.get("QCE_CONFORMANCE_CACHE", Path.home() / ".cache" / "qce-conformance"))  # FUERA del repositorio: el escáner de secretos recorre el árbol
 BUILD = CACHE / "build"
@@ -35,7 +35,7 @@ def build() -> Path:
         t.extractall(BUILD / "src", filter="data")  # filtro «data»: sin rutas absolutas ni enlaces fuera del destino
     ex = next((BUILD / "src").glob("*/examples/monolithic_build_multilevel"))
     subprocess.run(["cc", "-O2", "-std=c99", "-fPIC", "-shared", "-I.", "-Imlkem_native", "-Itest_only_rng", "mlkem_native_all.c",
-                    "test_only_rng/notrandombytes.c", "-o", str(out)], cwd=ex, check=True)
+                    "test_only_rng/notrandombytes.c", "-o", str(out)], cwd=ex, check=True, timeout=600)
     return out
 
 

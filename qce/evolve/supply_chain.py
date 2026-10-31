@@ -25,7 +25,7 @@ SHA = re.compile(r"^[0-9a-f]{64}$")
 
 def read_lock(root: Path) -> list[tuple[str, str]]:
     out = []
-    for line in (root / "requirements.lock").read_text().splitlines():
+    for line in (root / "requirements.lock").read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -80,8 +80,8 @@ def sbom(project_version: str, entries: list[tuple[str, str, dict]]) -> dict:
 
 def generate(root: Path, project_version: str, fetch: Callable[[str, str], dict] = fetch_pypi) -> list[str]:
     entries = [(n, v, fetch(n, v)) for n, v in read_lock(root)]
-    (root / HASHES_FILE).write_text(hashes_text(entries))
-    (root / SBOM_FILE).write_text(json.dumps(sbom(project_version, entries), indent=2, sort_keys=True) + "\n")
+    (root / HASHES_FILE).write_text(hashes_text(entries), encoding="utf-8")
+    (root / SBOM_FILE).write_text(json.dumps(sbom(project_version, entries), indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return [f"{n}=={v}" for n, v, _ in entries]
 
 
@@ -118,7 +118,7 @@ def check(root: Path) -> list[str]:
         problems.append(f"falta {HASHES_FILE} (python -m qce supply-chain)")
     else:
         try:
-            got = parse_hashes(hf.read_text())
+            got = parse_hashes(hf.read_text(encoding="utf-8"))
         except QCEError as exc:
             return problems + [str(exc)]
         for name, ver in lock.items():
@@ -135,7 +135,7 @@ def check(root: Path) -> list[str]:
         problems.append(f"falta {SBOM_FILE}")
     else:
         try:
-            comps = {c["name"].lower(): c["version"] for c in json.loads(sf.read_text()).get("components", [])}
+            comps = {c["name"].lower(): c["version"] for c in json.loads(sf.read_text(encoding="utf-8")).get("components", [])}
         except (ValueError, KeyError, TypeError):
             return problems + [f"{SBOM_FILE} no es un SBOM válido"]
         if comps != lock:

@@ -11,14 +11,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unicodedata
 from pathlib import Path
 
+from ..core.atomic import atomic_write
 from ..core.errors import AuthenticationFailure, QCEError
 from ..pqc.hybrid import HybridSigPrivateKey, hybrid_verify
 
 CTX = b"QCE2/statement"
 ROLES = ("implementer", "reviewer", "approver")
+_RELEASE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")  # hexadecimal en la práctica; sin separadores ni comodines (va en nombres de archivo y en patrones `glob`)
+
+
+def _check_release_id(release_id: str) -> None:
+    if not isinstance(release_id, str) or not _RELEASE_ID.fullmatch(release_id):
+        raise QCEError("release_id inválido")
 
 
 def _msg(role: str, signer: str, release_id: str, verdict: str) -> bytes:
@@ -30,7 +38,7 @@ def register(root: Path, role: str, identity: str, public_bytes: bytes) -> None:
         raise QCEError("rol inválido")
     reg = root / "trust" / "registry.json"
     reg.parent.mkdir(exist_ok=True)
-    data = json.loads(reg.read_text()) if reg.exists() else {}
+    data = json.loads(reg.read_text(encoding="utf-8")) if reg.exists() else {}
     identity = unicodedata.normalize("NFKC", identity).strip()
     if not identity or "/" in identity or "\\" in identity or identity.startswith("."):
         raise QCEError("identidad inválida")
@@ -45,26 +53,29 @@ def register(root: Path, role: str, identity: str, public_bytes: bytes) -> None:
     if identity in data and data[identity]["role"] != role:
         raise QCEError("el firmante ya existe con otro rol: el cambio de rol exige revisión humana")
     data[identity] = {"role": role, "public_key": public_bytes.hex()}
-    reg.write_text(json.dumps(data, indent=2, sort_keys=True))
+    atomic_write(reg, json.dumps(data, indent=2, sort_keys=True).encode(), mode=0o644)  # un corte a mitad no deja el registro de confianza truncado
 
 
 def sign_statement(root: Path, key: HybridSigPrivateKey, role: str, signer: str, release_id: str,
                    verdict: str, notes: str = "") -> Path:
     if verdict not in ("accept", "reject"):
         raise QCEError("veredicto inválido")
+    if role not in ROLES:
+        raise QCEError("rol inválido")
+    _check_release_id(release_id)
     sig = key.sign(_msg(role, signer, release_id, verdict), CTX)
     d = root / "reviews"
     d.mkdir(exist_ok=True)
     p = d / f"{release_id}.{role}.{hashlib.sha256(signer.encode()).hexdigest()[:16]}.{verdict}.json"  # accept y reject no se pisan
-    p.write_text(json.dumps({"role": role, "signer": signer, "release_id": release_id,
-                             "verdict": verdict, "notes": notes, "signature": sig.hex()}, indent=2))
+    atomic_write(p, json.dumps({"role": role, "signer": signer, "release_id": release_id,
+                                "verdict": verdict, "notes": notes, "signature": sig.hex()}, indent=2).encode(), mode=0o644)
     return p
 
 
 def _read(f: Path) -> dict | None:
     """Un fichero basura en reviews/ no debe romper la verificación ni contar como declaración."""
     try:
-        s = json.loads(f.read_text())
+        s = json.loads(f.read_text(encoding="utf-8"))
         if all(isinstance(s.get(k), str) for k in ("signer", "release_id", "verdict", "signature", "role")):
             return s
     except (ValueError, OSError, AttributeError):
@@ -74,10 +85,11 @@ def _read(f: Path) -> dict | None:
 
 def valid_statements(root: Path, release_id: str, role: str) -> list[str]:
     """Firmantes con declaración 'accept' válida para ESTE release_id y con el rol registrado."""
+    _check_release_id(release_id)
     reg_p = root / "trust" / "registry.json"
     if not reg_p.exists() or has_valid_veto(root, release_id, role):
         return []
-    reg = json.loads(reg_p.read_text())
+    reg = json.loads(reg_p.read_text(encoding="utf-8"))
     out = []
     for f in sorted((root / "reviews").glob(f"{release_id}.{role}.*.json")) if (root / "reviews").exists() else []:
         s = _read(f)
@@ -97,10 +109,11 @@ def valid_statements(root: Path, release_id: str, role: str) -> list[str]:
 
 def has_valid_veto(root: Path, release_id: str, role: str) -> list[str]:
     """Un 'reject' firmado y válido de un firmante registrado BLOQUEA aunque otro haya aceptado."""
+    _check_release_id(release_id)
     reg_p = root / "trust" / "registry.json"
     if not reg_p.exists() or not (root / "reviews").exists():
         return []
-    reg, out = json.loads(reg_p.read_text()), []
+    reg, out = json.loads(reg_p.read_text(encoding="utf-8")), []
     for f in sorted((root / "reviews").glob(f"{release_id}.{role}.*.json")):
         s = _read(f)
         if s is None:

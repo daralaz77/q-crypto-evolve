@@ -61,7 +61,7 @@ def run_model(model: Path, defines: list[str], timeout: int = 600, lemmas: list[
 
 
 def check_matrix(root: Path, workers: int = 4, model_name: str = "qce1.spthy", expected_name: str = "expected.json") -> list[str]:
-    exp = json.loads((root / "formal" / expected_name).read_text())
+    exp = json.loads((root / "formal" / expected_name).read_text(encoding="utf-8"))
     model = root / "formal" / model_name
     items = list(exp["configs"].items())
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -76,7 +76,7 @@ def check_matrix(root: Path, workers: int = 4, model_name: str = "qce1.spthy", e
 
 
 def check_model_mutants(root: Path, model_name: str = "qce1.spthy", mutants: dict | None = None) -> list[str]:
-    base = (root / "formal" / model_name).read_text()
+    base = (root / "formal" / model_name).read_text(encoding="utf-8")
     problems = []
     for name, (edits, defines, must_fail) in (MODEL_MUTANTS if mutants is None else mutants).items():
         text = base
@@ -88,7 +88,7 @@ def check_model_mutants(root: Path, model_name: str = "qce1.spthy", mutants: dic
         else:
             with tempfile.TemporaryDirectory() as d:
                 p = Path(d) / "m.spthy"
-                p.write_text(text)
+                p.write_text(text, encoding="utf-8")
                 v = run_model(p, defines, lemmas=must_fail)
             for lemma in must_fail:
                 if v.get(lemma) != "falsified":

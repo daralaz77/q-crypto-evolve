@@ -11,11 +11,11 @@ MUTANTS = [
     M("kem-seed-after-destroy-allowed", HY, (('        if self._x is None or self._m is None:\n            raise AuthenticationFailure("clave KEM efímera ya descartada")\n        from cryptography', '        from cryptography'),), "clave KEM efímera: no se exporta tras destruirse"),
     M("server-kem-destroy-skipped", SE, (("        finally:\n            kem.destroy()  # observable", "        finally:\n            pass  # observable"),), "servidor: destruye la clave KEM aunque el apretón falle"),
     # --- 1.5 ancla externa del epoch ---
-    M("anchor-can-go-backwards", VA, (("        if epoch < self.read():\n            raise IntegrityError(\"el ancla de epoch no puede retroceder\")", "        if False:\n            raise IntegrityError(\"el ancla de epoch no puede retroceder\")"),), "ancla de epoch: monótona"),
+    M("anchor-can-go-backwards", VA, (("            if epoch < self.read():\n                raise IntegrityError(\"el ancla de epoch no puede retroceder\")", "            if False:\n                raise IntegrityError(\"el ancla de epoch no puede retroceder\")"),), "ancla de epoch: monótona"),
     M("anchor-damaged-read-as-zero", VA, (('            raise IntegrityError("el ancla de epoch está dañada") from exc', "            return 0"),), "ancla de epoch: dañada no se toma por 0"),
     M("load-anchored-ignores-the-anchor", VA, (("min_epoch=anchor.read()", "min_epoch=0"),), "vault: rechaza copias antiguas con el ancla"),
     M("save-anchored-does-not-advance", VA, (("    save(store, path, passphrase, n)\n    anchor.advance(store.epoch)", "    save(store, path, passphrase, n)"),), "vault: el guardado adelanta el ancla"),
-    M("anchor-file-world-readable", VA, (('        try:\n            os.fchmod(fd, 0o600)\n            with os.fdopen(fd, "w") as fh:', '        try:\n            os.fchmod(fd, 0o644)\n            with os.fdopen(fd, "w") as fh:'),), "ancla de epoch: archivo 0600"),
+    M("anchor-file-world-readable", "qce/core/atomic.py", (("        os.fchmod(fd, mode)\n", "        os.fchmod(fd, 0o644)\n"),), "ancla de epoch y vault: archivo 0600 (el modo se fija en la escritura atómica)"),
     # --- 1.6 transiciones firmadas ---
     M("workflow-signature-not-required", WF, (("            if pub is None or not signature:", "            if False:"),), "workflow: exige firma de un actor registrado"),
     M("workflow-signature-not-verified", WF, (("                hybrid_verify(pub, transition_payload(head, task_id, cur, to, role, actor_id, evidence, blocking_findings), signature, CTX_TRANSITION)", "                pass"),), "workflow: verifica la firma"),

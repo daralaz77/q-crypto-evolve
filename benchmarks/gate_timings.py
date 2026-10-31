@@ -5,7 +5,7 @@ Uso: python benchmarks/gate_timings.py > benchmarks/TIEMPOS_PUERTAS.md
 import json
 import pathlib
 
-d = json.loads((pathlib.Path(__file__).parent / "gates_latest.json").read_text())
+d = json.loads((pathlib.Path(__file__).parent / "gates_latest.json").read_text(encoding="utf-8"))
 total = d["metrics"]["total_seconds"]
 mut = next((g["evidence"]["mutation"] for g in d["gates"] if g["gate"].startswith("G3") and "mutation" in g.get("evidence", {})), None)
 print(f"# Tiempos de las puertas\n\nrelease_id `{d['release_id']}`, tiempo total {total:.0f} s ({total / 60:.1f} min). Generado por `benchmarks/gate_timings.py` desde `gates_latest.json`.\n")

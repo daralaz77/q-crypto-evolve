@@ -33,18 +33,18 @@ IMPL, REV, HUMAN = "agente-impl", "agente-rev", "humano-lab"
 
 def _pytest(root: Path, *args: str) -> tuple[int, str]:
     r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-x", *args], cwd=root,
-                       capture_output=True, text=True, env={"PYTHONPATH": str(root), "PATH": "/usr/bin:/bin"})
+                       capture_output=True, text=True, env={"PYTHONPATH": str(root), "PATH": "/usr/bin:/bin"}, timeout=900)
     return r.returncode, r.stdout + r.stderr
 
 
 def _apply(path: Path, edits, reverse=False) -> None:
-    s = path.read_text()
+    s = path.read_text(encoding="utf-8")
     for old, new in edits:
         a, b = (new, old) if reverse else (old, new)
         if s.count(a) != 1:
             raise RuntimeError("fragmento no encontrado en la copia de laboratorio")
         s = s.replace(a, b)
-    path.write_text(s)
+    path.write_text(s, encoding="utf-8")
 
 
 def run(project: Path, out_dir: Path) -> dict:
@@ -118,8 +118,8 @@ def run(project: Path, out_dir: Path) -> dict:
 
         # ---- 5. reparación mínima aislada ------------------------------------------------------------
         t_rep = time.time()
-        stable_src = (lab / "releases" / r0 / "src" / "qce/protocols/session.py").read_text()
-        patch = "".join(difflib.unified_diff(sess.read_text().splitlines(True), stable_src.splitlines(True), "fallo", "reparado"))
+        stable_src = (lab / "releases" / r0 / "src" / "qce/protocols/session.py").read_text(encoding="utf-8")
+        patch = "".join(difflib.unified_diff(sess.read_text(encoding="utf-8").splitlines(True), stable_src.splitlines(True), "fallo", "reparado"))
         _apply(sess, FAULT.edits, reverse=True)  # parche mínimo = deshacer la eliminación del control
         (lab / "tests" / "test_lab_regression.py").write_text(
             f'"""Regresión de {inc_id}: el cliente debe rechazar a un servidor con otra identidad."""\n'
@@ -128,7 +128,7 @@ def run(project: Path, out_dir: Path) -> dict:
             f"def test_{inc_id.lower().replace('-', '_')}_impostor_server_rejected():\n"
             "    real, impostor = HybridSigPrivateKey.generate(), HybridSigPrivateKey.generate()\n"
             "    c, s = ClientHandshake(real.public_bytes), ServerHandshake(impostor)\n"
-            "    with pytest.raises(AuthenticationFailure):\n        c.on_server_hello(s.on_client_hello(c.start()))\n")
+            "    with pytest.raises(AuthenticationFailure):\n        c.on_server_hello(s.on_client_hello(c.start()))\n", encoding="utf-8")
         new_test = f"tests/test_lab_regression.py::test_{inc_id.lower().replace('-', '_')}_impostor_server_rejected"
         rc_after, out_after = _pytest(lab)
         check("7. tras la reparación toda la batería vuelve a pasar", rc_after == 0, out_after.strip().splitlines()[-1])
@@ -195,14 +195,14 @@ def run(project: Path, out_dir: Path) -> dict:
 
         # ---- 10. controles no debilitados ----------------------------------------------------------------------
         gj = lab / "gates.json"
-        orig = gj.read_text()
+        orig = gj.read_text(encoding="utf-8")
         cfg = json.loads(orig)
         cfg["min_mutation_score"] = 0.5
-        gj.write_text(json.dumps(cfg))
+        gj.write_text(json.dumps(cfg), encoding="utf-8")
         rep = gates.evaluate(lab, version="lab-weakened", run_mutation=False, run_dep_audit=False)
         g1 = next(g for g in rep["gates"] if g["gate"].startswith("G1"))
         check("20. intentar aflojar los criterios de aceptación bloquea (trinquete G1)", g1["status"] == "blocked" and "debilitado" in g1["detail"], g1["detail"][:100])
-        gj.write_text(orig)
+        gj.write_text(orig, encoding="utf-8")
         check("21. el nivel de un cambio a gates.json es 3 (bloqueado hasta aprobación humana)", rel.change_level(["gates.json"]) == 3, "nivel 3")
 
         # ---- 11. persistencia entre sesiones -----------------------------------------------------------------------
@@ -225,7 +225,7 @@ def run(project: Path, out_dir: Path) -> dict:
                              "hardware QKD real", "despliegue en producción"],
     }
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "demo_latest.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    (out_dir / "demo_latest.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     result["log"] = log
     return result
 

@@ -76,7 +76,7 @@ def _cmd_gates(a: argparse.Namespace) -> int:
         print(f"{gt['gate']:<20} {gt['status']:<8} {gt['detail'][:150]}")
     print(f"\nESTADO: {rep['state']}   release_id={rep['release_id']}   métricas={rep['metrics']}")
     (ROOT / "benchmarks").mkdir(exist_ok=True)
-    (ROOT / "benchmarks" / "gates_latest.json").write_text(json.dumps(rep, indent=2, ensure_ascii=False))
+    (ROOT / "benchmarks" / "gates_latest.json").write_text(json.dumps(rep, indent=2, ensure_ascii=False), encoding="utf-8")
     return 0 if rep["state"] in ("VERIFIED", "RELEASE_APPROVED") else 1
 
 
@@ -91,7 +91,7 @@ def _cmd_demo(a: argparse.Namespace) -> int:
 def _cmd_release(a: argparse.Namespace) -> int:
     from .recovery import release as rel
     m = rel.build_manifest(ROOT, VERSION, {"nota": "snapshot sin aprobar"}, ["ver LIMITATIONS.md"],
-                           dict(l.split("==") for l in (ROOT / "requirements.lock").read_text().split()))
+                           dict(l.split("==") for l in (ROOT / "requirements.lock").read_text(encoding="utf-8").split()))
     d = rel.save_release(ROOT, m)
     print(f"snapshot {m['release_id']} en {d}\nPara marcarlo ESTABLE hace falta tu aprobación explícita (rel.mark_stable).")
     return 0
@@ -250,7 +250,7 @@ def bench() -> int:
            "handshake_total": t(hs, 20), "sizes_bytes": {"kem_public": 1216, "kem_ciphertext": 1120, "sig_public": 1984, "signature": 3373},
            "nota": "mediciones de rendimiento; no sustentan ninguna afirmación de seguridad"}
     (ROOT / "benchmarks").mkdir(exist_ok=True)
-    (ROOT / "benchmarks" / "bench_latest.json").write_text(json.dumps(res, indent=2))
+    (ROOT / "benchmarks" / "bench_latest.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
     print(json.dumps(res, indent=2))
     return 0
 

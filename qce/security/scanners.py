@@ -65,7 +65,7 @@ def scan_secrets(root: Path) -> list[Finding]:
     out: list[Finding] = []
     for p in _files(root, (".py", ".md", ".json", ".jsonl", ".txt", ".toml", ".ini", ".env", ".yml", ".yaml", ".pem", ".key", ".cfg", ".conf")):
         rel = str(p.relative_to(root))
-        for n, line in enumerate(p.read_text(errors="replace").splitlines(), 1):
+        for n, line in enumerate(p.read_text(errors="replace", encoding="utf-8").splitlines(), 1):
             for rule, rx in _PATTERNS.items():
                 if rx.search(line):
                     out.append(Finding(f"secret:{rule}", rel, n, "posible secreto (valor omitido)", "critica"))
@@ -142,7 +142,7 @@ def scan_misuse(root: Path, package: str = "qce") -> list[Finding]:
         if not rel.startswith(package + "/"):
             continue
         v = _Visitor(rel)
-        v.visit(ast.parse(p.read_text(), filename=rel))
+        v.visit(ast.parse(p.read_text(encoding="utf-8"), filename=rel))
         out += [f for f in v.out if (f.path, f.rule) not in ALLOW]
     return out
 

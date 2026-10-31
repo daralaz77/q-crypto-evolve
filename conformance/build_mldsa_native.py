@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 COMMIT = "834a90d5e846ffa1e1611bd24e160bb2e9b86d35"
-SHA256 = (Path(__file__).resolve().parent / "mldsa-native.sha256").read_text().split()[0]
+SHA256 = (Path(__file__).resolve().parent / "mldsa-native.sha256").read_text(encoding="utf-8").split()[0]
 URL = f"https://codeload.github.com/pq-code-package/mldsa-native/tar.gz/{COMMIT}"
 CACHE = Path(os.environ.get("QCE_CONFORMANCE_CACHE", Path.home() / ".cache" / "qce-conformance"))
 BUILD = CACHE / "build-mldsa"
@@ -32,7 +32,7 @@ def build() -> Path:
         t.extractall(BUILD / "src", filter="data")
     ex = next((BUILD / "src").glob("*/examples/monolithic_build_multilevel"))
     subprocess.run(["cc", "-O2", "-std=c99", "-fPIC", "-shared", "-I.", "-Imldsa_native", "-Itest_only_rng", "mldsa_native_all.c",
-                    "test_only_rng/notrandombytes.c", "-o", str(out)], cwd=ex, check=True)
+                    "test_only_rng/notrandombytes.c", "-o", str(out)], cwd=ex, check=True, timeout=600)
     return out
 
 

@@ -8,8 +8,8 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-META = json.loads((HERE / "vectors.meta.json").read_text())
-HASHES = {n: h for h, n in (ln.split() for ln in (HERE / "vectors.sha256").read_text().splitlines() if ln.strip())}
+META = json.loads((HERE / "vectors.meta.json").read_text(encoding="utf-8"))
+HASHES = {n: h for h, n in (ln.split() for ln in (HERE / "vectors.sha256").read_text(encoding="utf-8").splitlines() if ln.strip())}
 MANIFEST = {"commit": META["commit"], "path": META["path"], "files": HASHES}
 CACHE = Path(os.environ.get("QCE_CONFORMANCE_CACHE", Path.home() / ".cache" / "qce-conformance"))  # FUERA del repositorio: el escáner de secretos recorre el árbol
 DEST = CACHE / "vectors"

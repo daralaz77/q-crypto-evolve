@@ -46,12 +46,12 @@ def _run_one(root: Path, m: Mutant, timeout: int) -> dict:
         work = Path(td)
         _sandbox(root, work)
         f = work / m.path
-        src = f.read_text()
+        src = f.read_text(encoding="utf-8")
         for old, new in m.edits:
             if src.count(old) != 1:
                 raise RuntimeError(f"mutante {m.name}: el fragmento original aparece {src.count(old)} veces")
             src = src.replace(old, new)
-        f.write_text(src)
+        f.write_text(src, encoding="utf-8")
         t1 = time.time()
         try:
             r = _pytest(work, timeout)
@@ -77,7 +77,7 @@ def run_mutants(root: Path, only: list[str] | None = None, timeout: int = 120) -
         if unknown:
             raise RuntimeError(f"mutantes desconocidos en 'only': {unknown}")
     todo = [m for m in MUTANTS if not only or m.name in only]
-    stale = [m.name for m in todo for old, _ in m.edits if (root / m.path).read_text().count(old) != 1]
+    stale = [m.name for m in todo for old, _ in m.edits if (root / m.path).read_text(encoding="utf-8").count(old) != 1]
     if stale:  # falla rápido y claro: un mutante obsoleto no puede contarse como detección ni como superviviente
         raise RuntimeError(f"mutantes con fragmento obsoleto (el código cambió): {stale}")
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:  # cada mutante vive en su propio directorio temporal

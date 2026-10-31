@@ -8,6 +8,8 @@ Garantías que prueban las pruebas (no que 'son seguras por venir de QKD'):
 """
 from __future__ import annotations
 
+import functools
+import threading
 import time
 from typing import Callable
 
@@ -19,7 +21,19 @@ from . import profiles
 from .devices import DeviceRegistry
 
 
+def _locked(fn):
+    """Serializa una operación que lee y cambia el estado de las claves (varios hilos de un servidor comparten el broker)."""
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return fn(self, *args, **kwargs)
+    return wrapper
+
+
 class KeyBroker:
+    """Hilo-seguro en las transiciones de estado (reservar, consumir, liberar, revocar). La E/S con el dispositivo (`acquire_key`, `authenticate_device`,
+    `report_key_consumption`) va FUERA del candado: un dispositivo lento no bloquea al resto de consumidores."""
+
     def __init__(self, policy: Policy, registry: DeviceRegistry, audit: ChainLog | None = None,
                  clock: Callable[[], float] = time.time, allowed_consumers: dict[str, set[str]] | None = None) -> None:
         self.policy, self.registry, self._audit, self._clock = policy, registry, audit, clock
@@ -29,6 +43,7 @@ class KeyBroker:
         self._mat: dict[str, KeyMaterial] = {}
         self._link_blocked: dict[str, str] = {}
         self._caps: dict[str, object] = {}
+        self._lock = threading.RLock()
 
     def _log(self, event: str, **kw) -> None:
         if self._audit:
@@ -55,8 +70,9 @@ class KeyBroker:
         if not self.registry.is_trusted(getattr(adapter, "device_id", "")):
             raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, "el dispositivo no quedó en estado de confianza")
         # Se publica TODO junto y solo al final: un attach fallido no puede alterar un enlace ya conectado (hallazgo M3)
-        self._adapters[link_id] = adapter
-        self._caps[link_id] = (protocol, rec.spec, bool(caps.is_simulation))
+        with self._lock:
+            self._adapters[link_id] = adapter
+            self._caps[link_id] = (protocol, rec.spec, bool(caps.is_simulation))
         self._log("attached", link=link_id)
 
     def _guard(self, link_id: str) -> DeviceAdapter:
@@ -135,19 +151,20 @@ class KeyBroker:
                 mat.destroy()
                 self._log("witness_mismatch", link=link_id)
                 raise QKDDeviceError(ErrorCategory.INTEGRITY_FAILURE, "los testigos no corresponden a la clave entregada")
-            if ref.key_reference in self._refs:
-                mat.destroy()
-                raise QKDDeviceError(ErrorCategory.INTEGRITY_FAILURE, "key_ID duplicado")
-            if ref.is_simulation and not self.policy.allow_simulated_qkd:
-                mat.destroy()
-                raise PolicyViolation("clave simulada rechazada por la política")
-            if not ref.integrity_ok:
-                ref.state = KeyState.QUARANTINED
-                self._refs[ref.key_reference] = ref
-                mat.destroy()
-                self._log("key_quarantined", key=ref.key_reference, reason="integrity")
-                raise QKDDeviceError(ErrorCategory.INTEGRITY_FAILURE, "integridad de la clave no verificable: en cuarentena")
-            self._refs[ref.key_reference], self._mat[ref.key_reference] = ref, mat
+            with self._lock:  # comprobar «duplicado» y registrar la clave es una sola operación
+                if ref.key_reference in self._refs:
+                    mat.destroy()
+                    raise QKDDeviceError(ErrorCategory.INTEGRITY_FAILURE, "key_ID duplicado")
+                if ref.is_simulation and not self.policy.allow_simulated_qkd:
+                    mat.destroy()
+                    raise PolicyViolation("clave simulada rechazada por la política")
+                if not ref.integrity_ok:
+                    ref.state = KeyState.QUARANTINED
+                    self._refs[ref.key_reference] = ref
+                    mat.destroy()
+                    self._log("key_quarantined", key=ref.key_reference, reason="integrity")
+                    raise QKDDeviceError(ErrorCategory.INTEGRITY_FAILURE, "integridad de la clave no verificable: en cuarentena")
+                self._refs[ref.key_reference], self._mat[ref.key_reference] = ref, mat
             self._log("key_available", key=ref.key_reference, link=link_id)
             got.append(ref.key_reference)
         return got
@@ -165,6 +182,7 @@ class KeyBroker:
             if m:
                 m.destroy()
 
+    @_locked
     def reserve(self, link_id: str, consumer: str, key_id: str | None = None) -> str:
         self._authorized(link_id, consumer)
         self._guard(link_id)
@@ -180,18 +198,20 @@ class KeyBroker:
         return ref.key_reference
 
     def consume(self, key_reference: str, consumer: str) -> bytes:
-        ref = self._refs.get(key_reference)
-        if ref is None:
-            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, "referencia desconocida")
-        self._refresh(ref)
-        if ref.state is not KeyState.RESERVED or ref.reserved_by != consumer:
-            self._log("consume_denied", key=key_reference, state=ref.state.value)
-            raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f"clave no utilizable (estado {ref.state.value})")
-        self._guard(ref.peer_or_link_id)
-        secret = self._mat.pop(key_reference).reveal()
-        ref.state = KeyState.CONSUMED
-        try:
-            self._adapters[ref.peer_or_link_id].report_key_consumption(key_reference)
+        with self._lock:  # comprobar la reserva, entregar el material y marcarla CONSUMED: una sola operación
+            ref = self._refs.get(key_reference)
+            if ref is None:
+                raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, "referencia desconocida")
+            self._refresh(ref)
+            if ref.state is not KeyState.RESERVED or ref.reserved_by != consumer:
+                self._log("consume_denied", key=key_reference, state=ref.state.value)
+                raise QKDDeviceError(ErrorCategory.KEY_EXPIRED, f"clave no utilizable (estado {ref.state.value})")
+            self._guard(ref.peer_or_link_id)
+            secret = self._mat.pop(key_reference).reveal()
+            ref.state = KeyState.CONSUMED
+            adapter = self._adapters[ref.peer_or_link_id]
+        try:  # el acuse al dispositivo (puede ser E/S) va fuera del candado
+            adapter.report_key_consumption(key_reference)
         except QKDDeviceError:
             self._log("consumption_report_failed", key=key_reference)  # la clave ya está CONSUMED: nunca se reutiliza
         self._log("key_consumed", key=key_reference, consumer=consumer)
@@ -206,6 +226,7 @@ class KeyBroker:
         ref = self.reserve(link_id, consumer, key_id)
         return self.peek(ref, consumer)
 
+    @_locked
     def peek(self, key_reference: str, consumer: str) -> bytes:
         ref = self.metadata(key_reference)
         if ref.state is not KeyState.RESERVED or ref.reserved_by != consumer:
@@ -213,6 +234,7 @@ class KeyBroker:
         self._guard(ref.peer_or_link_id)
         return self._mat[key_reference].reveal()
 
+    @_locked
     def release(self, key_reference: str, consumer: str) -> None:
         """Devuelve una clave reservada al conjunto disponible (el apretón que la reservó falló). Una clave ya consumida no vuelve."""
         ref = self._refs.get(key_reference)
@@ -229,6 +251,7 @@ class KeyBroker:
         return ref.encode(), self.consume(ref, consumer)
 
     # ---- control --------------------------------------------------------------------------------------------------
+    @_locked
     def revoke(self, key_reference: str, reason: str) -> None:
         ref = self._refs[key_reference]
         ref.state = KeyState.REVOKED
@@ -237,11 +260,13 @@ class KeyBroker:
             m.destroy()
         self._log("key_revoked", key=key_reference, reason=reason)
 
+    @_locked
     def metadata(self, key_reference: str) -> KeyReference:
         r = self._refs[key_reference]
         self._refresh(r)
         return r  # los metadatos no contienen secreto por construcción
 
+    @_locked
     def status(self, link_id: str) -> dict:
         for r in self._refs.values():
             self._refresh(r)

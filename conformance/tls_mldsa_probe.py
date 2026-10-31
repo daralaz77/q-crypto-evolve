@@ -21,7 +21,7 @@ ENV = {"PATH": os.environ.get("PATH", ""), "OPENSSL_CONF": "/dev/null"}
 
 
 def sh(*a, cwd):
-    subprocess.run([CLI, *a], cwd=cwd, check=True, capture_output=True, env=ENV)
+    subprocess.run([CLI, *a], cwd=cwd, check=True, capture_output=True, env=ENV, timeout=120)
 
 
 def make_pki(d: Path, alg: str) -> None:
@@ -31,7 +31,7 @@ def make_pki(d: Path, alg: str) -> None:
        "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign", cwd=d)
     sh("genpkey", *gen, "-out", "srv.key", cwd=d)
     sh("req", "-new", "-key", "srv.key", "-subj", "/CN=localhost", "-out", "srv.csr", cwd=d)
-    (d / "ext.cnf").write_text("subjectAltName=DNS:localhost,IP:127.0.0.1\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\n")
+    (d / "ext.cnf").write_text("subjectAltName=DNS:localhost,IP:127.0.0.1\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\n", encoding="utf-8")
     sh("x509", "-req", "-in", "srv.csr", "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-days", "1", "-out", "srv.pem", "-extfile", "ext.cnf", cwd=d)
 
 
@@ -99,7 +99,7 @@ def python_ssl_handshake(d: Path) -> dict:
 
 
 def main() -> int:
-    report = {"openssl_cli": subprocess.run([CLI, "version"], capture_output=True, text=True).stdout.strip(), "ssl_de_python": ssl.OPENSSL_VERSION, "casos": {}}
+    report = {"openssl_cli": subprocess.run([CLI, "version"], capture_output=True, text=True, timeout=30).stdout.strip(), "ssl_de_python": ssl.OPENSSL_VERSION, "casos": {}}
     ok = True
     for alg in ("EC", "ML-DSA-65", "ML-DSA-87"):
         with tempfile.TemporaryDirectory(prefix="qce-mldsa-") as td:
@@ -107,7 +107,7 @@ def main() -> int:
             case = {}
             try:
                 make_pki(d, alg)
-                der = subprocess.run([CLI, "x509", "-in", "srv.pem", "-outform", "DER"], cwd=d, capture_output=True, env=ENV).stdout
+                der = subprocess.run([CLI, "x509", "-in", "srv.pem", "-outform", "DER"], cwd=d, capture_output=True, env=ENV, timeout=120).stdout
                 case["certificado_servidor_der_bytes"] = len(der)
                 case["openssl_s_client"] = cli_handshake(d)
                 case["python_ssl"] = python_ssl_handshake(d)

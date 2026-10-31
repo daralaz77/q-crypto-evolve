@@ -12,7 +12,7 @@ CACHE = Path(os.environ.get("QCE_CONFORMANCE_CACHE", Path.home() / ".cache" / "q
 def fetch() -> int:
     CACHE.mkdir(parents=True, exist_ok=True)
     bad = 0
-    for h, name in (ln.split() for ln in (HERE / "schemas.sha256").read_text().splitlines() if ln.strip()):
+    for h, name in (ln.split() for ln in (HERE / "schemas.sha256").read_text(encoding="utf-8").splitlines() if ln.strip()):
         t = CACHE / name
         if t.exists() and hashlib.sha256(t.read_bytes()).hexdigest() == h:
             continue
