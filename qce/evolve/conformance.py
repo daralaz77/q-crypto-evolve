@@ -58,7 +58,7 @@ def parse(msg: bytes, kind: int, n: int) -> list[bytes] | None:
             out.append(msg[pos:pos + ln])
             pos += ln
         return out if pos == len(msg) else None
-    except Exception:
+    except (IndexError, ValueError, TypeError):  # entrada malformada: no es un mensaje del modelo
         return None
 
 
@@ -276,7 +276,6 @@ def attack_ltk_revealed(ident: HybridSigPrivateKey, policy: Policy) -> Trace:
 def attack_ephemeral_kem_leaked(ident: HybridSigPrivateKey, policy: Policy) -> Trace:
     """≈ X25519 + ML-KEM rotos: con la clave KEM efímera del servidor, el atacante deriva las claves y termina al cliente él solo."""
     tr = Trace(scenario="KEM efímera filtrada (≈ X25519+ML-KEM rotos)")
-    qk = b""
     with _Spies() as sp:
         c = S.ClientHandshake(ident.public_bytes, policy)
         srv = S.ServerHandshake(ident, policy)

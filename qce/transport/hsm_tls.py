@@ -21,7 +21,7 @@ from pathlib import Path
 from ..core.errors import PolicyViolation
 from . import tls13_psk as P
 
-vp, cp, ci = ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int
+vp, cp, ci = P.ffi.vp, P.ffi.cp, P.ffi.ci
 OSSL_STORE_INFO_PKEY = 4   # NAME=1, PARAMS=2, PUBKEY=3, PKEY=4, CERT=5, CRL=6
 _SIGS = [("OSSL_LIB_CTX_new", vp, []), ("OSSL_LIB_CTX_free", None, [vp]), ("OSSL_LIB_CTX_load_config", ci, [vp, cp]),
          ("OSSL_STORE_open_ex", vp, [cp, vp, cp, vp, vp, vp, vp, vp]), ("OSSL_STORE_load", vp, [vp]), ("OSSL_STORE_eof", ci, [vp]),
@@ -35,9 +35,7 @@ _LIBCTX_LOCK = threading.Lock()
 def _prepare(crypto) -> None:
     global _prepared
     if not _prepared:
-        for name, res, args in _SIGS:
-            fn = getattr(crypto, name)
-            fn.restype, fn.argtypes = res, args
+        P.ffi.bind(crypto, _SIGS)
         _prepared = True
 
 

@@ -30,3 +30,15 @@ py-modules = ["qce_kme"]
 
 [tool.setuptools.packages.find]
 include = ["qce*"]
+
+# Calidad estática (solo desarrollo; no son dependencias de ejecución). Uso: `ruff check qce --no-cache` y `mypy qce`.
+[tool.ruff]
+target-version = "py314"
+line-length = 160
+
+[tool.ruff.lint]
+select = ["E9", "F", "B", "BLE", "S110", "S112"]
+
+[tool.mypy]
+ignore_missing_imports = true
+files = ["qce"]

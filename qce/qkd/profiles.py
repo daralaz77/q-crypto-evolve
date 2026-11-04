@@ -99,18 +99,14 @@ def _num(x) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and x == x and x not in (math.inf, -math.inf)
 
 
-def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | None = None,
-             spec: dict | None = None) -> list[Finding]:
-    """Devuelve TODOS los problemas (lista vacía = el perfil se satisface). Falla cerrado ante ausencias."""
-    out: list[Finding] = []
-    if profile.assurance < Assurance(policy.min_assurance) or profile.assurance == Assurance.NONE:
-        return [Finding("policy", f"{profile.protocol.value}: garantía {profile.assurance.name} < mínimo {Assurance(policy.min_assurance).name}")]
-    missing = [w for w in profile.witnesses if w not in evidence]
-    if missing:
-        return [Finding("invalid", f"faltan testigos exigidos por {profile.protocol.value}: {missing}")]
+# Cada verificador añade sus hallazgos a `out`; el ORDEN de `_CHECKS` es el orden de los hallazgos (parte del contrato observable).
+def _chk_key_binding(profile, evidence, policy, spec, key_id, out):
     if key_id is not None and profile.per_key_witnesses and evidence["key_id"] != key_id:
         out.append(Finding("invalid", "los testigos no corresponden a esta clave (¿reutilización de evidencia?)"))
-    # --- clave finita y amplificación de privacidad (BB84 y familia) ---
+
+
+def _chk_finite_key(profile, evidence, policy, spec, key_id, out):
+    """Clave finita y amplificación de privacidad (BB84 y familia)."""
     if "epsilon" in profile.witnesses:
         eps = evidence["epsilon"]
         if not _num(eps) or not 0 < eps < 1:
@@ -119,24 +115,36 @@ def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | Non
             out.append(Finding("policy", f"ε={eps:g} > máximo de la política {policy.max_epsilon:g}"))
     if "privacy_amplification" in profile.witnesses and evidence["privacy_amplification"] is not True:
         out.append(Finding("policy", "el dispositivo no declara amplificación de privacidad: no es clave utilizable"))
-    # --- confianza en nodos intermedios (testigo del dispositivo, o ficha aprobada si el perfil no lo reporta) ---
-    hops = evidence["trusted_hops"] if "trusted_hops" in profile.witnesses else (spec or {}).get("trusted_hops")
-    if hops is None and "trusted_hops" not in profile.witnesses:
-        pass  # el dato debe venir de la ficha aprobada: su ausencia la informa el bucle de `needs_spec` (política), no como respuesta inválida
-    elif not isinstance(hops, int) or isinstance(hops, bool) or hops < 0:
+
+
+def _chk_trusted_hops(profile, evidence, policy, spec, key_id, out):
+    """Confianza en nodos intermedios (testigo del dispositivo, o ficha aprobada si el perfil no lo reporta)."""
+    reported = "trusted_hops" in profile.witnesses
+    hops = evidence["trusted_hops"] if reported else (spec or {}).get("trusted_hops")
+    if hops is None and not reported:
+        return  # el dato debe venir de la ficha aprobada: su ausencia la informa el bucle de `needs_spec` (política), no como respuesta inválida
+    if not isinstance(hops, int) or isinstance(hops, bool) or hops < 0:
         out.append(Finding("invalid", "trusted_hops inválido"))
     elif hops > policy.max_trusted_hops:
         out.append(Finding("policy", f"{hops} saltos por nodos de confianza > máximo {policy.max_trusted_hops}: cada uno ve la clave"))
+
+
+def _chk_relay(profile, evidence, policy, spec, key_id, out):
     if profile.relay_untrusted and evidence.get("relay_holds_key") is not False:
         out.append(Finding("anomaly", "el relé MDI declara (o no niega) conocer la clave: contradice el modelo de confianza"))
-    # --- QBER ---
+
+
+def _chk_qber(profile, evidence, policy, spec, key_id, out):
     if "qber" in profile.witnesses:
         q = evidence["qber"]
         if not _num(q) or not 0.0 <= q <= 0.5:
             out.append(Finding("invalid", "QBER fuera de rango físico"))
         elif q >= policy.qber_abort:
             out.append(Finding("anomaly", f"QBER {q:.3f} ≥ {policy.qber_abort}: posible espionaje"))
-    # --- CHSH (E91 / DI) ---
+
+
+def _chk_chsh(profile, evidence, policy, spec, key_id, out):
+    """CHSH (E91 / DI)."""
     if "chsh_s" in profile.witnesses:
         s = evidence["chsh_s"]
         if not _num(s) or s < 0 or s > TSIRELSON + 1e-9:
@@ -145,14 +153,19 @@ def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | Non
             out.append(Finding("anomaly", f"CHSH {s:.3f} ≤ {CLASSICAL_CHSH + policy.chsh_margin:.2f}: no certifica correlaciones cuánticas"))
     if "loophole_free" in profile.witnesses and evidence["loophole_free"] is not True:
         out.append(Finding("policy", "DI-QKD sin prueba de Bell libre de lagunas: no cumple su propio modelo"))
+
+
+def _chk_key_size_and_decoy(profile, evidence, policy, spec, key_id, out):
     if "key_size_bits" in profile.witnesses:
         ksb = evidence["key_size_bits"]
         if not isinstance(ksb, int) or isinstance(ksb, bool) or ksb < 128 or ksb % 8:
             out.append(Finding("policy", "tamaño de clave del KME por debajo de 128 bits o no múltiplo de 8"))
-    # --- decoy ---
     if "decoy_ok" in profile.witnesses and evidence["decoy_ok"] is not True:
         out.append(Finding("anomaly", "estadística de estados señuelo inconsistente (posible ataque de número de fotones)"))
-    # --- umbrales que solo da la ficha técnica aprobada ---
+
+
+def _chk_needs_spec(profile, evidence, policy, spec, key_id, out):
+    """Umbrales que solo da la ficha técnica aprobada."""
     for need in profile.needs_spec:
         if not spec or not _num(spec.get(need)):
             out.append(Finding("policy", f"falta {need} en la ficha aprobada del equipo: no se inventa un umbral"))
@@ -162,6 +175,9 @@ def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | Non
             out.append(Finding("invalid", "error de fase fuera de rango"))
         elif pe > spec["phase_error_max"]:
             out.append(Finding("anomaly", f"error de fase {pe:.3f} > {spec['phase_error_max']} de la ficha"))
+
+
+def _chk_cv_noise(profile, evidence, policy, spec, key_id, out):
     if "excess_noise" in profile.witnesses:
         if evidence["shot_noise_calibrated"] is not True:
             out.append(Finding("anomaly", "calibración del ruido de disparo no verificada (superficie de ataque conocida de CV-QKD)"))
@@ -170,4 +186,21 @@ def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | Non
             out.append(Finding("invalid", "ruido en exceso inválido"))
         elif spec and _num(spec.get("excess_noise_max")) and xi > spec["excess_noise_max"]:
             out.append(Finding("anomaly", f"ruido en exceso {xi:.4f} > {spec['excess_noise_max']} de la ficha"))
+
+
+_CHECKS = (_chk_key_binding, _chk_finite_key, _chk_trusted_hops, _chk_relay, _chk_qber, _chk_chsh,
+           _chk_key_size_and_decoy, _chk_needs_spec, _chk_cv_noise)
+
+
+def evaluate(profile: Profile, evidence: dict, policy: Policy, key_id: str | None = None,
+             spec: dict | None = None) -> list[Finding]:
+    """Devuelve TODOS los problemas (lista vacía = el perfil se satisface). Falla cerrado ante ausencias."""
+    if profile.assurance < Assurance(policy.min_assurance) or profile.assurance == Assurance.NONE:
+        return [Finding("policy", f"{profile.protocol.value}: garantía {profile.assurance.name} < mínimo {Assurance(policy.min_assurance).name}")]
+    missing = [w for w in profile.witnesses if w not in evidence]
+    if missing:
+        return [Finding("invalid", f"faltan testigos exigidos por {profile.protocol.value}: {missing}")]
+    out: list[Finding] = []
+    for check in _CHECKS:
+        check(profile, evidence, policy, spec, key_id, out)
     return out

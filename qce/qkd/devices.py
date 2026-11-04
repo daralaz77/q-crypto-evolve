@@ -228,7 +228,6 @@ class SimulatedAdapter(DeviceAdapter):
 
     def request_key_metadata(self, request_context: dict) -> list[KeyReference]:
         self._maybe_fail()
-        now = self._clock()
         return [KeyReference(k, self.device_id, self.link.link_id, "SIM", v[1], v[1] + self.key_ttl_s, "session-key",
                              KeyState.AVAILABLE, is_simulation=True)
                 for k, v in self._pool.items() if k not in self._consumed]

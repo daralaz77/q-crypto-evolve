@@ -67,7 +67,7 @@ def check_matrix(root: Path, workers: int = 4, model_name: str = "qce1.spthy", e
     with ThreadPoolExecutor(max_workers=workers) as pool:
         got = list(pool.map(lambda kv: run_model(model, kv[1]["defines"]), items))
     problems = []
-    for (name, cfg), verdicts in zip(items, got):
+    for (name, cfg), verdicts in zip(items, got, strict=True):
         if verdicts != cfg["verdicts"]:
             diff = {k: (cfg["verdicts"].get(k), verdicts.get(k)) for k in set(cfg["verdicts"]) | set(verdicts)
                     if cfg["verdicts"].get(k) != verdicts.get(k)}

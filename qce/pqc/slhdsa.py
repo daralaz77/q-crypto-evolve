@@ -22,7 +22,7 @@ SIG_LEN = 7856
 SEED_LEN = 48   # SK.seed ‖ SK.prf ‖ PK.seed (3·n, n = 16)
 CONTEXT_MAX = 255
 
-vp, cp, sz, ci = ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int
+vp, cp, sz, ci = _ffi.vp, _ffi.cp, _ffi.sz, _ffi.ci
 OSSL_PARAM_INTEGER, OSSL_PARAM_OCTET_STRING = 1, 5
 EVP_PKEY_PUBLIC_KEY, EVP_PKEY_KEYPAIR = 0x86, 0x87    # EVP_PKEY_KEY_PARAMETERS|... : selecciones de OpenSSL (OSSL_KEYMGMT_SELECT_*)
 
@@ -53,9 +53,7 @@ def _crypto():
             crypto = _ffi.load()[1]
         except _ffi.OpenSslUnavailable as exc:
             raise PolicyViolation(f"SLH-DSA no disponible: {exc}") from exc
-        for name, res, args in _SIGS:
-            f = getattr(crypto, name)
-            f.restype, f.argtypes = res, args
+        _ffi.bind(crypto, _SIGS)
         ctx = crypto.EVP_PKEY_CTX_new_from_name(None, ALGORITHM.encode(), None)
         if not ctx:
             raise PolicyViolation(f"este OpenSSL no ofrece {ALGORITHM}")

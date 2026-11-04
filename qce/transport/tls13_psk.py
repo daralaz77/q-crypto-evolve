@@ -51,7 +51,7 @@ WANT_READ, WANT_WRITE = 2, 3
 PskTransportUnavailable = ffi.OpenSslUnavailable      # mismo tipo: quien captura la excepción antigua sigue funcionando
 
 
-vp, cp, sz, ci = ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int
+vp, cp, sz, ci = ffi.vp, ffi.cp, ffi.sz, ffi.ci
 _CB_CLIENT = ctypes.CFUNCTYPE(ci, vp, vp, ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), ctypes.POINTER(sz), ctypes.POINTER(vp))
 _CB_SERVER = ctypes.CFUNCTYPE(ci, vp, ctypes.POINTER(ctypes.c_ubyte), sz, ctypes.POINTER(vp))
 _SIGS = [("TLS_server_method", vp, []), ("TLS_client_method", vp, []), ("SSL_CTX_new", vp, [vp]), ("SSL_CTX_free", None, [vp]), ("SSL_new", vp, [vp]),
@@ -129,7 +129,7 @@ class PskTlsConnection:
         deadline = time.monotonic() + timeout
         while len(out) < n:
             want = min(n - len(out), len(buf))
-            got = self._io(lambda: self._l.SSL_read(self._ssl, buf, want), max(deadline - time.monotonic(), 0.001), "lectura")
+            got = self._io(lambda: self._l.SSL_read(self._ssl, buf, want), max(deadline - time.monotonic(), 0.001), "lectura")  # noqa: B023  (la lambda se ejecuta en `_io` dentro de esta iteración)
             out += buf.raw[:got]
         return bytes(out)
 
@@ -139,7 +139,7 @@ class PskTlsConnection:
         while len(view):
             chunk = bytes(view[:65536])
             buf = ctypes.create_string_buffer(chunk, len(chunk))
-            sent = self._io(lambda: self._l.SSL_write(self._ssl, buf, len(chunk)), max(deadline - time.monotonic(), 0.001), "escritura")
+            sent = self._io(lambda: self._l.SSL_write(self._ssl, buf, len(chunk)), max(deadline - time.monotonic(), 0.001), "escritura")  # noqa: B023  (ídem)
             view = view[sent:]
 
     def send_frame(self, data: bytes, timeout: float = 30.0) -> None:
@@ -177,7 +177,7 @@ class PskTlsConnection:
         self._closed = True
         try:
             self._l.SSL_shutdown(self._ssl)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  (el cierre no debe fallar)
             pass
         self._c.ERR_clear_error()   # el cierre de una conexión no debe dejar errores a la siguiente del mismo hilo
         self._l.SSL_free(self._ssl)

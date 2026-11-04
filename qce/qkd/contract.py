@@ -110,7 +110,7 @@ class DeviceEvent:
     detail: dict = field(default_factory=dict)
 
 
-class DeviceAdapter(ABC):
+class DeviceAdapter(ABC):  # noqa: B024  (interfaz: los métodos lanzan NotImplementedError a propósito)
     """Contrato lógico. Los métodos no soportados lanzan PROTOCOL_MISMATCH: capacidad NO SOPORTADA."""
 
     adapter_version = "0"

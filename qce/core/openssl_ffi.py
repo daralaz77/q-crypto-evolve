@@ -11,6 +11,9 @@ import os
 
 from .errors import QCEError
 
+# Tipos C compartidos por todos los puentes (antes se redeclaraban en cada módulo).
+vp, cp, sz, ci = ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int
+
 OPENSSL_MIN = 0x30500000        # 3.5: primer OpenSSL con ML-KEM, SLH-DSA y los híbridos X25519MLKEM768
 
 CANDIDATES = (os.environ.get("QCE_LIBSSL", ""), "/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib", "/usr/local/opt/openssl@3/lib/libssl.3.dylib",
@@ -45,6 +48,13 @@ def load(ssl_sigs=()) -> tuple:
         except (OSError, AttributeError) as exc:
             tried.append(f"{path}: {type(exc).__name__}")
     raise OpenSslUnavailable("no hay una biblioteca OpenSSL ≥ 3.5 utilizable (" + "; ".join(tried) + "); defina QCE_LIBSSL")
+
+
+def bind(lib, sigs) -> None:
+    """Fija `restype`/`argtypes` de cada `(nombre, restype, argtypes)` sobre `lib`. Un símbolo ausente lanza `AttributeError` (falla cerrado)."""
+    for name, res, args in sigs:
+        fn = getattr(lib, name)
+        fn.restype, fn.argtypes = res, args
 
 
 def errors(crypto) -> str:

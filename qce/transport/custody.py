@@ -21,8 +21,7 @@ from pathlib import Path  # noqa: E402
 from typing import Callable  # noqa: E402
 
 from cryptography import x509  # noqa: E402
-from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
+from cryptography.hazmat.primitives import serialization  # noqa: E402
 from cryptography.x509.oid import NameOID  # noqa: E402
 
 from . import pki  # noqa: E402

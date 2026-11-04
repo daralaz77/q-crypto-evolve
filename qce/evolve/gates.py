@@ -112,7 +112,7 @@ def _g1_integrity(c: _Ctx) -> GateResult:
     if stable.exists():
         try:
             rel.verify_release(c.root, json.loads(stable.read_text(encoding="utf-8"))["release_id"])
-        except Exception as exc:
+        except (QCEError, OSError, ValueError, KeyError) as exc:  # ValueError incluye JSON inválido; todo error del snapshot es un problema, no un pass
             problems.append(f"snapshot estable no verifica: {exc}")
     for k, v in strictest_baseline(c.history).items():  # trinquete contra el MÁS estricto jamás registrado
         lower_is_stricter = k.startswith("max_")
@@ -201,7 +201,7 @@ def _g4_regression(c: _Ctx) -> GateResult:
             try:
                 check_test_ref(inc["reproduction_test"])  # sin inyección de opciones de pytest
                 rc, passed_n, tail = _run_pytest(c.root, ["--", inc["reproduction_test"]])
-            except Exception:
+            except (QCEError, OSError, ValueError, subprocess.SubprocessError):  # referencia inválida o fallo al lanzar pytest = prueba no superada
                 rc, passed_n = 1, 0
             if rc != 0 or passed_n < 1:  # "0 pruebas ejecutadas" no es una regresión superada
                 fails.append(inc["incident_id"])
@@ -265,7 +265,7 @@ def evaluate(root: Path, *, version: str, run_mutation: bool = True, mutants: li
         t = time.time()
         try:
             g = fn(c)
-        except Exception as exc:  # un fallo de la propia herramienta es un fallo de la puerta, no un "pass"
+        except Exception as exc:  # noqa: BLE001  # un fallo de la propia herramienta es un fallo de la puerta, no un "pass"
             g = GateResult(name, "fail", f"error interno de la puerta: {type(exc).__name__}: {exc}")
         g.gate, g.seconds = name, round(time.time() - t, 2)
         gates.append(g)
