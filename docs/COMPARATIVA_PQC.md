@@ -58,7 +58,7 @@ Fecha de la investigación: 2026-10-29. Alcance: bibliotecas, protocolos, están
 | B5 | **Combinador propio (QCE1) frente a uno estándar** | X-Wing es borrador informativo, sin RFC | Evaluar sustituir o alinear la mezcla de claves; reduce superficie sin revisar | Sí |
 | B6 | **Sin atestaciones de procedencia ni análisis estático de flujos de trabajo** | `SUPPLY_CHAIN.md` | Atestaciones de artefactos de GitHub (SLSA), OpenSSF Scorecard, CodeQL, `zizmor` sobre los flujos [HIPÓTESIS: herramientas conocidas, no verificadas hoy] | No |
 | B7 | **Una sola herramienta formal** | PQ-WireGuard: varias herramientas hallaron fallos | Traducir QCE1 a SAPIC+ para ProVerif/DEEPSEC además de Tamarin; mirar CryptoVerif para lo computacional | No |
-| B8 | **Sin evidencia de tiempo constante propia** | KyberSlash: el fallo estaba en el compilador+código, no en el algoritmo [PROBABLE] | Fijar versiones de las bibliotecas, vigilar avisos, y una prueba tipo dudect de las comparaciones y del puente | Depende |
+| B8 | **Sin evidencia de tiempo constante propia** (parcial desde 2026-11-03: `tools/timing_check.py`, ver `docs/REFERENCIAS_2026-11.md`) | KyberSlash: el fallo estaba en el compilador+código, no en el algoritmo [PROBABLE] | Fijar versiones de las bibliotecas, vigilar avisos, y una prueba tipo dudect de las comparaciones y del puente | Depende |
 | B9 | **PQC real en HSM/KMS sin probar** | Solo RSA-PSS en SoftHSM | Probar ML-DSA en un KMS (Google/AWS) con el kit existente | No |
 | B10 | **Agilidad para HQC y FN-DSA** | Pendientes en NIST | Mantener la política lista para añadirlos; no implementar antes de los estándares | — |
 
