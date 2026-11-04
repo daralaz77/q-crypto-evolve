@@ -19,6 +19,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SESSION = "qce/protocols/session.py"
 
 
+# La comprobación 23 de la demo reutiliza el historial REAL de incidentes del proyecto (`learning/`); el sandbox de la prueba de mutación no lo copia.
+needs_history = pytest.mark.skipif(not (ROOT / "learning" / "incidents.jsonl").exists(),
+                                   reason="sin learning/incidents.jsonl (p. ej. el sandbox de mutación) la comprobación 23 de la demo no puede cumplirse")
+
+
 def fault_applied(root: Path) -> bool:
     s = (root / SESSION).read_text(encoding="utf-8")
     return all(new in s and old not in s for old, new in demo.FAULT.edits)
@@ -44,9 +49,12 @@ def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+@needs_history
 @pytest.mark.skipif("qce-lab-" in str(ROOT), reason="dentro del laboratorio de la propia demo no se vuelve a ejecutar la demo")
 def test_the_whole_cycle_runs_end_to_end_and_every_check_is_observed(faithful, tmp_path):
-    before = {f: sha(ROOT / f) for f in (SESSION, "gates.json", "learning/incidents.jsonl", "learning/version_history.jsonl")}
+    watched = [f for f in (SESSION, "gates.json", "learning/incidents.jsonl", "learning/version_history.jsonl") if (ROOT / f).exists()]
+    assert SESSION in watched                       # el código vigilado existe siempre (en el sandbox de mutación no hay carpeta learning/)
+    before = {f: sha(ROOT / f) for f in watched}
     out = tmp_path / "salida"
     r = demo.run(ROOT, out)
     failed = [c for c in r["checks"] if not c["ok"]]
@@ -73,6 +81,7 @@ def test_the_demo_aborts_instead_of_claiming_success_when_the_fault_is_not_detec
     assert not (tmp_path / "salida" / "demo_latest.json").exists()
 
 
+@needs_history
 @pytest.mark.skipif("qce-lab-" in str(ROOT), reason="dentro del laboratorio de la propia demo no se vuelve a ejecutar la demo")
 def test_one_failed_check_makes_all_ok_false_even_if_the_rest_of_the_cycle_works(monkeypatch, tmp_path):
     """La línea base (comprobación 1) falla pero el resto del ciclo sigue siendo coherente: el resultado global NO puede ser éxito."""
