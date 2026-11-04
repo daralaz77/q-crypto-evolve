@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "d19e25da889d4d26",
+  "release_id": "d44479b596186dee",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -8,14 +8,14 @@
       "status": "pass",
       "detail": "cadenas de registro íntegras (98 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.25
+      "seconds": 0.29
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "693 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "842 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 97.62
+      "seconds": 106.81
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -37,7 +37,7 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 9814.0,
+          "seconds": 4783.0,
           "canary_ok": true
         },
         "dependencies": {
@@ -46,7 +46,7 @@
           "checked": 3
         }
       },
-      "seconds": 9815.72
+      "seconds": 4784.68
     },
     {
       "gate": "G4-REGRESION",
@@ -55,7 +55,7 @@
       "evidence": {
         "checked": 35
       },
-      "seconds": 24.81
+      "seconds": 26.42
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -66,15 +66,15 @@
     },
     {
       "gate": "G6-AUTORIZACION",
-      "status": "skipped",
-      "detail": "sin autorización humana firmada para este código exacto",
+      "status": "pass",
+      "detail": "autorización humana válida: ['darwing']",
       "evidence": {},
-      "seconds": 0.0
+      "seconds": 0.02
     }
   ],
   "metrics": {
-    "tests_passed": 693,
-    "total_seconds": 9938.4,
+    "tests_passed": 842,
+    "total_seconds": 4918.2,
     "incidents_total": 35,
     "incidents_resolved": 35,
     "recurring_patterns": [
