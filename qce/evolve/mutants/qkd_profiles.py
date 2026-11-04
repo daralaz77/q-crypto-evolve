@@ -26,5 +26,5 @@ MUTANTS = [
     M('prof-etsi-keysize-multiple-off', 'qce/qkd/profiles.py', (('ksb < 128 or ksb % 8', 'ksb < 128'),), 'perfil ETSI: múltiplo de 8'),
     M('prof-etsi-keysize-type-off', 'qce/qkd/profiles.py', (('if not isinstance(ksb, int) or isinstance(ksb, bool) or ksb < 128', 'if ksb < 128'),), 'perfil ETSI: tipo del tamaño'),
     M('prof-hops-from-spec-off', 'qce/qkd/profiles.py', (('else (spec or {}).get("trusted_hops")', 'else 0'),), 'perfil ETSI: saltos desde la ficha'),
-    M('prof-hops-missing-reported-invalid', 'qce/qkd/profiles.py', (('if hops is None and "trusted_hops" not in profile.witnesses:\n        pass', 'if False:\n        pass'),), 'perfil ETSI: ficha ausente es política'),
+    M('prof-hops-missing-reported-invalid', 'qce/qkd/profiles.py', (('if hops is None and not reported:\n        return', 'if False:\n        return'),), 'perfil ETSI: ficha ausente es política'),
 ]

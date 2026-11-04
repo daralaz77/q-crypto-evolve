@@ -42,7 +42,7 @@ class KeyBroker:
         self._refs: dict[str, KeyReference] = {}
         self._mat: dict[str, KeyMaterial] = {}
         self._link_blocked: dict[str, str] = {}
-        self._caps: dict[str, object] = {}
+        self._caps: dict[str, tuple[str, tuple, bool]] = {}  # link_id → (protocolo, ficha aprobada, es_simulación)
         self._lock = threading.RLock()
 
     def _log(self, event: str, **kw) -> None:

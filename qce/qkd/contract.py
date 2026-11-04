@@ -8,6 +8,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import NoReturn
 
 from ..core.errors import QCEError
 
@@ -50,7 +51,7 @@ class KeyMaterial:
     __slots__ = ("_b",)
 
     def __init__(self, data: bytes) -> None:
-        self._b = bytearray(data)
+        self._b: bytearray | None = bytearray(data)
 
     def reveal(self) -> bytes:
         if self._b is None:
@@ -59,8 +60,7 @@ class KeyMaterial:
 
     def destroy(self) -> None:
         if self._b is not None:
-            for i in range(len(self._b)):
-                self._b[i] = 0  # mejor esfuerzo; ver LIMITATIONS.md
+            self._b[:] = bytes(len(self._b))  # mejor esfuerzo (Python no garantiza borrado); ver LIMITATIONS.md
             self._b = None
 
     def __repr__(self) -> str:
@@ -114,8 +114,9 @@ class DeviceAdapter(ABC):  # noqa: B024  (interfaz: los métodos lanzan NotImple
     """Contrato lógico. Los métodos no soportados lanzan PROTOCOL_MISMATCH: capacidad NO SOPORTADA."""
 
     adapter_version = "0"
+    device_id: str  # identidad registrada en el alta (solo anotación: los adaptadores dataclass la declaran como campo)
 
-    def _unsupported(self, op: str):
+    def _unsupported(self, op: str) -> NoReturn:
         raise QKDDeviceError(ErrorCategory.PROTOCOL_MISMATCH, f"operación no soportada por este adaptador: {op}")
 
     def initialize(self, configuration_reference: str) -> None: self._unsupported("initialize")
