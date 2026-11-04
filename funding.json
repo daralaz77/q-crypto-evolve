@@ -1,0 +1,50 @@
+{
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.0.0",
+  "entity": {
+    "type": "individual",
+    "role": "owner",
+    "name": "Darwing John Pérez Aranguren",
+    "email": "director@daralaz.com",
+    "description": "Independent developer based in Colombia, working with AI coding tools under verification gates. Maintains Q-Crypto Evolve, an Apache-2.0 post-quantum cryptography project, and publishes its limits and open incidents openly.",
+    "webpageUrl": {
+      "url": "https://github.com/daralaz77"
+    }
+  },
+  "projects": [
+    {
+      "guid": "q-crypto-evolve",
+      "name": "Q-Crypto Evolve",
+      "description": "Open lab for post-quantum cryptography engineering: a TLS 1.3 bridge with an external PSK over OpenSSL 3.5 (X25519MLKEM768, SecP384r1MLKEM1024) via ctypes, HSM integration through PKCS#11 (tested with SoftHSM), and an ETSI GS QKD 014 client and test KME. All code, tests and documentation were written by an AI (Claude) under verification gates: 846 tests (4 optional), 434 mutants, a log of 35 incidents with their faults, and a reproducible review package. No human has reviewed it yet; the human sign-offs the method requires (G5/G6) are pending. The funding would pay for one independent security review of the three components, whose report would be published.",
+      "webpageUrl": {
+        "url": "https://github.com/daralaz77/q-crypto-evolve"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/daralaz77/q-crypto-evolve"
+      },
+      "licenses": ["spdx:Apache-2.0"],
+      "tags": ["cryptography", "post-quantum-cryptography", "security", "tls", "pkcs11", "quantum-key-distribution"]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "bank-transfer",
+        "type": "bank",
+        "description": "Bank account of the entity (individual, Colombia); details provided on request after acceptance."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "independent-security-review",
+        "status": "active",
+        "name": "Independent security review (one-time)",
+        "description": "One independent white-box security review of the TLS 1.3 PSK bridge, the PKCS#11/HSM integration and the ETSI 014 client, with a published report bound to the reviewed version. Quotes received from independent firms are in the range of 9,000 to 13,650 EUR.",
+        "amount": 10000,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["bank-transfer"]
+      }
+    ]
+  }
+}
