@@ -20,5 +20,5 @@ MUTANTS = [
     M('lvl-client-verify-level-default', 'qce/protocols/session.py', (('hybrid_verify(self._pinned, signed, sig, CTX_SERVER, level)', 'hybrid_verify(self._pinned, signed, sig, CTX_SERVER)'),), 'niveles QCE1: el cliente verifica con el nivel de la suite'),
     M('lvl-client-encaps-level-default', 'qce/protocols/session.py', (('ss, ct = hybrid_encapsulate(kem_pk, level)', 'ss, ct = hybrid_encapsulate(kem_pk)'),), 'niveles QCE1: el cliente encapsula con el nivel de la suite'),
     M('lvl-server-identity-level-check-off', 'qce/protocols/session.py', (('        if self._id.level is not level:', '        if False:'),), 'niveles QCE1: el servidor no firma con una identidad de otro nivel'),
-    M('lvl-server-kem-level-off', 'qce/protocols/session.py', (('self._kem = HybridKemPrivateKey.generate(level)  # efímera', 'self._kem = HybridKemPrivateKey.generate()  # efímera'),), 'niveles QCE1: la clave KEM efímera es del nivel de la suite'),
+    M('lvl-server-kem-level-off', 'qce/protocols/session.py', (('kem_eph = HybridKemPrivateKey.generate(level)  # efímera', 'kem_eph = HybridKemPrivateKey.generate()  # efímera'),), 'niveles QCE1: la clave KEM efímera es del nivel de la suite'),
 ]
