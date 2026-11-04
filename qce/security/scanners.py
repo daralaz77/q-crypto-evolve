@@ -86,7 +86,8 @@ _MAC_NAMES = re.compile(r"(?i)(mac|tag|sig|signature|digest|token)")
 
 class _Visitor(ast.NodeVisitor):
     def __init__(self, rel: str) -> None:
-        self.rel, self.out = rel, []
+        self.rel = rel
+        self.out: list[Finding] = []
 
     def add(self, rule, node, detail, sev):
         self.out.append(Finding(rule, self.rel, node.lineno, detail, sev))

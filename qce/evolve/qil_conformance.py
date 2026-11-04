@@ -74,10 +74,11 @@ def analyse(sessions: list[dict]) -> Trace:
         c, sv = s["client"], s["server"]
         # ---------------- cliente ----------------
         if c["sent"]:
-            kid_c, nc = hello_parts(bytes.fromhex(c["sent"][0])) or (None, None)
-            if kid_c is None:
+            parts = hello_parts(bytes.fromhex(c["sent"][0]))
+            if parts is None:
                 tr.problems.append(f"{name}: el cliente envió un HELLO mal formado")
             else:
+                kid_c, nc = parts
                 tr.events.append(("ClientStart", name, kid_c, nc))
                 if c["recv"]:
                     acc = bytes.fromhex(c["recv"][0])

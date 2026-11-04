@@ -17,7 +17,8 @@ class RotationScheduler:
             raise ValueError("intervalo, margen o vida inválidos (la vida debe superar al margen de renovación)")
         self._args = (custody, ca_key, ca_cert, name, ttl_s, renew_before_s, server)
         self.check_interval_s, self._clock, self._on_event = check_interval_s, clock, on_event or (lambda kind, detail: None)
-        self.rotations, self.errors, self.last_error = 0, 0, None
+        self.rotations, self.errors = 0, 0
+        self.last_error: str | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 

@@ -212,7 +212,8 @@ class TlsServer:
     """Servidor de mensajes con hilo por conexión (laboratorio). `handler(conn, peer_cert)` recibe la conexión ya autenticada."""
 
     def __init__(self, ctx: ssl.SSLContext, handler, host: str = "127.0.0.1", port: int = 0, limiter=None) -> None:
-        self._ctx, self._handler = ctx, handler
+        self._ctx: ssl.SSLContext | None = ctx
+        self._handler = handler
         self._limiter = limiter  # OriginRateLimiter opcional: se aplica ANTES del apretón TLS (rechazo barato)
         self.rate_limited = 0
         self._ls = socket.socket()

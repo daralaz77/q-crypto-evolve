@@ -67,8 +67,8 @@ class HsmServerContext:
         l, c = self._lib
         _prepare(c)
         self._suite, self._group = suite, group
-        self._ctx = None
-        self._libctx = self._libctx_for(c, config_file)
+        self._ctx: int | None = None
+        self._libctx: int | None = self._libctx_for(c, config_file)
         try:
             self._ctx = P._new_ctx(self._lib, True, suite, group, libctx=self._libctx)
             if l.SSL_CTX_use_certificate_chain_file(self._ctx, str(cert_file).encode()) != 1:

@@ -69,7 +69,7 @@ def _hash_tree(root: Path) -> dict[str, str]:
 
 def build_manifest(root: Path, version: str, results: dict, risks: list[str], deps: dict[str, str]) -> dict:
     files = _hash_tree(root)
-    body = {"version": version, "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    body: dict = {"version": version, "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "files": files, "dependencies": deps, "results": results, "known_risks": risks,
             "approval": "pendiente"}
     body["release_id"] = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:16]

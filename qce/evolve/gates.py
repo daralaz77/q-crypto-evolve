@@ -8,6 +8,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from ..core.chainlog import ChainLog
 from ..core.errors import IntegrityError, QCEError
@@ -71,7 +72,7 @@ def validate_thresholds(th: dict) -> dict:
     for k, (typ, lo, hi) in THRESHOLD_RULES.items():
         v = th.get(k)
         ok = isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and abs(v) != float("inf") and lo <= v <= hi
-        if typ is int and ok and v != int(v):
+        if typ is int and ok and v is not None and v != int(v):
             ok = False
         if not ok:
             raise QCEError(f"umbral '{k}' inválido o ausente: {v!r}")
@@ -150,7 +151,9 @@ def _g2_functionality(c: _Ctx) -> GateResult:
 
 # ---- GATE 3: SEGURIDAD ---------------------------------------------------------------------------
 def _g3_security(c: _Ctx) -> GateResult:
-    ev, blocked, failed = {}, [], []
+    ev: dict[str, Any] = {}
+    blocked: list[str] = []
+    failed: list[str] = []
     misuse = scanners.scan_misuse(c.root)
     bad = [f for f in misuse if f.severity in ("critica", "alta", "media")]
     ev["misuse"] = [f"{f.path}:{f.line} {f.rule}" for f in bad]

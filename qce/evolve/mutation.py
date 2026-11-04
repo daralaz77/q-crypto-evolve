@@ -88,7 +88,7 @@ def run_mutants(root: Path, only: list[str] | None = None, timeout: int = 120) -
     results = [r for r in results if not r["name"].startswith("CANARY")] + ([canary] if canary else [])
     scored = [r for r in results if not r["equivalent"]]
     killed = sum(r["killed"] for r in scored)
-    return {"canary_ok": bool(canary) and not canary["killed"], "total": len(results), "scored": len(scored), "killed": killed,
+    return {"canary_ok": canary is not None and not canary["killed"], "total": len(results), "scored": len(scored), "killed": killed,
             "score": round(killed / len(scored), 4) if scored else 1.0,
             "survivors": [r["name"] for r in scored if not r["killed"]],
             "declared_equivalent": [r["name"] for r in results if r["equivalent"] and not r["name"].startswith("CANARY")],

@@ -28,7 +28,7 @@ class OriginRateLimiter:
             ip = ipaddress.ip_address(address.split("%", 1)[0])
         except ValueError:
             return address
-        if ip.version == 6:
+        if isinstance(ip, ipaddress.IPv6Address):
             return str(ip.ipv4_mapped) if ip.ipv4_mapped else str(ipaddress.ip_network((ip, 64), strict=False))
         return str(ip)
 

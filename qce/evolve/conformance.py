@@ -108,7 +108,7 @@ class Trace:
 
 
 def _offered(m1: bytes) -> bytes:
-    f = parse(m1, 1, 4)
+    f = parse_strict(m1, 1, 4)
     return f[2] if f else b""
 
 
@@ -179,7 +179,7 @@ def run_session(ident: HybridSigPrivateKey, policy: Policy, plan: Plan, qkd: tup
         srv = S.ServerHandshake(server_ident or ident, policy, qkd_lookup=lambda i: qk if qkd and i == qkd[0] else None)
         m1 = c.start()
         wire.append(m1)
-        tr.events.append(("ClientStart", SERVER, parse(m1, 1, 4)[1]))
+        tr.events.append(("ClientStart", SERVER, parse_strict(m1, 1, 4)[1]))
         m1w = _apply(plan, 1, m1)
         if m1w is None:
             return tr, wire
@@ -202,7 +202,7 @@ def run_session(ident: HybridSigPrivateKey, policy: Policy, plan: Plan, qkd: tup
             tr.decisions.append(Decision("C2", False, guard, type(exc).__name__))
             return tr, wire
         wire.append(m3)
-        ct, mac_c = parse(m3, 3, 2)
+        ct, mac_c = parse_strict(m3, 3, 2)
         th_c = H(m1, m2w, ct)
         kc = keys_from(sp.k_client + qk, th_c)
         tr.events.append(("ClientFinishSent", SERVER, th_c, kc["c2s"]))
@@ -234,7 +234,7 @@ def run_session(ident: HybridSigPrivateKey, policy: Policy, plan: Plan, qkd: tup
 
         # ---- C3: el cliente recibe ServerFinish
         f4 = parse(m4w, 4, 1)
-        guard_c = bool(f4) and hmac.compare_digest(f4[0], mac(kc["ck"], b"server" + th_c + mac_c))
+        guard_c = f4 is not None and hmac.compare_digest(f4[0], mac(kc["ck"], b"server" + th_c + mac_c))
         try:
             cs = c.on_server_finish(m4w)
             tr.decisions.append(Decision("C3", True, guard_c))
@@ -253,15 +253,15 @@ def attack_ltk_revealed(ident: HybridSigPrivateKey, policy: Policy) -> Trace:
     tr.events.append(("RevealLTK", SERVER))
     c = S.ClientHandshake(ident.public_bytes, policy)
     m1 = c.start()
-    tr.events.append(("ClientStart", SERVER, parse(m1, 1, 4)[1]))
-    _, nonce_c, offered, qid = parse(m1, 1, 4)
+    tr.events.append(("ClientStart", SERVER, parse_strict(m1, 1, 4)[1]))
+    _, nonce_c, offered, qid = parse_strict(m1, 1, 4)
     suite = policy.select(offered.decode().split(",")).encode()
     kem = HybridKemPrivateKey.generate()
     nonce_s = bytes(range(32))
     signed = H(m1, suite, nonce_s, kem.public_bytes, hashlib.sha256(ident.public_bytes).digest())
     m2 = pack(2, [suite, nonce_s, kem.public_bytes, ident.sign(signed, CTX)])
     m3 = c.on_server_hello(m2)
-    ct, mac_c = parse(m3, 3, 2)
+    ct, mac_c = parse_strict(m3, 3, 2)
     th = H(m1, m2, ct)
     secret = kem.decapsulate(ct)
     k = keys_from(secret, th)
@@ -273,6 +273,14 @@ def attack_ltk_revealed(ident: HybridSigPrivateKey, policy: Policy) -> Trace:
     return tr
 
 
+def parse_strict(msg: bytes, kind: int, n: int) -> list[bytes]:
+    """Como `parse`, pero para mensajes que produjo la implementación real: uno mal formado es un error del arnés, no un caso a ignorar."""
+    out = parse(msg, kind, n)
+    if out is None:
+        raise ValueError(f"mensaje del tipo {kind} mal formado en el arnés de conformidad")
+    return out
+
+
 def attack_ephemeral_kem_leaked(ident: HybridSigPrivateKey, policy: Policy) -> Trace:
     """≈ X25519 + ML-KEM rotos: con la clave KEM efímera del servidor, el atacante deriva las claves y termina al cliente él solo."""
     tr = Trace(scenario="KEM efímera filtrada (≈ X25519+ML-KEM rotos)")
@@ -280,12 +288,12 @@ def attack_ephemeral_kem_leaked(ident: HybridSigPrivateKey, policy: Policy) -> T
         c = S.ClientHandshake(ident.public_bytes, policy)
         srv = S.ServerHandshake(ident, policy)
         m1 = c.start()
-        tr.events.append(("ClientStart", SERVER, parse(m1, 1, 4)[1]))
+        tr.events.append(("ClientStart", SERVER, parse_strict(m1, 1, 4)[1]))
         m2 = srv.on_client_hello(m1)  # el servidor real firma un Hello auténtico
         tr.events.append(("ServerStart", SERVER, m1, m2))
         leaked = sp.leaked_ephemeral[-1]  # lo que un ordenador cuántico podría calcular desde kem_pk
         m3 = c.on_server_hello(m2)
-        ct, mac_c = parse(m3, 3, 2)
+        ct, mac_c = parse_strict(m3, 3, 2)
         th = H(m1, m2, ct)
         tr.events.append(("ClientFinishSent", SERVER, th, keys_from(sp.k_client, th)["c2s"]))
         k = keys_from(leaked.decapsulate(ct), th)  # el atacante, sin el servidor, llega al mismo secreto

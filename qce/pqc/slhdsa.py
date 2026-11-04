@@ -70,7 +70,8 @@ def _octets(key: bytes, data: bytes) -> tuple[OSSL_PARAM, ctypes.Array]:
 def _params(context: bytes, deterministic: bool = False):
     if not isinstance(context, (bytes, bytearray)) or len(context) > CONTEXT_MAX:
         raise MalformedMessage(f"el contexto debe ser bytes de hasta {CONTEXT_MAX} bytes")
-    items, keep = [], []
+    items: list[OSSL_PARAM] = []
+    keep: list = []
     if context:
         p, b = _octets(b"context-string", bytes(context))
         items.append(p)

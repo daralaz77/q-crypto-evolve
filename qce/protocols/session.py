@@ -141,12 +141,13 @@ class ServerHandshake:
         level = LEVELS[self.suite.level]
         if self._id.level is not level:  # la identidad del servidor debe ser del nivel de la suite elegida: nada de firmar con otro nivel
             raise PolicyViolation("la identidad del servidor no corresponde al nivel de la suite elegida")
-        self._kem = HybridKemPrivateKey.generate(level)  # efímera
+        kem_eph = HybridKemPrivateKey.generate(level)  # efímera
+        self._kem: HybridKemPrivateKey | None = kem_eph
         nonce_s, suite_b = os.urandom(32), suite_id.encode()
-        signed = _h(m1, suite_b, nonce_s, self._kem.public_bytes, fingerprint(self._id.public_bytes))
+        signed = _h(m1, suite_b, nonce_s, kem_eph.public_bytes, fingerprint(self._id.public_bytes))
         sig = self._id.sign(signed, CTX_SERVER)
         self._m1, self._state = m1, "sent_hello"
-        self._m2 = pack(T_SH, [suite_b, nonce_s, self._kem.public_bytes, sig])
+        self._m2 = pack(T_SH, [suite_b, nonce_s, kem_eph.public_bytes, sig])
         return self._m2
 
     def on_client_finish(self, m3: bytes) -> tuple[bytes, Session]:
@@ -155,6 +156,8 @@ class ServerHandshake:
         self._state = "failed"  # un único intento: cualquier error deja el handshake cerrado (y con QCEError, no AttributeError)
         ct, mac_c = unpack(m3, T_CF, 2)
         kem, self._kem = self._kem, None  # la clave efímera se descarta pase lo que pase: secreto hacia adelante
+        if kem is None:  # inalcanzable por el control de estado; si ocurriera, falla cerrado
+            raise PolicyViolation("sin clave efímera: el handshake ya se consumió")
         try:
             ss = kem.decapsulate(ct)
         finally:

@@ -14,7 +14,7 @@ class OneTimeKeys:
     """Almacén de laboratorio de claves de un solo uso (hilo-seguro) con reserva. En un despliegue real la fuente es el KeyBroker (`BrokerSource`)."""
 
     def __init__(self, keys: dict[bytes, bytes] | None = None) -> None:
-        self._keys, self._reserved, self._lock = dict(keys or {}), set(), threading.Lock()
+        self._keys, self._reserved, self._lock = dict(keys or {}), set[bytes](), threading.Lock()
 
     def add(self, key_id: bytes, key: bytes) -> None:
         with self._lock:

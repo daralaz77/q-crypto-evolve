@@ -131,8 +131,8 @@ class SimulatedLink:
         self.link_id = link_id
         self.ends: list[SimulatedAdapter] = []
 
-    def generate(self, n: int = 1, size: int = 32, qber: float = 0.02) -> list[bytes]:
-        ids = []
+    def generate(self, n: int = 1, size: int = 32, qber: float = 0.02) -> list[str]:
+        ids: list[str] = []
         for _ in range(n):
             kid = os.urandom(8).hex()
             secret = os.urandom(size)

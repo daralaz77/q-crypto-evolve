@@ -29,12 +29,12 @@ ED_SIG = 64
 @dataclass(frozen=True)
 class Level:
     name: str
-    mlkem_private: type
-    mlkem_public: type
+    mlkem_private: type[mlkem.MLKEM768PrivateKey] | type[mlkem.MLKEM1024PrivateKey]
+    mlkem_public: type[mlkem.MLKEM768PublicKey] | type[mlkem.MLKEM1024PublicKey]
     mlkem_pk: int
     mlkem_ct: int
-    mldsa_private: type
-    mldsa_public: type
+    mldsa_private: type[mldsa.MLDSA65PrivateKey] | type[mldsa.MLDSA87PrivateKey]
+    mldsa_public: type[mldsa.MLDSA65PublicKey] | type[mldsa.MLDSA87PublicKey]
     mldsa_pk: int
     mldsa_sig: int
     label: bytes
@@ -85,7 +85,8 @@ def _combine(ss_m: bytes, ss_x: bytes, ct: bytes, pk: bytes, level: Level = STAN
 class HybridKemPrivateKey:
     def __init__(self, x_priv: x25519.X25519PrivateKey, m_priv, level: Level = STANDARD) -> None:
         self.level = level
-        self._x, self._m = x_priv, m_priv
+        self._x: x25519.X25519PrivateKey | None = x_priv
+        self._m = m_priv
         self._pk = _raw(x_priv.public_key()) + m_priv.public_key().public_bytes_raw()
 
     @classmethod
