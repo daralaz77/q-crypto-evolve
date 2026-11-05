@@ -49,7 +49,7 @@ jobs:
         run: |
           .venv/bin/python conformance/fetch_vectors.py
           .venv/bin/python conformance/fetch_schemas.py
-          .venv/bin/pip install --quiet jsonschema==4.25.1
+          .venv/bin/pip install --quiet --require-hashes -r requirements-ci-jsonschema.hashes.txt
           .venv/bin/python tools/validate_cbom.py
           export QCE_MLKEM_NATIVE_LIB="$(.venv/bin/python conformance/build_mlkem_native.py | tail -1)"
           .venv/bin/python conformance/independent.py --n 15
