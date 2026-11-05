@@ -16,8 +16,8 @@
 
 ## Qué esperar
 - Es un proyecto de **una sola persona mantenedora**, sin equipo ni acuerdos de nivel de servicio. Estos plazos son **objetivos de mejor esfuerzo, no garantías**:
-  - **Acuse de recibo:** en 7 días.
-  - **Primera evaluación** (¿se reproduce? ¿qué gravedad?): en 14 días.
+  - **Acuse de recibo:** en 14 días.
+  - **Primera evaluación** (¿se reproduce? ¿qué gravedad?): en 30 días.
   - **Corrección o mitigación** de lo confirmado: según la gravedad; te iremos informando del estado.
   - **Divulgación coordinada:** pedimos 90 días desde el acuse antes de publicar los detalles, o hasta que haya corrección, lo que ocurra primero. Si hay explotación activa, lo hablamos.
 - Lo que se confirme se registrará en `learning/incidents.jsonl` (libro de incidentes encadenado por hash) con una prueba de reproducción, y se corregirá con una prueba de regresión permanente. El procedimiento completo está en [`docs/RESPUESTA_A_INCIDENTES.md`](docs/RESPUESTA_A_INCIDENTES.md).

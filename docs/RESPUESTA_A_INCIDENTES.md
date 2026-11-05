@@ -9,9 +9,9 @@ Procedimiento escrito del proyecto, basado en el capítulo «Internal Vulnerabil
 | Paso | Qué se hace | Dónde queda constancia |
 |---|---|---|
 | 1. Recibir | El reporte llega por el aviso privado de GitHub (o por correo). No se discute en público. | El propio aviso de seguridad |
-| 2. Acusar recibo | Respuesta a quien reporta con el plazo esperado y el siguiente paso (objetivo: 7 días). | El aviso |
+| 2. Acusar recibo | Respuesta a quien reporta con el plazo esperado y el siguiente paso (objetivo: 14 días). | El aviso |
 | 3. Registrar | Se abre el incidente con `Ledger.open(Incident(...))`: módulo, síntoma, gravedad (`baja`/`media`/`alta`/`critica`), estado `abierto`. | `learning/incidents.jsonl` (cadena de hashes: no se puede reescribir sin que G1 lo detecte) |
-| 4. Triaje | Reproducir y confirmar (estado `reproducido`, certeza `CONFIRMADA`/`PROBABLE`), medir el impacto y priorizar. Un incidente grave sin resolver **bloquea** G4. Objetivo: 14 días. | Mismo registro + comentario en el aviso |
+| 4. Triaje | Reproducir y confirmar (estado `reproducido`, certeza `CONFIRMADA`/`PROBABLE`), medir el impacto y priorizar. Un incidente grave sin resolver **bloquea** G4. Objetivo: 30 días. | Mismo registro + comentario en el aviso |
 | 5. Planificar la corrección | Nivel de reparación 1 (automática), 2 (exige revisión) o 3 (bloqueada hasta autorización humana). Es nivel 2 lo que toque `qce/pqc/`, `qce/protocols/`, `qce/key_management/`, `qce/symmetric/` y similares; es nivel 3 (bloqueado hasta autorización humana) lo que toque `gates.json`, `qce/core/chainlog.py`, `qce/security/scanners.py` o `learning/` (véase `change_level`). | Campo `repair_level` |
 | 6. Corregir | Mínima y aislada, **con una prueba de regresión permanente** (sin prueba, el incidente no puede pasar a `resuelto`). | `reproduction_test` |
 | 7. Verificar | `python -m qce gates` completo: G1–G4 en verde sobre el nuevo `release_id`; pedir a quien reportó que confirme la corrección. | `benchmarks/gates_latest.json` |
