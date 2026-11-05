@@ -37,7 +37,7 @@ def run(argv, capsys):
 # ---- el analizador de argumentos ----------------------------------------------------------------------------
 ARGV = [
     ["test"], ["scan"], ["mutate"], ["gates"], ["gates", "--fast"], ["demo"], ["formal"], ["review-package"],
-    ["review-package", "--verify", "x.zip", "--out", "o"], ["supply-chain"], ["supply-chain", "--check"], ["tls-check"], ["bench"],
+    ["review-package", "--verify", "x.zip", "--out", "o"], ["supply-chain"], ["supply-chain", "--check"], ["tls-check"], ["tls-check", "--strict"], ["bench"],
     ["release"], ["status"], ["identity", "new", "ana"], ["identity", "new", "ana", "--dir", "/k"],
     ["identity", "register", "--role", "approver", "--identity", "ana", "--pub", "ab"],
     ["sign", "--role", "reviewer", "--signer", "ana", "--key", "k", "--verdict", "accept"],
