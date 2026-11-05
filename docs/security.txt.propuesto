@@ -1,0 +1,8 @@
+# Propuesta de /.well-known/security.txt para https://daralaz.com (RFC 9116).
+# NO está desplegado: copiar a <sitio>/.well-known/security.txt y publicar. Renovar Expires antes de que venza.
+Contact: https://github.com/daralaz77/q-crypto-evolve/security/advisories/new
+Contact: mailto:director@daralaz.com
+Expires: 2027-11-05T00:00:00.000Z
+Preferred-Languages: es, en
+Policy: https://github.com/daralaz77/q-crypto-evolve/blob/main/SECURITY.md
+Canonical: https://daralaz.com/.well-known/security.txt
