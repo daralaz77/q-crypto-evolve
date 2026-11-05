@@ -65,7 +65,7 @@ jobs:
           python-version: "3.13"
       - name: zizmor (versión fijada)
         run: |
-          python -m pip install --quiet zizmor==1.31.1
+          python -m pip install --quiet --require-hashes -r requirements-ci-zizmor.hashes.txt
           zizmor --no-online-audits --format plain .github/workflows
 
   provenance:
@@ -85,7 +85,7 @@ jobs:
           python-version: "3.13"
       - name: Construir el paquete fuente (versión de build fijada)
         run: |
-          python -m pip install --quiet build==1.6.1
+          python -m pip install --quiet --require-hashes -r requirements-ci-build.hashes.txt
           python -m build --sdist --outdir dist
           cp benchmarks/cbom.cdx.json benchmarks/gates_latest.json dist/
           ls -la dist
