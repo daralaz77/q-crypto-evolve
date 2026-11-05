@@ -28,7 +28,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--out", default="dist", help="carpeta de salida (por defecto dist/)")
     sc = sub.add_parser("supply-chain", help="hashes de dependencias (requirements.hashes.txt) y SBOM CycloneDX (sbom.cdx.json)")
     sc.add_argument("--check", action="store_true", help="solo comprobar la coherencia con requirements.lock (sin red)")
-    sub.add_parser("tls-check", help="atestación del transporte TLS 1.3 con X25519MLKEM768 obligatorio (falla cerrado)")
+    tc = sub.add_parser("tls-check", help="atestación del transporte TLS 1.3 con X25519MLKEM768 obligatorio (falla cerrado) y aviso si OpenSSL está por debajo de un parche publicado")
+    tc.add_argument("--strict", action="store_true", help="sale con código 3 si alguna OpenSSL cargada está por debajo de la versión que corrige un aviso (por defecto solo avisa)")
     sub.add_parser("bench", help="mediciones de rendimiento (no son argumento de seguridad)")
     sub.add_parser("release", help="congela un snapshot verificable del código (NO lo marca estable)")
     sub.add_parser("status", help="incidentes, tareas y última evaluación")
@@ -144,7 +145,33 @@ def _cmd_tls_check(a: argparse.Namespace) -> int:
         return 2
     import ssl
     print(f"atestación OK · {ssl.OPENSSL_VERSION} · grupo único {tls13.HYBRID_GROUP} · TLS ≥ 1.3 · sin reanudación · cliente: cadena y nombre obligatorios")
-    return 0
+    return _report_openssl_advisories(ssl.OPENSSL_VERSION_NUMBER, a.strict)
+
+
+def _loaded_ffi_openssl_number() -> tuple[int | None, str]:
+    """Versión de la libcrypto que cargan los puentes `ctypes` (puede no ser la de `ssl`). (número, motivo si no hay)."""
+    from .core import openssl_ffi as ffi
+    try:
+        return int(ffi.load()[1].OpenSSL_version_num()), ""
+    except ffi.OpenSslUnavailable as exc:
+        return None, str(exc)
+
+
+def _report_openssl_advisories(ssl_number: int, strict: bool) -> int:
+    """Compara cada OpenSSL cargada con la tabla de avisos. Avisar no es fallar: solo `--strict` cambia el código de salida (3)."""
+    from .core import openssl_advisories as adv
+    ffi_number, why = _loaded_ffi_openssl_number()
+    below = False
+    for label, number in (("módulo ssl de Python", ssl_number), ("puentes ctypes (libcrypto)", ffi_number)):
+        if number is None:
+            print(f"  · {label}: no disponible ({why[:90]})")
+            continue
+        result = adv.assess(number)
+        print(f"  · {label}: {result.detail}")
+        below = below or result.status == "below_floor"
+    if adv.table_age_days() > adv.STALE_AFTER_DAYS:
+        print(f"  · la tabla de avisos tiene {adv.table_age_days()} días (> {adv.STALE_AFTER_DAYS}): revisa {adv.SOURCE} y actualiza qce/core/openssl_advisories.py")
+    return 3 if (below and strict) else 0
 
 
 def _cmd_bench(a: argparse.Namespace) -> int:

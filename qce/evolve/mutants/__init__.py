@@ -5,6 +5,7 @@ from . import evolve
 from . import fase1
 from . import key_management
 from . import learning
+from . import openssl_avisos
 from . import pqc
 from . import protocols
 from . import qkd_broker
@@ -29,6 +30,7 @@ ALL = [
     *fase1.MUTANTS,
     *key_management.MUTANTS,
     *learning.MUTANTS,
+    *openssl_avisos.MUTANTS,
     *pqc.MUTANTS,
     *protocols.MUTANTS,
     *qkd_broker.MUTANTS,

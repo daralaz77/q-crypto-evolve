@@ -25,6 +25,7 @@
 1. Los grupos y los cifrados se fijan en una configuración de OpenSSL (`OPENSSL_CONF`), que el módulo genera con permisos 0600 y exporta **al importarse**.
 2. Medido en este equipo: la configuración **solo se aplica si se fija antes de importar `cryptography`** en el proceso. Si no, se ignora en silencio. Eso es justo lo que la atestación detecta: abre conexiones locales con pares limitados a cada grupo clásico y a TLS 1.2, y exige que ninguna conecte (y que el par por defecto sí). Si algo conecta, lanza `TransportMisconfigured` y no se crea ningún canal.
 3. Regla de uso: **importar `qce.transport.tls13` lo primero**, o arrancar el servicio con `child_env()`. `python -m qce tls-check` lo hace bien.
+   Además **avisa si la OpenSSL cargada está por debajo de la versión que corrige un aviso publicado** (tabla en `qce/core/openssl_advisories.py`, fuente y fecha dentro). Es un aviso, no un error: las distribuciones retroportan parches sin cambiar el número de versión. `python -m qce tls-check --strict` sale con código 3 en ese caso (para una CI que lo exija). La tabla se actualiza a mano y avisa cuando pasan más de 180 días.
 
 Cuando Python ofrezca `set_groups` y la consulta del grupo negociado, la atestación se podrá sustituir por una comprobación directa.
 
