@@ -51,4 +51,14 @@ MUTANTS = [
     M('cer-sign-key-mismatch-unchecked', 'qce/evolve/ceremony.py', (('    if key.public_bytes.hex() != entry["public_key"]:', '    if False:'),), 'ceremonia: clave = registrada'),
     M('cer-sign-no-self-verify', 'qce/evolve/ceremony.py', (('    if verdict == "accept" and signer not in approvals.valid_statements(root, release_id, role):', '    if False:'),), 'ceremonia: la firma se autoverifica'),
     M('cer-fingerprint-short', 'qce/evolve/ceremony.py', (('.hexdigest()[:16]', '.hexdigest()[:8]'),), 'ceremonia: huella de 16 hex'),
+    # --- límite de tiempo del arnés de mutación: depende de la línea base, no de un valor fijo ---
+    M('mut-timeout-factor-ignored', 'qce/evolve/mutation.py', (('    return max(int(floor), int(baseline_seconds * TIMEOUT_FACTOR + 0.999))', '    return int(floor)'),), 'mutación: el límite por mutante crece con la duración de la línea base'),
+    M('mut-timeout-no-floor', 'qce/evolve/mutation.py', (('    return max(int(floor), int(baseline_seconds * TIMEOUT_FACTOR + 0.999))', '    return int(baseline_seconds * TIMEOUT_FACTOR + 0.999)'),), 'mutación: el límite por mutante nunca baja del mínimo del llamador'),
+    M('mut-timeout-rounds-down', 'qce/evolve/mutation.py', (('int(baseline_seconds * TIMEOUT_FACTOR + 0.999)', 'int(baseline_seconds * TIMEOUT_FACTOR)'),), 'mutación: el límite escalado se redondea hacia arriba'),
+    M('mut-timeout-not-applied', 'qce/evolve/mutation.py', (('_run_one(root, m, per_mutant)', '_run_one(root, m, timeout)'),), 'mutación: cada mutante corre con el límite escalado'),
+    M('mut-baseline-timeout-fixed', 'qce/evolve/mutation.py', (('            base = _pytest(Path(td), max(timeout, BASELINE_TIMEOUT_S))', '            base = _pytest(Path(td), timeout)'),), 'mutación: la línea base tiene un límite generoso y propio'),
+    M('mut-timed-out-not-recorded', 'qce/evolve/mutation.py', (('killed, timed_out = True, True', 'killed, timed_out = True, False'),), 'mutación: un mutante que agota el tiempo queda anotado como tal'),
+    M('mut-canary-timeout-as-detection', 'qce/evolve/mutation.py', (('    if canary and canary["timed_out"]:', '    if False:'),), 'mutación: un canario agotado por tiempo se explica como lentitud, no como detección'),
+    M('mut-baseline-hang-bare', 'qce/evolve/mutation.py', (('        except subprocess.TimeoutExpired as exc:\n            raise RuntimeError(f"la línea base', '        except ZeroDivisionError as exc:\n            raise RuntimeError(f"la línea base'),), 'mutación: una línea base colgada se explica con un mensaje claro'),
+    M('mut-g3-evidence-no-timeouts', 'qce/evolve/gates.py', (('        ev["mutation"].update({k: m.get(k) for k in ("baseline_seconds", "timeout_s", "timed_out")})', '        pass'),), 'G3: la evidencia incluye los mutantes agotados por tiempo'),
 ]
