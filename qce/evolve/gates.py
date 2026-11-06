@@ -166,6 +166,7 @@ def _g3_security(c: _Ctx) -> GateResult:
     if c.run_mutation:
         m = mutation.run_mutants(c.root, only=c.mutants)
         ev["mutation"] = {k: m[k] for k in ("total", "scored", "killed", "score", "survivors", "declared_equivalent", "seconds", "canary_ok")}
+        ev["mutation"].update({k: m.get(k) for k in ("baseline_seconds", "timeout_s", "timed_out")})   # cuántos mutantes se contaron «detectados» por agotar el tiempo
         if not m.get("canary_ok"):
             failed.append("el canario del arnés de mutación falta o fue 'detectado': el resultado no es fiable")
         if m["scored"] < c.th["min_mutants"]:
