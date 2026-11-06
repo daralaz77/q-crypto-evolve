@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "d44479b596186dee",
+  "release_id": "7a26ae171848244a",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -8,14 +8,14 @@
       "status": "pass",
       "detail": "cadenas de registro íntegras (98 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.29
+      "seconds": 0.3
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "842 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "907 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 106.81
+      "seconds": 123.56
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -25,9 +25,9 @@
         "misuse": [],
         "secrets": [],
         "mutation": {
-          "total": 434,
-          "scored": 428,
-          "killed": 428,
+          "total": 453,
+          "scored": 447,
+          "killed": 447,
           "score": 1.0,
           "survivors": [],
           "declared_equivalent": [
@@ -37,8 +37,11 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 4783.0,
-          "canary_ok": true
+          "seconds": 6123.7,
+          "canary_ok": true,
+          "baseline_seconds": 116.8,
+          "timeout_s": 584,
+          "timed_out": []
         },
         "dependencies": {
           "status": "limpia",
@@ -46,7 +49,7 @@
           "checked": 3
         }
       },
-      "seconds": 4784.68
+      "seconds": 6125.84
     },
     {
       "gate": "G4-REGRESION",
@@ -55,7 +58,7 @@
       "evidence": {
         "checked": 35
       },
-      "seconds": 26.42
+      "seconds": 43.96
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -69,12 +72,12 @@
       "status": "pass",
       "detail": "autorización humana válida: ['darwing']",
       "evidence": {},
-      "seconds": 0.02
+      "seconds": 0.03
     }
   ],
   "metrics": {
-    "tests_passed": 842,
-    "total_seconds": 4918.2,
+    "tests_passed": 907,
+    "total_seconds": 6293.7,
     "incidents_total": 35,
     "incidents_resolved": 35,
     "recurring_patterns": [
