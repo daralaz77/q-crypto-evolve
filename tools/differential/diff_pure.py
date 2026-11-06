@@ -14,7 +14,7 @@ fails, checks = [], 0
 
 
 def run(*a):
-    return subprocess.run(a, capture_output=True)
+    return subprocess.run(a, capture_output=True, timeout=60)
 
 
 def chk(c, w):

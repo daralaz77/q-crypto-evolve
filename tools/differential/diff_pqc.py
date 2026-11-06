@@ -13,7 +13,7 @@ fails, checks = [], 0
 
 
 def run(*a, **k):
-    return subprocess.run(a, capture_output=True, **k)
+    return subprocess.run(a, capture_output=True, timeout=60, **k)
 
 
 def chk(cond, what):
