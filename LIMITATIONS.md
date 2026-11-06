@@ -17,6 +17,7 @@ Este documento es parte del producto. Un resultado "verde" solo significa lo que
 - Vectores oficiales NIST ACVP: keyGen de ML-KEM-768 (25) y ML-DSA-65 (25), sigVer de ML-DSA-65 (15, con casos negativos) y, de SLH-DSA-SHA2-128s, keyGen (10) y sigVer externa pura (14, 12 negativos).
   **No hay vectores de encapsulación/desencapsulación** (la API no permite aleatoriedad fija) ni de ML-DSA sigGen.
   Estos vectores prueban la conformidad de la biblioteca, no la seguridad de la composición de este proyecto.
+- **Prueba diferencial (2026-11-06, `docs/PRUEBA_DIFERENCIAL_PQC.md`):** 0 discrepancias entre OpenSSL 3.6.4, OpenSSL 4.0.3, `cryptography` y una implementación independiente en Python puro (ML-KEM-768/1024, ML-DSA-44/65/87). Es conformidad de primitivas, no seguridad de la composición; cubre parcialmente el hueco de vectores de encapsulación/ML-DSA sigGen, que siguen sin vectores oficiales NIST.
 - Verificación formal **solo simbólica y solo del diseño** (Tamarin, `docs/QCE1_FORMAL.md`): sin modelo computacional, sin capa de registros, sin conformidad modelo-código y sin revisión humana experta. Sin medición de canales laterales. El código Python de control no es de tiempo constante;
   las comparaciones de MAC/hash usan `hmac.compare_digest`.
 - El secreto hacia adelante (descarte de la clave KEM efímera) se verifica por revisión de código, no por prueba:
