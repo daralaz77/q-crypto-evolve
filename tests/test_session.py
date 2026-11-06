@@ -124,6 +124,34 @@ def test_state_machine_order(ident):
         c.on_server_hello(b"")
 
 
+def failed_finish(ident):
+    """Un servidor al que ya se le entregó un m3 inválido (etiqueta de confirmación alterada): su único intento falló. Devuelve (servidor, m3 válido)."""
+    c, s = ClientHandshake(ident.public_bytes), ServerHandshake(ident)
+    m3 = c.on_server_hello(s.on_client_hello(c.start()))
+    ct, mac = unpack(m3, T_CF, 2)
+    bad = bytearray(mac)
+    bad[-1] ^= 1
+    with pytest.raises(AuthenticationFailure):
+        s.on_client_finish(pack(T_CF, [ct, bytes(bad)]))
+    return s, m3
+
+
+def test_a_failed_finish_closes_the_handshake_for_good_and_says_it_is_out_of_order(ident):
+    """«Un único intento»: tras un fallo, ni siquiera el m3 CORRECTO se acepta, y el rechazo viene del control de ESTADO («fuera de orden»), no de un efecto lateral
+    (la clave efímera ya descartada). Sin esta distinción, perder la línea `self._state = "failed"` pasaba inadvertido porque otra guarda rechazaba igualmente."""
+    s, valid_m3 = failed_finish(ident)
+    with pytest.raises(PolicyViolation, match="fuera de orden"):
+        s.on_client_finish(valid_m3)
+    with pytest.raises(PolicyViolation, match="fuera de orden"):      # y sigue cerrado
+        s.on_client_finish(valid_m3)
+
+
+def test_a_failed_finish_also_closes_it_for_a_malformed_retry(ident):
+    s, _ = failed_finish(ident)
+    with pytest.raises(PolicyViolation, match="fuera de orden"):
+        s.on_client_finish(b"basura")                                  # no llega a analizarse el mensaje: el estado ya lo impide
+
+
 def test_qkd_mixed_in_and_mismatch_fails(ident):
     key = b"q" * 32
     cs, ss = handshake(ident, client={"qkd": (b"id1", key)}, server={"qkd_lookup": lambda i: key})
