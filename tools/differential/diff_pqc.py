@@ -1,10 +1,15 @@
 """Prueba diferencial ML-KEM / ML-DSA entre OpenSSL 3.6.4 (CLI), OpenSSL 4.0.3 (CLI) y `cryptography` 50.0.2.
 Experimento aislado: no toca qce/ ni tests/. Semillas deterministas (no secretas), solo claves de prueba."""
-import hashlib, os, subprocess, sys, tempfile, random
-from cryptography.hazmat.primitives.asymmetric import mlkem, mldsa
-from cryptography.hazmat.primitives import serialization as S
-
 import os
+import random
+import subprocess
+import sys
+import tempfile
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization as S
+from cryptography.hazmat.primitives.asymmetric import mldsa, mlkem
+
 O = {"o3": os.environ.get("OPENSSL_A", "openssl"), "o4": os.environ.get("OPENSSL_B", "openssl")}   # dos binarios de OpenSSL (idealmente versiones distintas)
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 50
 rng = random.Random(20261106)
@@ -79,7 +84,8 @@ def dsa_case(alg, cls, i):
     sig_c = cr.sign(msg)
     chk(sigs["o3"] == sigs["o4"], f"{alg}#{i} firma determinista o3≠o4")
     chk(sig_c == sigs["o3"] or cr.public_key().verify(sig_c, msg) is None, f"{alg}#{i} firma cryptography no verifica")
-    pubs = {n: run(exe, "pkey", "-in", keys[n], "-pubout", "-out", f"{tmp}/pub_{n}.pem") for n, exe in O.items()}
+    for n, exe in O.items():                                                 # exporta la clave pública de cada implementación para verificar en cruzado
+        run(exe, "pkey", "-in", keys[n], "-pubout", "-out", f"{tmp}/pub_{n}.pem")
     # verificación cruzada y negativa
     bad_msg = msg + b"\x00" if rng.random() < .5 else (bytes([msg[0] ^ 1]) + msg[1:] if msg else b"\x01")
     bad_sig = bytearray(sigs["o3"]); bad_sig[rng.randrange(len(bad_sig))] ^= 1 << rng.randrange(8); bad_sig = bytes(bad_sig)
@@ -91,7 +97,7 @@ def dsa_case(alg, cls, i):
     for label, sg, mm, ok in (("ok", sigs["o3"], msg, True), ("msg-alterado", sigs["o3"], bad_msg, False), ("firma-alterada", bad_sig, msg, False)):
         try:
             cr.public_key().verify(sg, mm); got = True
-        except Exception:
+        except InvalidSignature:
             got = False
         chk(got == ok, f"{alg}#{i} verificar {label} en cryptography")
 
