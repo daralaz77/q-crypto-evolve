@@ -8,5 +8,8 @@ export OPENSSL_A=/ruta/a/openssl-3.6/bin/openssl OPENSSL_B=/ruta/a/openssl-4.0/b
 python3 -m venv /tmp/pqvenv && /tmp/pqvenv/bin/pip install kyber-py dilithium-py   # SOLO en un venv aparte (no son dependencias del proyecto)
 /tmp/pqvenv/bin/python tools/differential/diff_pure.py 200      # implementación independiente en Python puro
 /tmp/pqvenv/bin/python tools/differential/diff_pure.py 1 control   # control negativo: DEBE reportar discrepancias
+/tmp/pqvenv/bin/pip install cryptography==50.0.2                    # en el mismo venv aparte
+/tmp/pqvenv/bin/python tools/differential/diff_extra.py 60         # ampliada: mensaje vacío, contexto, firmas mal formadas, semillas límite
+/tmp/pqvenv/bin/python tools/differential/diff_extra.py 1 control  # control negativo de la ampliada
 ```
 `diff_pure.py` necesita `kyber-py` y `dilithium-py`, que NO están en `requirements.lock`. Las semillas son deterministas y de prueba.
