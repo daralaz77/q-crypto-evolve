@@ -7,6 +7,7 @@ from . import key_management
 from . import learning
 from . import openssl_avisos
 from . import pqc
+from . import pqc_xwing
 from . import protocols
 from . import qkd_broker
 from . import qkd_etsi014
@@ -32,6 +33,7 @@ ALL = [
     *learning.MUTANTS,
     *openssl_avisos.MUTANTS,
     *pqc.MUTANTS,
+    *pqc_xwing.MUTANTS,
     *protocols.MUTANTS,
     *qkd_broker.MUTANTS,
     *qkd_etsi014.MUTANTS,

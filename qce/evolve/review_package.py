@@ -55,6 +55,7 @@ TOP = {  # archivo del repositorio → ruta dentro del paquete
     "tests/vectors/acvp_subset.json": "tests/vectors/acvp_subset.json",
     "tests/vectors/acvp_slhdsa_subset.json": "tests/vectors/acvp_slhdsa_subset.json",
     "tests/vectors/acvp_subset_high.json": "tests/vectors/acvp_subset_high.json",
+    "tests/vectors/xwing_draft11.json": "tests/vectors/xwing_draft11.json",
     "tests/helpers/nss_psk_server.c": "tests/helpers/nss_psk_server.c",
 }
 TREES = ("qce", "tests")  # solo *.py; nunca __pycache__
