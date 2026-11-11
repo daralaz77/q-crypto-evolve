@@ -8,7 +8,7 @@
 
 **Qué NO es.**
 - No es un producto ni está listo para producción. No hay despliegue, ni claves de producción, ni auditoría externa.
-- **Toda la autoría (código, especificación, modelos y pruebas) es de instancias de Claude (IA).** Las revisiones internas también fueron de instancias de Claude. **Ninguna persona experta ha revisado QCE1 ni QIL1.**
+- **Autoría compartida:** el proyecto lo dirige y coautora **Darwing John Pérez Aranguren (prompt engineer)**, que aportó los requisitos, las decisiones de diseño y la dirección; el **código, la especificación, los modelos formales y las pruebas fueron escritos por instancias de Claude (IA)** a partir de esas indicaciones. Las revisiones internas las hicieron otras instancias de Claude. **Ninguna persona experta independiente ha revisado QCE1 ni QIL1.**
 - QCE1 y QIL1 son composiciones propias, no estándares. Para producción recomendamos TLS 1.3 con `X25519MLKEM768` o protocolos con revisión pública.
 - La clave QKD es simulada: no hay hardware real.
 - Una prueba en verde significa solo lo que la prueba comprueba (`LIMITATIONS.md`).
@@ -28,7 +28,7 @@
 
 **What it is NOT.**
 - Not a product and not production-ready: no deployment, no production keys, no external audit.
-- **All authorship (code, specification, models, tests) is by Claude (AI) instances**, and so were the internal reviews. **No human expert has reviewed QCE1 or QIL1.**
+- **Shared authorship:** the project is directed and co-authored by **Darwing John Pérez Aranguren (prompt engineer)**, who provided the requirements, the design decisions and the direction; the **code, specification, formal models and tests were written by Claude (AI) instances** from those instructions. The internal reviews were done by other Claude instances. **No independent human expert has reviewed QCE1 or QIL1.**
 - QCE1 and QIL1 are our own compositions, not standards. For production we recommend TLS 1.3 with `X25519MLKEM768` or a protocol with public review.
 - The QKD key is simulated: no real hardware.
 - A green test only means what the test checks (`LIMITATIONS.md`).
