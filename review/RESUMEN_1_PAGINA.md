@@ -2,7 +2,7 @@
 
 **Qué pedimos:** una revisión crítica (lo más útil es encontrar lo que está mal) de **dos composiciones criptográficas propias**: el apretón de manos híbrido poscuántico **QCE1** (X25519 + ML-KEM-768, firma Ed25519 + ML-DSA-65, HKDF-SHA256) y la capa interna **QIL1** (clave QKD sobre TLS 1.3). No pedimos revisar las primitivas (ML-KEM, ML-DSA, HKDF, AEAD): se asumen seguras. Alcance completo: `LEEME.md`. Plantilla de informe: `PLANTILLA_INFORME.md`.
 
-**Transparencia:** es un laboratorio. **Toda la autoría (código, especificación, modelo formal, pruebas) es de instancias de Claude**; la única revisión que hubo fue de otras instancias de Claude. **Ninguna persona experta la ha revisado**: esa es la que se pide.
+**Transparencia:** es un laboratorio. **el proyecto lo dirige y coautora Darwing John Pérez Aranguren (prompt engineer), que aportó los requisitos, las decisiones de diseño y la dirección; el código, la especificación, el modelo formal y las pruebas los escribieron instancias de Claude** a partir de esas indicaciones. La única revisión que hubo fue de otras instancias de Claude. **Ninguna persona experta independiente la ha revisado**: esa es la que se pide.
 
 ## Si solo tiene una hora
 Lea `docs/QCE1_SPEC.md` (§7, §11, §13) y responda las preguntas 1 a 4 de `PREGUNTAS_ABIERTAS.md` (combinación de claves y derivación HKDF). Si es de QKD o TLS: preguntas 21 a 24 (QIL1).

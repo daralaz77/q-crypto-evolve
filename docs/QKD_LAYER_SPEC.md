@@ -4,7 +4,7 @@
 **Propósito:** que un revisor pueda evaluar esta capa sin leer Python. **Qué NO es:** no es un estándar, no está revisada por ninguna persona experta,
 no sustituye a la opción A de `docs/QKD_TLS_OPTIONS.md` (clave QKD como PSK externa dentro del propio TLS 1.3, que hoy no es posible desde Python)
 y no es una prueba de seguridad. La claim es solo esta: *dentro de este modelo y con estos supuestos, las propiedades de §7 se cumplen*.
-Toda la autoría (código, especificación, modelo, pruebas) es de instancias de Claude; ninguna persona la ha revisado.
+La dirección, los requisitos y las decisiones de diseño son del mantenedor (coautor, prompt engineer); el código, la especificación, el modelo y las pruebas los escribieron instancias de Claude; ninguna persona experta independiente lo ha revisado.
 
 ## 1. Por qué existe y qué es
 
