@@ -88,7 +88,7 @@ def test_package_declares_that_it_is_unsigned_and_gives_the_code_identity(built)
 @needs_repo
 def test_reviewer_docs_state_the_authorship_and_the_missing_human_review():
     leeme = (ROOT / "review" / "LEEME.md").read_text()
-    assert "Toda la autoría es de instancias de Claude" in leeme and "no es** una revisión humana independiente" in leeme
+    assert "prompt engineer" in leeme and "escritos por instancias de Claude" in leeme and "no es** una revisión humana independiente" in leeme
     assert "[CONTACTO" in leeme  # el contacto lo pone una persona; no se inventa
 
 

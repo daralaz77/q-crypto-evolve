@@ -20,9 +20,9 @@ Archivos: `docs/QKD_LAYER_SPEC.md`, `docs/QKD_LAYER_FORMAL.md`, `docs/QKD_LAYER_
 
 - **Es un laboratorio, no un producto.** QCE1 es una composición propia, inspirada en ideas de KEMTLS y de combinadores de KEM, **sin revisión pública previa**.
   Nuestra recomendación de producción es TLS 1.3 con `X25519MLKEM768`; este paquete existe para poder decidir con criterio si QCE1 merece seguir.
-- **Toda la autoría es de instancias de Claude (IA):** el código, la especificación, el modelo formal y las pruebas. Hubo **dos auditorías adversariales internas** hechas por otras instancias de Claude (encontraron 15 y 12 fallos, todos corregidos y con prueba de regresión).
+- **Autoría:** el proyecto lo dirige y coautora **Darwing John Pérez Aranguren (prompt engineer)**, que aportó los requisitos, las decisiones de diseño y la dirección. **El código, la especificación, el modelo formal y las pruebas fueron escritos por instancias de Claude (IA)** a partir de esas indicaciones. Hubo **dos auditorías adversariales internas** hechas por otras instancias de Claude (encontraron 15 y 12 fallos, todos corregidos y con prueba de regresión).
   Eso **no es** una revisión humana independiente: esa es justamente la que se pide aquí.
-- Ninguna persona experta ha revisado hasta ahora la especificación, el modelo ni el código.
+- Ninguna persona experta independiente ha revisado hasta ahora la especificación, el modelo ni el código.
 - Las debilidades que ya conocemos están en `LIMITATIONS.md` y en `PREGUNTAS_ABIERTAS.md`.
 
 ## 3. Qué se pide (de mayor a menor valor)
