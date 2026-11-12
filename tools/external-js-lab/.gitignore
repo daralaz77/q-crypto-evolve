@@ -1,0 +1,6 @@
+.work/
+tools/js/node_modules/
+tools/py/venv/
+.npm-cache/
+vectors/*.json
+vectors/nist/

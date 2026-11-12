@@ -1,0 +1,14 @@
+{
+  "incident_id": "INC-0003",
+  "timestamp": "2026-11-11",
+  "affected_version": "monorepo pnpm de otro proyecto (package.json raíz y node_modules)",
+  "component": "entorno de instalación de herramientas",
+  "symptom": "npm install sin package.json local modificó package.json raíz, creó package-lock.json y escribió en node_modules de pnpm",
+  "severity": "media (corregida en la misma sesión)",
+  "root_cause": "un '&&' cortó la creación de tools/js/package.json y npm subió de carpeta",
+  "confidence": "confirmada",
+  "repair_reference": "git checkout package.json; rm package-lock.json; borrado de las 81 entradas de node_modules creadas por npm; enlace .bin/turbo; .pnpm-store vacío eliminado",
+  "verification_results": "git status solo muestra el laboratorio; turbo --version 2.10.3; mtimes de apps/* y packages/* node_modules idénticos",
+  "residual_risk": "los enlaces .bin de pnpm en la raíz se reconstruyeron a mano para turbo; si falta alguno, ejecutar pnpm install --frozen-lockfile",
+  "lesson_status": "PROPOSED"
+}

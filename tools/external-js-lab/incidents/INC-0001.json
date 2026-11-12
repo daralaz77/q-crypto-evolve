@@ -1,0 +1,21 @@
+{
+  "incident_id": "INC-0001",
+  "timestamp": "2026-11-11",
+  "affected_version": "lab/qcrypto-aead-mlkem (sin commit), src/aead.mjs sha256 489863edf66634f8…",
+  "component": "src/aead.mjs",
+  "symptom": "Fallos controlados inyectados en copia aislada: nonce_fijo, sin_verificar_tag, ignora_aad",
+  "severity": "simulado (laboratorio)",
+  "root_cause": "mutaciones deliberadas; no es un defecto real",
+  "confidence": "confirmada",
+  "regression_test": "test/aead.test.mjs (manipulación de bytes, AAD, unicidad de nonce)",
+  "repair_reference": "no hizo falta: src/ nunca se modificó; reversión = descartar la copia (.work/)",
+  "verification_results": "6/6 mutantes detectados (aead x3, híbrido x3); suite 46/46; original restaurado",
+  "residual_risk": "revisión hecha por la misma instancia de Claude en roles separados, no es auditoría externa",
+  "lesson_status": "PROPOSED",
+  "lessons": [
+    "Probar siempre con mutantes: una prueba que no falla ante el fallo no protege.",
+    "Node 26: usar export raw-public, no medir SPKI.",
+    "Un oráculo propio solo es confiable si reproduce vectores oficiales; así se cerró la encapsulación NIST que Node no permite fijar.",
+    "Las pruebas deben afirmar rechazos esperados (invalid) y no omitirlos silenciosamente."
+  ]
+}

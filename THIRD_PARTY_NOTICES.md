@@ -19,3 +19,14 @@ Las dependencias de prueba están en `requirements-test.lock` (dentro del paquet
 ## Herramientas externas que el proyecto usa si están instaladas (no se incluyen)
 OpenSSL, GnuTLS, Mozilla NSS (`tstclnt`, `selfserv`, `certutil`), SoftHSM, `pkcs11-provider`, Tamarin Prover, Docker. Cada una tiene su propia licencia y se obtiene de su fuente. El ayudante `tests/helpers/nss_psk_server.c` es código nuestro (Apache-2.0) que se **compila en la máquina de quien ejecuta las pruebas** contra la biblioteca NSS que esa persona tenga instalada; no se distribuye NSS.
 `docs/hsm_lab/setup.sh` descarga `pkcs11-provider` desde su proyecto y verifica su SHA-256 antes de compilarlo; no se redistribuye su código.
+
+## `tools/external-js-lab/` (herramienta de verificación; no entra en el `release_id`)
+**No se redistribuyen**: los vectores se descargan con `fetch-vectors.sh` y se verifican por SHA-256; las herramientas se instalan por separado. Licencias según nuestro conocimiento; verifícalas en cada proyecto.
+| Qué | Origen | Licencia / condiciones |
+|---|---|---|
+| Vectores **Wycheproof** (AES-GCM, ChaCha20-Poly1305, X25519, ML-KEM) | <https://github.com/C2SP/wycheproof> | Apache-2.0 |
+| Vectores **NIST ACVP** (ML-KEM keyGen / encapDecap) | <https://github.com/usnistgov/ACVP-Server> | Ver la fila de NIST ACVP arriba: sin licencia declarada; no se redistribuyen |
+| Vectores de prueba de **X-Wing** | <https://github.com/dconnolly/draft-connolly-cfrg-xwing-kem> (`spec/test-vectors.json`) | No verificada; no se redistribuyen |
+| `@noble/post-quantum` 0.4.1 | npm | MIT |
+| `eslint` 9.17.0, `eslint-plugin-security` 3.0.1 | npm | MIT, Apache-2.0 |
+| Semgrep 1.95.0 (CLI), Tamarin Prover 1.12.0 | pip / sitio del proyecto | LGPL-2.1, GPL-3.0 (herramientas externas; no se incluyen) |
