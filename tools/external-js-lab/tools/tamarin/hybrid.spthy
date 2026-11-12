@@ -1,0 +1,80 @@
+theory HybridKEM
+begin
+/* Modelo simbólico del KEM híbrido X25519 + ML-KEM-768 -> HKDF (composición genérica; el combinador de X-Wing es distinto y NO está modelado aquí).
+   ALCANCE: secreto de la clave del emisor frente a un atacante de red (Dolev-Yao) que puede
+   comprometer, por separado, el componente clásico (x) o el post-cuántico (k) del receptor.
+   NO modela: autenticación del emisor (es anónimo), IND-CCA real de ML-KEM, canales laterales,
+   confusión de claves entre receptores ni la implementación. DH = BigInt/OpenSSL abstractos. */
+builtins: diffie-hellman, hashing
+
+// KEM abstraído como cifrado de un secreto aleatorio r (el secreto compartido ES r): ecuación convergente por subtérminos.
+functions: kpk/1, kenc/2, kdecaps/2
+equations: kdecaps(sk, kenc(kpk(sk), r)) = r
+
+rule Register:
+  [ Fr(~x), Fr(~k) ]
+  --[ Reg($B) ]->
+  [ !Ltk($B, ~x, ~k), !Pk($B, 'g'^~x, kpk(~k)), Out(<'g'^~x, kpk(~k)>) ]
+
+// Variantes (elegir UNA con -D): HYBRID = diseño del laboratorio; CLASSICAL_ONLY y PQ_ONLY = controles que deben refutarse.
+#ifdef HYBRID
+rule Send:
+  let epk = 'g'^~e
+      ct  = kenc(pkK, ~r)
+      K   = h(<pkX^~e, ~r, epk, ct, pkX, pkK>)
+  in
+  [ !Pk(B, pkX, pkK), Fr(~e), Fr(~r) ]
+  --[ Key(B, K) ]->
+  [ Out(<epk, ct>) ]
+#endif
+
+#ifdef CLASSICAL_ONLY
+rule Send:
+  let epk = 'g'^~e
+      ct  = kenc(pkK, ~r)
+      K   = h(<pkX^~e, epk, ct, pkX, pkK>)
+  in
+  [ !Pk(B, pkX, pkK), Fr(~e), Fr(~r) ]
+  --[ Key(B, K) ]->
+  [ Out(<epk, ct>) ]
+#endif
+
+#ifdef PQ_ONLY
+rule Send:
+  let epk = 'g'^~e
+      ct  = kenc(pkK, ~r)
+      K   = h(<~r, epk, ct, pkX, pkK>)
+  in
+  [ !Pk(B, pkX, pkK), Fr(~e), Fr(~r) ]
+  --[ Key(B, K) ]->
+  [ Out(<epk, ct>) ]
+#endif
+
+rule Recv:
+  let K = h(<ex^x, kdecaps(k, ct), ex, ct, 'g'^x, kpk(k)>)
+  in
+  [ !Ltk(B, x, k), In(<ex, ct>) ]
+  --[ Recv(B, K) ]->
+  [ ]
+
+rule CompromiseClassical:   // p. ej. atacante cuántico que rompe X25519
+  [ !Ltk(B, x, k) ] --[ RevealX(B) ]-> [ Out(x) ]
+
+rule CompromisePQ:          // p. ej. fallo/bug de ML-KEM
+  [ !Ltk(B, x, k) ] --[ RevealK(B) ]-> [ Out(k) ]
+
+// El modelo no es vacío: existe una ejecución normal donde emisor y receptor comparten clave.
+lemma executable:
+  exists-trace
+  "Ex B K #i #j. Key(B, K) @ i & Recv(B, K) @ j & not (Ex #r. RevealX(B) @ r) & not (Ex #r. RevealK(B) @ r)"
+
+// Propiedad principal: el atacante solo conoce la clave si comprometió AMBOS componentes del receptor.
+lemma hybrid_secrecy:
+  "All B K #i. Key(B, K) @ i & (Ex #j. K(K) @ j)
+     ==> (Ex #a. RevealX(B) @ a) & (Ex #b. RevealK(B) @ b)"
+
+// Control: con ambos componentes rotos la clave SÍ debe poder filtrarse (si no, el modelo estaría mal).
+lemma both_broken_leaks:
+  exists-trace
+  "Ex B K #i #j #a #b. Key(B, K) @ i & K(K) @ j & RevealX(B) @ a & RevealK(B) @ b"
+end

@@ -1,0 +1,15 @@
+{
+  "incident_id": "INC-0002",
+  "timestamp": "2026-11-11",
+  "affected_version": "src/aead.mjs antes del cambio a Map",
+  "component": "src/aead.mjs (lista de algoritmos)",
+  "symptom": "ESLint detect-object-injection: IDS[alg] aceptaba __proto__/constructor y fallaba con 'Unknown cipher'",
+  "severity": "baja (no explotable)",
+  "root_cause": "objeto plano como allowlist",
+  "confidence": "confirmada",
+  "regression_test": "test/aead.test.mjs: 'lista de algoritmos cerrada'",
+  "repair_reference": "ALGS/IDS migrados a Map",
+  "verification_results": "prueba falla antes (1 fallo) y pasa después; mutante lista_abierta detectado",
+  "residual_risk": "ninguno conocido",
+  "lesson_status": "PROPOSED"
+}

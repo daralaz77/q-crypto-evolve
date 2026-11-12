@@ -1,0 +1,53 @@
+rules:
+- id: js-weak-hash
+  languages: [javascript]
+  severity: ERROR
+  message: Hash débil (md5/sha1) en código criptográfico
+  pattern-either:
+    - pattern: createHash("md5")
+    - pattern: createHash("sha1")
+    - pattern: createHmac("sha1", ...)
+- id: js-ecb-or-static-iv
+  languages: [javascript]
+  severity: ERROR
+  message: Modo ECB o IV/nonce constante en createCipheriv/createDecipheriv
+  pattern-either:
+    - pattern: createCipheriv("$ALG-ecb", ...)
+    - pattern: createCipheriv($A, $K, Buffer.alloc(...), ...)
+    - pattern: createCipheriv($A, $K, "...", ...)
+- id: js-math-random
+  languages: [javascript]
+  severity: ERROR
+  message: Math.random no es criptográficamente seguro
+  pattern: Math.random()
+- id: js-secret-compare-not-constant-time
+  languages: [javascript]
+  severity: WARNING
+  message: Comparación de tags/MAC/claves con ===, == o .equals(); usar timingSafeEqual en rutas de verificación
+  pattern-either:
+    - pattern: $X.equals($TAG)
+    - pattern: $A === $B
+  paths: { include: ["src/"] }
+  metadata: { nota: "revisar manualmente; muchos falsos positivos esperables" }
+- id: js-tag-not-set-before-final
+  languages: [javascript]
+  severity: ERROR
+  message: Descifrado AEAD sin setAuthTag antes de final()
+  patterns:
+    - pattern: |
+        $D = createDecipheriv(...);
+        ...
+        $D.final();
+    - pattern-not: |
+        $D = createDecipheriv(...);
+        ...
+        $D.setAuthTag(...);
+        ...
+        $D.final();
+- id: js-hardcoded-key
+  languages: [javascript]
+  severity: ERROR
+  message: Clave/semilla constante en código fuente
+  pattern-either:
+    - pattern: createCipheriv($A, "...", ...)
+    - pattern: createCipheriv($A, Buffer.from("...", ...), ...)
