@@ -37,4 +37,9 @@ MUTANTS = [
     M('e14-emu-extension-mandatory-off', 'qce/qkd/etsi014_emulator.py', (('if body.get("extension_mandatory"):', 'if False:'),), 'emulador 014: rechaza extensiones obligatorias no soportadas'),
     M('e14-emu-key-not-found-text', 'qce/qkd/etsi014_emulator.py', (('"one or more keys specified are not found on KME"', '"clave no encontrada"'),), 'emulador 014: mensaje exacto de clave no encontrada'),
     M('e14-emu-role-401-off', 'qce/qkd/etsi014_emulator.py', (('if (op == "enc_keys" and sae != kme.master) or (op == "dec_keys" and sae != kme.slave):', 'if False:'),), 'emulador 014: solo la SAE esclava recoge las claves y solo la maestra las pide (401)'),
+    M('e14-pin-comparison-off', 'qce/qkd/etsi014.py', (('        if not der or not hmac.compare_digest(hashlib.sha256(der).digest(), self._pin):', '        if not der:'),), 'ETSI 014: cada petición exige el certificado fijado del KME'),
+    M('e14-pin-not-required', 'qce/qkd/etsi014.py', (('            if self._pin_required:\n', '            if False:\n'),), 'ETSI 014: sin certificado fijado no se envía ninguna petición'),
+    M('e14-pin-check-skipped', 'qce/qkd/etsi014.py', (('            self._check_pin(conn.sock)  # ANTES', '            pass  # ANTES'),), 'ETSI 014: el certificado se comprueba en la conexión de cada petición'),
+    M('e14-pin-not-set-on-auth', 'qce/qkd/etsi014.py', (('            pin(bytes(self._registry.get(self.device_id).public_key))\n', '            pass\n'),), 'ETSI 014: autenticar el dispositivo fija su certificado para las peticiones siguientes'),
+    M('e14-pin-length-unchecked', 'qce/qkd/etsi014.py', (('or len(fingerprint) != 32:', 'or len(fingerprint) != 33:'),), 'ETSI 014: la huella fijada es un SHA-256 (32 bytes)'),
 ]

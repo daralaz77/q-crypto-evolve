@@ -5,6 +5,7 @@ temporales sobrantes. El `rename` es atómico; el `fsync` del directorio hace qu
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 from pathlib import Path
@@ -14,8 +15,14 @@ def atomic_write(path: str | Path, data: bytes, mode: int = 0o600, prefix: str |
     p = Path(path)
     fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=prefix or f".{p.name}-")
     try:
-        os.fchmod(fd, mode)
-        with os.fdopen(fd, "wb") as fh:
+        try:
+            os.fchmod(fd, mode)
+            fh = os.fdopen(fd, "wb")
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.close(fd)  # si fchmod o fdopen fallan, nadie más es dueño del descriptor: no se filtra
+            raise
+        with fh:
             fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())

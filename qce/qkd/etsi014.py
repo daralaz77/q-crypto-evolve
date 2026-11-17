@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import hmac
 import http.client
 import json
 import re
@@ -36,16 +37,29 @@ KEY_SIZE_MIN, KEY_SIZE_MAX = 128, 4096
 
 
 class HttpsTransport:
-    """Transporte HTTPS real: una conexión nueva por petición, plazo, límite de respuesta."""
+    """Transporte HTTPS real: una conexión nueva por petición, plazo, límite de respuesta.
 
-    def __init__(self, host: str, port: int, ssl_context: ssl.SSLContext, server_hostname: str | None = None, timeout: float = 10.0) -> None:
+    Certificado fijado: `set_pin(huella)` (lo hace `Etsi014Adapter.authenticate_device` tras superar la comprobación del alta) hace que CADA petición
+    compruebe, en SU propia conexión y antes de enviar nada, que el KME presenta ese certificado. Sin pin no se envía ninguna petición (falla cerrado)
+    salvo `pin_required=False` (solo pruebas): la comprobación del alta se hace en otra conexión y no basta."""
+
+    def __init__(self, host: str, port: int, ssl_context: ssl.SSLContext, server_hostname: str | None = None, timeout: float = 10.0,
+                 pin_required: bool = True) -> None:
         self._host, self._port, self._ctx, self._sni, self._timeout = host, port, ssl_context, server_hostname or host, timeout
+        self._pin: bytes | None = None
+        self._pin_required = pin_required
+
+    def set_pin(self, fingerprint: bytes) -> None:
+        if not isinstance(fingerprint, (bytes, bytearray)) or len(fingerprint) != 32:
+            raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, "huella de certificado fijado inválida")
+        self._pin = bytes(fingerprint)
 
     def request(self, method: str, path: str, body: dict | None = None) -> tuple[int, bytes]:
         conn = http.client.HTTPSConnection(self._host, self._port, context=self._ctx, timeout=self._timeout)
         try:
             raw = socket.create_connection((self._host, self._port), timeout=self._timeout)
             conn.sock = self._ctx.wrap_socket(raw, server_hostname=self._sni)
+            self._check_pin(conn.sock)  # ANTES de enviar la petición: un KME distinto del fijado no recibe nada
             data = json.dumps(body).encode() if body is not None else None
             conn.request(method, path, body=data, headers={"Content-Type": "application/json", "Accept": "application/json"})
             resp = conn.getresponse()
@@ -63,6 +77,15 @@ class HttpsTransport:
             raise QKDDeviceError(ErrorCategory.CONNECTION_FAILURE, f"no hay conexión con el KME ({type(exc).__name__})") from None
         finally:
             conn.close()
+
+    def _check_pin(self, sock) -> None:
+        if self._pin is None:
+            if self._pin_required:
+                raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, "KME sin certificado fijado: autentique el dispositivo antes de pedir claves")
+            return
+        der = sock.getpeercert(binary_form=True)
+        if not der or not hmac.compare_digest(hashlib.sha256(der).digest(), self._pin):
+            raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, "el certificado del KME no es el fijado: no se envía la petición")
 
     def peer_certificate_der(self) -> bytes:
         try:
@@ -107,6 +130,9 @@ class Etsi014Adapter(DeviceAdapter):
         if self._registry is None:
             raise QKDDeviceError(ErrorCategory.DEVICE_UNTRUSTED, "adaptador sin inicializar")
         self._registry.authenticate_pinned_certificate(self)
+        pin = getattr(self._t, "set_pin", None)
+        if pin is not None:  # la huella que acaba de coincidir con el alta se exige desde ahora en CADA petición
+            pin(bytes(self._registry.get(self.device_id).public_key))
 
     def get_capabilities(self) -> Capabilities:
         return Capabilities("ETSI-014", "KME", "desconocido", INTERFACE, (PROTOCOL,),

@@ -36,4 +36,5 @@ MUTANTS = [
     M("rotation-invalid-schedule-accepted", RO, (("        if check_interval_s <= 0 or renew_before_s < 0 or ttl_s <= renew_before_s:", "        if False:"),), "rotación: rechaza calendarios inválidos"),
     M("rotation-stop-does-not-stop", RO, (("        self._stop.set()\n        if self._thread is not None:", "        if self._thread is not None:"),), "rotación: stop() detiene el hilo"),
     M("save-anchored-writes-before-the-anchor-check", VA, (("    anchor.advance(store.epoch, commit=lambda: save(store, path, passphrase, n))", "    save(store, path, passphrase, n)\n    anchor.advance(store.epoch)"),), "ronda 3: un guardado atrasado se rechaza ANTES de escribir el vault"),
+    M("atomic-descriptor-leaked-on-setup-failure", "qce/core/atomic.py", (("                os.close(fd)  # si fchmod", "                pass  # si fchmod"),), "atomic_write no filtra el descriptor si fchmod o fdopen fallan"),
 ]
