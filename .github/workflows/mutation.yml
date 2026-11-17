@@ -1,7 +1,7 @@
 name: Mutación semanal
 
 # Usa benchmarks/mutation_ci.py (mismas funciones que `qce mutate`, con 3 trabajadores y 900 s por mutante): el primer intento con 6 trabajadores y 120 s
-# abortó por carga en el runner de 4 vCPU (ver benchmarks/mutation_ci.py). La prueba de mutación completa (389 mutantes) es el 97 % del tiempo de las puertas (benchmarks/TIEMPOS_PUERTAS.md), así que no corre en cada push:
+# abortó por carga en el runner de 4 vCPU (ver benchmarks/mutation_ci.py). La prueba de mutación completa (469 mutantes) es el 97 % del tiempo de las puertas (benchmarks/TIEMPOS_PUERTAS.md), así que no corre en cada push:
 # corre cada semana y a demanda. Falla si sobrevive algún mutante o si el canario del arnés no es fiable (ruta de endurecimiento, ítem 0.5).
 # Solo lee el repositorio; no publica nada ni usa secretos.
 on:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "completa = los 389 mutantes; diagnostico = 6 copias del canario en paralelo (minutos)"
+        description: "completa = los 469 mutantes; diagnostico = 6 copias del canario en paralelo (minutos)"
         type: choice
         options: [completa, diagnostico, explicar-tls]
         default: completa

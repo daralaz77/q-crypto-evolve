@@ -195,7 +195,7 @@ def test_qkd_qber_boundary():
     base = SimulatedQKDDevice(AUTH, seed=4).fetch_key("p")
 
     def with_qber(q, kid):
-        return replace(base, key_id=kid, qber=q, tag=sign_key(AUTH, kid, base.key, q))
+        return replace(base, key_id=kid, qber=q, tag=sign_key(AUTH, kid, base.key, q, base.source))
     ing.ingest(with_qber(0.109, b"1" * 16))
     with pytest.raises(QKDAnomaly):
         ing.ingest(with_qber(0.11, b"2" * 16))  # el umbral es inclusivo

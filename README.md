@@ -21,7 +21,7 @@ Necesitas Python ≥ 3.11 y, para el último paso, OpenSSL ≥ 3.5 (en macOS: `b
 
 ```bash
 git clone https://github.com/daralaz77/q-crypto-evolve && cd q-crypto-evolve
-python3 -m venv .venv && .venv/bin/pip install -r requirements.lock
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r requirements.hashes.txt
 .venv/bin/python examples/quickstart.py
 ```
 
@@ -43,13 +43,13 @@ Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`
 
 ## Caso de estudio
 
-[**Qué encuentra una herramienta independiente en código escrito por una IA bajo puertas de verificación**](docs/CASO_DE_ESTUDIO.md): 33 incidentes, 612 pruebas, 389 mutantes y dos defectos reales que solo halló un tercero (`qkdsec`). Incluye lo que NO demuestra.
+[**Qué encuentra una herramienta independiente en código escrito por una IA bajo puertas de verificación**](docs/CASO_DE_ESTUDIO.md): 33 incidentes, 612 pruebas, 389 mutantes y dos defectos reales que solo halló un tercero (`qkdsec`). Incluye lo que NO demuestra. *(Cifras del informe, fechadas en octubre de 2026; el estado actual, 936 pruebas y 469 mutantes, está en `benchmarks/gates_latest.json`.)*
 
 ## Comandos del laboratorio
 
 ```bash
 cd ~/Claude/q-crypto-evolve
-.venv/bin/python -m qce test      # batería completa (≈1 s)
+.venv/bin/python -m qce test      # batería completa (936 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
 .venv/bin/python -m qce scan      # malos usos, secretos, dependencias (pip-audit, con red)
 .venv/bin/python -m qce mutate    # ¿las pruebas detectan controles de seguridad rotos?
 .venv/bin/python -m qce gates     # G1–G6 completas → estado (REVIEW_REQUIRED/VERIFIED/…)
@@ -69,7 +69,7 @@ cd ~/Claude/q-crypto-evolve
 | `qce/qkd/etsi014.py` | adaptador de ETSI GS QKD 014 (KME) + emulador (simulación): `docs/ETSI014_ADAPTER.md` |
 | `qce/transport/hsm_tls.py` | servidor TLS 1.3 híbrido con la clave privada en un HSM/token PKCS#11 (probado con SoftHSM): `docs/HSM.md` |
 | `qce/core/openssl_ffi.py` | carga de OpenSSL ≥ 3.5 por `ctypes` (PSK, HSM y SLH-DSA la comparten) |
-| `qce/evolve/mutants/` | los 361 mutantes como datos, un módulo por familia |
+| `qce/evolve/mutants/` | los 469 mutantes como datos, un módulo por familia |
 | `qce/security/approvals.py` | declaraciones firmadas de implementador, revisor y aprobador (G5/G6) |
 | `qce/evolve/ceremony.py` | ceremonia de firma humana G5/G6 (`python -m qce identity new|register`, `python -m qce sign`): `review/GUIA_PARA_ENVIAR.md` §5 |
 | `qce/evolve/supply_chain.py` | hashes de dependencias + SBOM CycloneDX (`python -m qce supply-chain`): `docs/SUPPLY_CHAIN.md` |

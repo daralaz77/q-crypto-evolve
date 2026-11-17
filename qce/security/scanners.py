@@ -58,6 +58,12 @@ SECRET_ALLOW = {
     ("sbom.cdx.json", "secret:long-hex-literal"): "hashes SHA-256 PÚBLICOS de archivos publicados en PyPI (SBOM); autorizada por el usuario el 2026-10-20",
     ("reviews/", "secret:long-hex-literal"): "firmas públicas de declaraciones de revisión",
     ("benchmarks/", "secret:long-hex-literal"): "informes generados (hashes de release)",
+    # Laboratorio externo en JS (tools/external-js-lab). Autorizadas por el usuario el 2026-11-16; los 9111 hallazgos eran todos falsos positivos de estas tres familias.
+    ("tools/external-js-lab/vectors/", "secret:long-hex-literal"): "vectores de prueba PÚBLICOS (C2SP/Wycheproof, NIST ACVP, X-Wing); ver fetch-vectors.sh y SHA256SUMS.txt",
+    ("tools/external-js-lab/vectors/", "secret:high-entropy"): "vectores de prueba PÚBLICOS (C2SP/Wycheproof, NIST ACVP, X-Wing); ver fetch-vectors.sh y SHA256SUMS.txt",
+    ("tools/external-js-lab/tools/js/package-lock.json", "secret:high-entropy"): "hashes de integridad (sha512) de npm: no son secretos",
+    ("tools/external-js-lab/tools/js/node_modules/", "secret:high-entropy"): "dependencias npm instaladas (hashes de integridad y metadatos)",
+    ("tools/external-js-lab/tools/js/node_modules/", "secret:long-hex-literal"): "dependencias npm instaladas (metadatos de paquetes)",
 }
 
 
