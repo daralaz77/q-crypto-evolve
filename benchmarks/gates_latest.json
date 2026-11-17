@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "0dd69d1e77f34e45",
+  "release_id": "460d72050a72e07a",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -8,14 +8,14 @@
       "status": "pass",
       "detail": "cadenas de registro íntegras (98 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.19
+      "seconds": 0.24
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "942 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "955 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 129.5
+      "seconds": 131.83
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -25,9 +25,9 @@
         "misuse": [],
         "secrets": [],
         "mutation": {
-          "total": 473,
-          "scored": 467,
-          "killed": 467,
+          "total": 486,
+          "scored": 480,
+          "killed": 480,
           "score": 1.0,
           "survivors": [],
           "declared_equivalent": [
@@ -37,10 +37,10 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 6598.2,
+          "seconds": 6966.1,
           "canary_ok": true,
-          "baseline_seconds": 112.7,
-          "timeout_s": 564,
+          "baseline_seconds": 114.8,
+          "timeout_s": 575,
           "timed_out": []
         },
         "dependencies": {
@@ -49,7 +49,7 @@
           "checked": 3
         }
       },
-      "seconds": 6601.06
+      "seconds": 6969.05
     },
     {
       "gate": "G4-REGRESION",
@@ -58,7 +58,7 @@
       "evidence": {
         "checked": 35
       },
-      "seconds": 44.39
+      "seconds": 49.68
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -76,8 +76,8 @@
     }
   ],
   "metrics": {
-    "tests_passed": 942,
-    "total_seconds": 6775.2,
+    "tests_passed": 955,
+    "total_seconds": 7150.8,
     "incidents_total": 35,
     "incidents_resolved": 35,
     "recurring_patterns": [
@@ -88,10 +88,10 @@
     ]
   },
   "thresholds": {
-    "min_tests": 900,
+    "min_tests": 940,
     "min_mutation_score": 1.0,
     "max_open_high": 0,
-    "min_mutants": 460,
+    "min_mutants": 480,
     "max_declared_equivalent": 5
   },
   "claims_not_made": [

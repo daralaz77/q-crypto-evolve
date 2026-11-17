@@ -115,12 +115,35 @@ class ClientHandshake:
 
 
 class ServerHandshake:
+    """Servidor del apretón QCE1.
+
+    Clave QKD: lo SEGURO es `qkd_source` (contrato `reserve/commit/release` de `qce.qkd.sources`): el ClientHello no está autenticado, así que
+    la clave solo se RESERVA al recibirlo, se CONSUME (`commit`) únicamente cuando el MAC del cliente demuestra que la posee, y se DEVUELVE
+    (`release`) si el apretón falla o se abandona (`abort()`). Quien solo conoce el identificador no puede gastarla (T43).
+    `qkd_lookup` se conserva por compatibilidad: entrega el material tal cual y, si el callable CONSUME (p. ej. `KeyBroker.take`), un ClientHello
+    falso gasta la clave. No se pueden dar los dos a la vez."""
+
     def __init__(self, identity: HybridSigPrivateKey, policy: Policy | None = None,
-                 qkd_lookup: Callable[[bytes], bytes | None] | None = None) -> None:
+                 qkd_lookup: Callable[[bytes], bytes | None] | None = None, qkd_source=None) -> None:
+        if qkd_lookup is not None and qkd_source is not None:
+            raise PolicyViolation("qkd_lookup y qkd_source son excluyentes")
         self._id = identity
         self.policy = policy or Policy()
         self._qkd_lookup = qkd_lookup or (lambda _id: None)
+        self._qkd_source = qkd_source
+        self._qkd_kid: bytes | None = None   # clave RESERVADA a la espera del MAC del cliente
         self._state = "new"
+
+    def abort(self) -> None:
+        """Abandona el apretón (el cliente no contestó, la conexión cayó): devuelve la clave reservada. Idempotente."""
+        if self._state == "sent_hello":
+            self._state = "failed"
+        self._release_qkd()
+
+    def _release_qkd(self) -> None:
+        kid, self._qkd_kid = self._qkd_kid, None
+        if kid is not None:
+            self._qkd_source.release(kid)
 
     def on_client_hello(self, m1: bytes) -> bytes:
         if self._state != "new":
@@ -134,7 +157,7 @@ class ServerHandshake:
         suite_id = self.policy.select(offered)
         self.suite = self.policy.check_suite(suite_id)
         self._qkd_key = None
-        if qid:
+        if qid and self._qkd_source is None:
             self._qkd_key = self._qkd_lookup(qid)
             if self._qkd_key is None:
                 raise PolicyViolation("QKD declarada por el cliente pero ausente: se aborta, no se degrada")
@@ -146,6 +169,13 @@ class ServerHandshake:
         nonce_s, suite_b = os.urandom(32), suite_id.encode()
         signed = _h(m1, suite_b, nonce_s, kem_eph.public_bytes, fingerprint(self._id.public_bytes))
         sig = self._id.sign(signed, CTX_SERVER)
+        if qid and self._qkd_source is not None:
+            # lo ÚLTIMO: ningún fallo anterior deja una reserva colgada. Se reserva, NO se consume (el ClientHello no está autenticado).
+            self._qkd_key = self._qkd_source.reserve(qid)
+            if self._qkd_key is None:
+                kem_eph.destroy()
+                raise PolicyViolation("QKD declarada por el cliente pero ausente: se aborta, no se degrada")
+            self._qkd_kid = bytes(qid)
         self._m1, self._state = m1, "sent_hello"
         self._m2 = pack(T_SH, [suite_b, nonce_s, kem_eph.public_bytes, sig])
         return self._m2
@@ -153,6 +183,13 @@ class ServerHandshake:
     def on_client_finish(self, m3: bytes) -> tuple[bytes, Session]:
         if self._state != "sent_hello":
             raise PolicyViolation("mensaje fuera de orden")
+        try:
+            return self._finish(m3)
+        except BaseException:
+            self._release_qkd()  # cualquier fallo devuelve la clave QKD reservada: quien no la posee no puede gastarla
+            raise
+
+    def _finish(self, m3: bytes) -> tuple[bytes, Session]:
         self._state = "failed"  # un único intento: cualquier error deja el handshake cerrado (y con QCEError, no AttributeError)
         ct, mac_c = unpack(m3, T_CF, 2)
         kem, self._kem = self._kem, None  # la clave efímera se descarta pase lo que pase: secreto hacia adelante
@@ -167,6 +204,9 @@ class ServerHandshake:
         c2s, s2c, ck = _derive(secret, th)
         if not ct_equal(mac_c, mac(ck, b"client" + th)):
             raise AuthenticationFailure("confirmación de clave del cliente inválida")
+        if self._qkd_kid is not None:  # el cliente demostró poseer la clave: SOLO ahora se consume (un solo uso)
+            kid, self._qkd_kid = self._qkd_kid, None
+            self._qkd_source.commit(kid)
         self._state = "done"
         m4 = pack(T_SF, [mac(ck, b"server" + th + mac_c)])
         return m4, Session(self.suite.aead, s2c, c2s, th[:16], b"s", b"c", self.policy)

@@ -53,7 +53,7 @@ def env(tmp_path):
 
     def transport(sae, timeout=5.0):
         c = certs[sae]
-        return HttpsTransport("127.0.0.1", kme.port, client_ctx(ca, c[0], c[1]), timeout=timeout)
+        return HttpsTransport("127.0.0.1", kme.port, client_ctx(ca, c[0], c[1]), timeout=timeout, pin_required=False)
 
     def adapter(role, **kw):
         sae, peer = (MASTER, SLAVE) if role == "master" else (SLAVE, MASTER)
@@ -162,7 +162,7 @@ def test_unauthorized_sae_and_missing_client_certificate_are_rejected(env):
     with pytest.raises(QKDDeviceError) as e:
         bad.get_health_status()
     assert e.value.category is ErrorCategory.AUTHENTICATION_FAILURE
-    nocert = Etsi014Adapter("y", HttpsTransport("127.0.0.1", env.kme.port, client_ctx(env.ca), timeout=3), MASTER, SLAVE, "master", is_simulation=True)
+    nocert = Etsi014Adapter("y", HttpsTransport("127.0.0.1", env.kme.port, client_ctx(env.ca), timeout=3, pin_required=False), MASTER, SLAVE, "master", is_simulation=True)
     with pytest.raises(QKDDeviceError) as e:
         nocert.get_health_status()
     assert e.value.category in (ErrorCategory.AUTHENTICATION_FAILURE, ErrorCategory.CONNECTION_FAILURE)
@@ -288,14 +288,14 @@ def test_a_silent_server_times_out_and_an_unknown_ca_is_an_authentication_failur
     ls = socket.socket()
     ls.bind(("127.0.0.1", 0))
     ls.listen(8)
-    silent = HttpsTransport("127.0.0.1", ls.getsockname()[1], client_ctx(env.ca, *env.certs[MASTER]), timeout=0.5)
+    silent = HttpsTransport("127.0.0.1", ls.getsockname()[1], client_ctx(env.ca, *env.certs[MASTER]), timeout=0.5, pin_required=False)
     for call in (lambda: silent.request("GET", "/x"), silent.peer_certificate_der):
         with pytest.raises(QKDDeviceError) as e:
             call()
         assert e.value.category is ErrorCategory.SERVICE_UNAVAILABLE
     ls.close()
     other_ca, _, _ = pki.issue_ca(env.tmp / "otra") if (env.tmp / "otra").mkdir() is None else None
-    wrong = HttpsTransport("127.0.0.1", env.kme.port, client_ctx(other_ca, *env.certs[MASTER]), timeout=3)
+    wrong = HttpsTransport("127.0.0.1", env.kme.port, client_ctx(other_ca, *env.certs[MASTER]), timeout=3, pin_required=False)
     for call in (lambda: wrong.request("GET", "/x"), wrong.peer_certificate_der):
         with pytest.raises(QKDDeviceError) as e:
             call()
@@ -367,7 +367,7 @@ def test_oversized_response_is_reported_as_too_big_and_a_peer_without_certificat
         def wrap_socket(self, raw, server_hostname=None):
             raw.close()
             return Sock()
-    tr = HttpsTransport("127.0.0.1", env.kme.port, Ctx(), timeout=3)
+    tr = HttpsTransport("127.0.0.1", env.kme.port, Ctx(), timeout=3, pin_required=False)
     with pytest.raises(QKDDeviceError) as e:
         tr.peer_certificate_der()
     assert e.value.category is ErrorCategory.DEVICE_UNTRUSTED
