@@ -10,6 +10,7 @@ import fcntl
 import json
 import os
 import struct
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -46,18 +47,22 @@ class EpochAnchor:
         except (ValueError, KeyError, TypeError) as exc:  # ancla ilegible: NO se asume 0 (eso permitiría cualquier restauración)
             raise IntegrityError("el ancla de epoch está dañada") from exc
 
-    def advance(self, epoch: int) -> None:
+    def advance(self, epoch: int, commit: Callable[[], None] | None = None) -> None:
+        """Adelanta el ancla a `epoch`. Si se da `commit`, se ejecuta bajo el mismo candado, DESPUÉS de comprobar que el ancla no retrocede y ANTES de moverla: así un
+        guardado con un epoch ya superado por otro proceso se rechaza sin haber tocado el vault (de lo contrario, el vault quedaría atrás del ancla e inservible)."""
         with open(self.path.with_name(self.path.name + ".lock"), "w") as lk:
             fcntl.flock(lk, fcntl.LOCK_EX)
             if epoch < self.read():
                 raise IntegrityError("el ancla de epoch no puede retroceder")
+            if commit is not None:
+                commit()
             atomic_write(self.path, json.dumps({"epoch": epoch}).encode(), prefix=".epoch-")
 
 
 def save_anchored(store: KeyStore, path: str | Path, passphrase: str, anchor: EpochAnchor, n: int = SCRYPT_N) -> None:
-    """Guarda el vault y, SOLO después, adelanta el ancla externa al `epoch` guardado."""
-    save(store, path, passphrase, n)
-    anchor.advance(store.epoch)
+    """Guarda el vault y, SOLO después, adelanta el ancla externa al `epoch` guardado. Todo bajo el candado del ancla: si otro proceso ya la adelantó más allá del
+    `epoch` de `store`, lanza IntegrityError ANTES de escribir y el vault guardado por el otro proceso queda intacto."""
+    anchor.advance(store.epoch, commit=lambda: save(store, path, passphrase, n))
 
 
 def load_anchored(path: str | Path, passphrase: str, anchor: EpochAnchor, **store_kwargs) -> KeyStore:

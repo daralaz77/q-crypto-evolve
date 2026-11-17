@@ -12,6 +12,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, mldsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
+from ..core.atomic import atomic_write
+
 UTC = dt.timezone.utc
 
 
@@ -39,8 +41,9 @@ def _name(cn: str) -> x509.Name:
 
 
 def _write(path: Path, data: bytes, mode: int = 0o600) -> Path:
-    path.write_bytes(data)
-    path.chmod(mode)
+    """Escritura atómica con el modo ya fijado: temporal 0600 (O_EXCL) → fchmod → rename. No hay ventana con la clave legible por otros ni se sigue un symlink plantado
+    en el destino (el rename reemplaza el enlace, no escribe a través de él)."""
+    atomic_write(path, data, mode)
     return path
 
 

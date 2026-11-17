@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import os
 import random
+import struct
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -47,11 +48,13 @@ class SimulatedQKDDevice(QKDDevice):
         key, key_id = os.urandom(size), os.urandom(16)
         # BB84 con espía intercepta-reenvía produce ~25 % de error; sin espía, ruido del canal ~1–3 %.
         qber = self._rng.uniform(0.22, 0.28) if self._eve else self._rng.uniform(0.01, 0.03)
-        return QKDKey(key_id, key, qber, "SIMULATION", sign_key(self._auth, key_id, key, qber))
+        return QKDKey(key_id, key, qber, "SIMULATION", sign_key(self._auth, key_id, key, qber, "SIMULATION"))
 
 
-def sign_key(auth_key: bytes, key_id: bytes, key: bytes, qber: float) -> bytes:
-    msg = key_id + hashlib.sha256(key).digest() + f"{qber:.6f}".encode()
+def sign_key(auth_key: bytes, key_id: bytes, key: bytes, qber: float, source: str) -> bytes:
+    """MAC del canal clásico. Cubre `source` (la política decide por él: sin cubrirlo, una clave SIMULATION se re-etiquetaba como hardware) y el QBER exacto (8 bytes)."""
+    src = source.encode()
+    msg = key_id + hashlib.sha256(key).digest() + struct.pack(">d", qber) + struct.pack(">H", len(src)) + src
     return hmac.new(auth_key, msg, hashlib.sha256).digest()
 
 
@@ -82,7 +85,7 @@ class QKDIngestor:
     def ingest(self, k: QKDKey) -> None:
         if k.source == "SIMULATION" and not self.policy.allow_simulated_qkd:
             raise PolicyViolation("clave QKD simulada rechazada por la política (producción)")
-        if not hmac.compare_digest(k.tag, sign_key(self._auth, k.key_id, k.key, k.qber)):
+        if not hmac.compare_digest(k.tag, sign_key(self._auth, k.key_id, k.key, k.qber, k.source)):
             raise AuthenticationFailure("etiqueta del canal clásico QKD inválida")
         if k.key_id in self._seen:
             raise PolicyViolation("key_id QKD repetido")

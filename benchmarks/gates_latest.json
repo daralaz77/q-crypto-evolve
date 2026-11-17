@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "ccf481b9f6d7a133",
+  "release_id": "0dd69d1e77f34e45",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -8,14 +8,14 @@
       "status": "pass",
       "detail": "cadenas de registro íntegras (98 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.25
+      "seconds": 0.19
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "936 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "942 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 122.44
+      "seconds": 129.5
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -25,9 +25,9 @@
         "misuse": [],
         "secrets": [],
         "mutation": {
-          "total": 469,
-          "scored": 463,
-          "killed": 463,
+          "total": 473,
+          "scored": 467,
+          "killed": 467,
           "score": 1.0,
           "survivors": [],
           "declared_equivalent": [
@@ -37,10 +37,10 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 6491.1,
+          "seconds": 6598.2,
           "canary_ok": true,
-          "baseline_seconds": 116.1,
-          "timeout_s": 581,
+          "baseline_seconds": 112.7,
+          "timeout_s": 564,
           "timed_out": []
         },
         "dependencies": {
@@ -49,7 +49,7 @@
           "checked": 3
         }
       },
-      "seconds": 6493.14
+      "seconds": 6601.06
     },
     {
       "gate": "G4-REGRESION",
@@ -58,7 +58,7 @@
       "evidence": {
         "checked": 35
       },
-      "seconds": 42.29
+      "seconds": 44.39
     },
     {
       "gate": "G5-INDEPENDENCIA",
@@ -69,15 +69,15 @@
     },
     {
       "gate": "G6-AUTORIZACION",
-      "status": "pass",
-      "detail": "autorización humana válida: ['darwing']",
+      "status": "skipped",
+      "detail": "sin autorización humana firmada para este código exacto",
       "evidence": {},
-      "seconds": 0.02
+      "seconds": 0.0
     }
   ],
   "metrics": {
-    "tests_passed": 936,
-    "total_seconds": 6658.2,
+    "tests_passed": 942,
+    "total_seconds": 6775.2,
     "incidents_total": 35,
     "incidents_resolved": 35,
     "recurring_patterns": [
@@ -88,10 +88,10 @@
     ]
   },
   "thresholds": {
-    "min_tests": 492,
+    "min_tests": 900,
     "min_mutation_score": 1.0,
     "max_open_high": 0,
-    "min_mutants": 320,
+    "min_mutants": 460,
     "max_declared_equivalent": 5
   },
   "claims_not_made": [

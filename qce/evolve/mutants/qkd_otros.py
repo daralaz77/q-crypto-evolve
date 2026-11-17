@@ -26,4 +26,5 @@ MUTANTS = [
     M("qil-broker-source-anomaly-uncaught", "qce/qkd/sources.py", (("except (QKDDeviceError, QKDAnomaly, PolicyViolation", "except (QKDDeviceError, PolicyViolation"),), "QIL1: broker, enlace en cuarentena"),
     M("qil-broker-source-device-error-uncaught", "qce/qkd/sources.py", (("except (QKDDeviceError, QKDAnomaly,", "except (QKDAnomaly,"),), "QIL1: broker, error de dispositivo"),
     M("qil-broker-source-release-noop", "qce/qkd/sources.py", (("        self._b.release(key_id.decode(\"ascii\"), self._consumer)", "        pass"),), "QIL1: el broker recupera la clave si el apretón falla"),
+    M("qkd-tag-ignores-source", "qce/qkd/adapter.py", (('struct.pack(">d", qber) + struct.pack(">H", len(src)) + src', 'struct.pack(">d", qber)'),), "ronda 3: el MAC del canal clásico cubre `source` (una clave SIMULATION no se re-etiqueta como hardware)"),
 ]
