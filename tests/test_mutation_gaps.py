@@ -4,7 +4,6 @@ import struct
 import pytest
 
 from qce.core import encoding
-from qce.core.chainlog import ChainLog
 from qce.core.errors import IntegrityError, KeyStateError, MalformedMessage, PolicyViolation
 from qce.core.policy import SUITES, Policy, Suite
 from qce.key_management import vault

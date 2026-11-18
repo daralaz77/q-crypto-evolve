@@ -63,3 +63,52 @@ class OriginRateLimiter:
     @property
     def tracked_origins(self) -> int:
         return len(self._buckets)
+
+
+class ConnectionGuard:
+    """Tope de conexiones SIMULTÁNEAS: global y por origen (el origen se agrupa igual que en `OriginRateLimiter`: IPv6 por su /64).
+
+    Sin el tope por origen, un solo origen llena el tope global y deja fuera a todos los demás. Con él, ningún origen ocupa más de `max_per_origin` huecos
+    (los demás siguen entrando mientras quede sitio global). Memoria acotada: solo se guardan los orígenes con conexiones ACTIVAS (se borran al llegar a 0).
+    Detrás de NAT muchos usuarios comparten origen: ese límite los afecta a todos a la vez; un atacante con muchas direcciones lo esquiva (el tope global sigue
+    protegiendo el proceso)."""
+
+    def __init__(self, max_total: int, max_per_origin: int | None = None) -> None:
+        if max_total < 1 or (max_per_origin is not None and max_per_origin < 1):
+            raise ValueError("parámetros de límite inválidos")
+        self.max_total, self.max_per_origin = max_total, max_per_origin
+        self._lock = threading.Lock()
+        self._active: dict[str, int] = {}
+        self._total = 0
+
+    def acquire(self, origin: str) -> str | None:
+        """None si la conexión se admite (y ocupa un hueco); si no, el motivo: 'busy' (tope global) o 'origin' (tope de ese origen)."""
+        key = OriginRateLimiter.origin_key(origin)
+        with self._lock:
+            if self._total >= self.max_total:
+                return "busy"
+            if self.max_per_origin is not None and self._active.get(key, 0) >= self.max_per_origin:
+                return "origin"
+            self._active[key] = self._active.get(key, 0) + 1
+            self._total += 1
+            return None
+
+    def release(self, origin: str) -> None:
+        key = OriginRateLimiter.origin_key(origin)
+        with self._lock:
+            n = self._active.get(key, 0)
+            if n <= 0:
+                return  # liberar de más no hace negativo el contador
+            if n == 1:
+                del self._active[key]
+            else:
+                self._active[key] = n - 1
+            self._total -= 1
+
+    @property
+    def active(self) -> int:
+        return self._total
+
+    @property
+    def tracked_origins(self) -> int:
+        return len(self._active)

@@ -46,6 +46,7 @@ except P.PskTransportUnavailable:
 needs = pytest.mark.skipif(not HAVE, reason="sin NSS (certutil, tstclnt, selfserv) o sin OpenSSL ≥ 3.5")
 
 KEY, KID = bytes(range(32)), b"qkd-key-0001"
+KID_LABEL = KID.decode()   # evaluado una vez (no como valor por defecto de una función)
 SUITE = "TLS_AES_128_GCM_SHA256"      # la PSK externa de NSS va ligada a SHA-256
 
 
@@ -79,7 +80,7 @@ def nss_db(tmp: Path, name="db") -> str:
     return f"sql:{d}"
 
 
-def nss_client(port, db, groups, psk=None, label=KID.decode(), data=b"ping"):
+def nss_client(port, db, groups, psk=None, label=KID_LABEL, data=b"ping"):
     cmd = [TSTCLNT, "-d", db, "-h", "127.0.0.1", "-p", str(port), "-V", "tls1.3:tls1.3", "-I", groups, "-o"]
     if psk is not None:
         cmd += ["-z", f"0x{psk}:{label}"]
@@ -194,7 +195,7 @@ def helper_binary():
     return _helper_cache["bin"]
 
 
-def start_nss_psk_server(tmp: Path, mode: str, psk=None, label=KID.decode()):
+def start_nss_psk_server(tmp: Path, mode: str, psk=None, label=KID_LABEL):
     """Devuelve (proceso, puerto). `mode`: hibrido | x25519 (el único grupo que ofrece el servidor NSS)."""
     binary = helper_binary()
     if not binary:

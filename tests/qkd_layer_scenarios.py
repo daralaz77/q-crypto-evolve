@@ -3,6 +3,7 @@
 `qce.transport.qkd_layer` importa `tls13` primero, y `tls13` falla cerrado si `cryptography` ya estaba cargada: por eso nada de esto
 puede correr dentro del proceso de pytest. Uso: python tests/qkd_layer_scenarios.py <escenario>  →  imprime un JSON (última línea).
 """
+import contextlib
 import json
 import socket
 import sys
@@ -97,7 +98,7 @@ def sc_reuse_and_wrong_key():
         for i in range(2):  # el mismo id dos veces
             lab.out.clear()
             c = lab.client()
-            out[f"uso_{i + 1}_cliente"] = err(lambda: Q.client_layer(c, KID, KEY))
+            out[f"uso_{i + 1}_cliente"] = err(lambda c=c: Q.client_layer(c, KID, KEY))
             c.close()
             time.sleep(0.2)
             out[f"uso_{i + 1}_servidor"] = lab.out.get("server")
@@ -142,7 +143,7 @@ def sc_rogue_mitm():
             up.close()
         m = tls13.TlsServer(tls13.server_context(rcert, rkey), mitm).start()
         c = tls13.connect(tls13.client_context(rca), "127.0.0.1", m.port, "localhost", timeout=5)
-        out["cliente"] = err(lambda: Q.client_layer(c, KID, KEY))
+        out["cliente"] = err(lambda c=c: Q.client_layer(c, KID, KEY))
         c.close()
         time.sleep(0.4)
         out["servidor_real"] = lab.out.get("server")
@@ -365,15 +366,13 @@ def sc_bad_accept():
         cert, key = pki.issue_leaf(d, ck, cc, "localhost", server=True)
         for n in (Q.NONCE_LEN + Q.TAG_LEN - 1, Q.NONCE_LEN + Q.TAG_LEN + 1, 0):
             def handler(conn, peer, n=n):
-                try:
+                with contextlib.suppress(Exception):
                     tls13.recv_frame(conn)
                     tls13.send_frame(conn, bytes(n))
                     time.sleep(0.3)
-                except Exception:  # noqa: BLE001
-                    pass
             srv = tls13.TlsServer(tls13.server_context(cert, key), handler).start()
             c = tls13.connect(tls13.client_context(ca), "127.0.0.1", srv.port, "localhost", timeout=5)
-            out[f"accept_{n}"] = err(lambda: Q.client_layer(c, KID, KEY))
+            out[f"accept_{n}"] = err(lambda c=c: Q.client_layer(c, KID, KEY))
             c.close()
             srv.close()
     return out
@@ -401,7 +400,7 @@ def sc_no_burn():
         out["servidor_legitimo"] = lab.out.get("server")
         lab.out.clear()
         c = lab.client()
-        out["segundo_uso"] = err(lambda: Q.client_layer(c, KID, KEY))
+        out["segundo_uso"] = err(lambda c=c: Q.client_layer(c, KID, KEY))
         c.close()
         time.sleep(0.2)
         out["segundo_uso_servidor"] = lab.out.get("server")
@@ -419,7 +418,7 @@ def sc_stall():
         tls13.send_frame(a, Q.encode_hello(KID, b"n" * 32))
         tls13.recv_frame(a)   # el servidor reservó la clave y espera la etiqueta
         c = lab.client()
-        out["durante_la_reserva"] = err(lambda: Q.client_layer(c, KID, KEY))
+        out["durante_la_reserva"] = err(lambda c=c: Q.client_layer(c, KID, KEY))
         c.close()
         time.sleep(1.8)       # el servidor abandona al atacante y libera la clave
         lab.out.clear()
@@ -539,12 +538,10 @@ def sc_conformance():
 
         def mitm(conn, peer):
             up = tls13.connect(ctx, "127.0.0.1", srv.port, "localhost", timeout=5)
-            try:
+            with contextlib.suppress(Exception):
                 orig_send(up, orig_recv(conn))
                 orig_send(conn, orig_recv(up))
                 orig_send(up, orig_recv(conn))
-            except Exception:  # noqa: BLE001
-                pass
             up.close()
         m = tls13.TlsServer(tls13.server_context(rcert, rkey), mitm).start()
         c = tls13.connect(tls13.client_context(rca), "127.0.0.1", m.port, "localhost", timeout=5)

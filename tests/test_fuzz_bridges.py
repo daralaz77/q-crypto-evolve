@@ -95,7 +95,7 @@ def test_a_valid_client_hello_with_one_flipped_bit_never_completes_and_never_bur
         bad = bytearray(hello)
         bad[pos] ^= 1 << rng.randrange(8)
         raw_send(srv.port, bytes(bad))
-        assert wait(lambda: srv.failed_handshakes >= i), f"posición {pos}: el servidor no rechazó el mensaje"
+        assert wait(lambda i=i: srv.failed_handshakes >= i), f"posición {pos}: el servidor no rechazó el mensaje"
     assert completed == [] and KID in store._keys and KID not in store._reserved
     srv.close()
 

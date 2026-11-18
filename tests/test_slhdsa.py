@@ -1,5 +1,4 @@
 """SLH-DSA-SHA2-128s (FIPS 205) por el puente ctypes de qce/pqc/slhdsa.py, con verificación cruzada contra la herramienta `openssl`."""
-import os
 import subprocess
 
 import pytest

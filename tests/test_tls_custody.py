@@ -125,7 +125,7 @@ def test_a_revoked_certificate_is_rejected_by_clients_that_check_the_crl_and_a_m
     assert r["ok_before"] == "aloh"                               # con una CRL vacía el certificado sirve
     assert r["revoked"] == "SSLCertVerificationError"             # revocado y listado: rechazado aunque el servidor siga ofreciéndolo
     assert r["without_crl_still_accepted"] == "aloh"              # sin comprobar la CRL se acepta: por eso la comprobación es explícita (límite declarado)
-    assert r["foreign_crl"] == "SSLCertVerificationError"         # una CRL que no es de la CA del certificado = no hay CRL válida: falla cerrado
+    assert r["foreign_crl"] == "CrlRejected"                      # una CRL que no es de la CA del certificado = no hay CRL válida: falla cerrado, ya al crear el contexto (antes, en la conexión)
     assert r["crl_entries"] == 1
 
 

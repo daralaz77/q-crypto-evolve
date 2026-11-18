@@ -51,17 +51,34 @@ def _key_pem(key) -> bytes:
     return key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
 
 
-def issue_ca(directory: Path, cn: str = "QCE lab CA", days: int = 1, algorithm: str = "ecdsa-p256") -> tuple[Path, object, x509.Certificate]:
+def issue_ca(directory: Path, cn: str = "QCE lab CA", days: int = 1, algorithm: str = "ecdsa-p256", path_length: int = 0) -> tuple[Path, object, x509.Certificate]:
     key = new_private_key(algorithm)
     now = dt.datetime.now(UTC)
     cert = (x509.CertificateBuilder().subject_name(_name(cn)).issuer_name(_name(cn)).public_key(key.public_key())
             .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(minutes=1)).not_valid_after(now + dt.timedelta(days=days))
-            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(x509.BasicConstraints(ca=True, path_length=path_length), critical=True)
             .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=True, crl_sign=True, content_commitment=False, key_encipherment=False,
                                          data_encipherment=False, key_agreement=False, encipher_only=False, decipher_only=False), critical=True)
             .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)   # RFC 5280 §4.2.1.2: los clientes estrictos (Python ≥ 3.13 por defecto) lo exigen
             .sign(key, signing_hash(key)))
     path = _write(directory / "ca.pem", cert.public_bytes(serialization.Encoding.PEM), 0o644)
+    return path, key, cert
+
+
+def issue_intermediate(directory: Path, parent_key, parent_cert: x509.Certificate, cn: str = "QCE lab intermediate CA", days: int = 1,
+                       algorithm: str = "ecdsa-p256", name: str = "intermediate.pem") -> tuple[Path, object, x509.Certificate]:
+    """CA intermedia de laboratorio firmada por `parent_cert` (que debe permitir `path_length` ≥ 1). Solo puede emitir hojas (`path_length=0`)."""
+    key = new_private_key(algorithm)
+    now = dt.datetime.now(UTC)
+    cert = (x509.CertificateBuilder().subject_name(_name(cn)).issuer_name(parent_cert.subject).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(minutes=1)).not_valid_after(now + dt.timedelta(days=days))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=True, crl_sign=True, content_commitment=False, key_encipherment=False,
+                                         data_encipherment=False, key_agreement=False, encipher_only=False, decipher_only=False), critical=True)
+            .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(parent_cert.public_key()), critical=False)  # type: ignore[arg-type]
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
+            .sign(parent_key, signing_hash(parent_key)))
+    path = _write(directory / name, cert.public_bytes(serialization.Encoding.PEM), 0o644)
     return path, key, cert
 
 
@@ -103,13 +120,15 @@ def sign_csr(ca_key, ca_cert: x509.Certificate, csr: x509.CertificateSigningRequ
             .sign(ca_key, signing_hash(ca_key)))
 
 
-def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[x509.Certificate], days: int = 1, name: str = "crl.pem") -> Path:
-    """Lista de revocación (CRL) de la CA de laboratorio con los certificados indicados."""
+def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[x509.Certificate], days: int = 1, name: str = "crl.pem",
+              number: int = 1) -> Path:
+    """Lista de revocación (CRL) de la CA de laboratorio con los certificados indicados. `number` es el `cRLNumber` (RFC 5280 §5.2.3): crece en cada emisión."""
     now = dt.datetime.now(UTC)
     b = (x509.CertificateRevocationListBuilder().issuer_name(ca_cert.subject).last_update(now - dt.timedelta(minutes=1))
          .next_update(now + dt.timedelta(days=days)))
     for cert in revoked:
         b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(cert.serial_number).revocation_date(now).build())
     b = b.add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()), critical=False)  # type: ignore[arg-type]  # el stub acepta menos tipos de los que public_key() puede devolver
+    b = b.add_extension(x509.CRLNumber(number), critical=False)
     crl = b.sign(ca_key, signing_hash(ca_key))
     return _write(directory / name, crl.public_bytes(serialization.Encoding.PEM), 0o644)

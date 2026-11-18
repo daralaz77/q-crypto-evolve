@@ -186,7 +186,7 @@ def test_tampered_key_goes_to_quarantine_and_material_is_destroyed(tmp_path):
 def ready(tmp_path, n=1, **kw):
     broker, dev, link, reg, clock, audit = build(tmp_path, **kw)
     attach(broker, dev)
-    ids = link.generate(n)
+    link.generate(n)
     got = broker.refill("L1", n)
     return broker, dev, link, reg, clock, audit, got
 

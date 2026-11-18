@@ -16,12 +16,16 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
+from ..core.ratelimit import ConnectionGuard
+
+MAX_BODY = 64 * 1024   # una petición ETSI 014 legítima ocupa unos cientos de bytes
 KEY_PATH = re.compile(r"^/api/v1/keys/([A-Za-z0-9._:@-]{1,128})/(status|enc_keys|dec_keys)$")
 
 
 class EmulatedKME:
     def __init__(self, ssl_context: ssl.SSLContext, master_sae: str, slave_sae: str, key_size: int = 256, max_keys: int = 32, max_per_request: int = 4,
-                 host: str = "127.0.0.1", port: int = 0) -> None:
+                 host: str = "127.0.0.1", port: int = 0, max_connections: int = 64, max_per_origin: int | None = 16,
+                 io_timeout: float = 10.0) -> None:
         self.master, self.slave, self.key_size, self.max_keys, self.max_per_request = master_sae, slave_sae, key_size, max_keys, max_per_request
         self._store: dict[str, bytes] = {}
         self._lock = threading.Lock()
@@ -39,6 +43,15 @@ class EmulatedKME:
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+
+            timeout = io_timeout   # por operación de socket (StreamRequestHandler lo aplica): una conexión que calla no retiene su hilo para siempre
+
+            def setup(self):
+                # El apretón TLS se hace AQUÍ, en el hilo de ESTA conexión. Antes ocurría dentro de `accept()`, en el único hilo de aceptación: un cliente que
+                # conectaba y no decía nada bloqueaba el KME entero (con `serve_forever` sin atender a nadie más).
+                self.request.settimeout(self.timeout)
+                self.request.do_handshake()
+                super().setup()
 
             def _sae(self):
                 cert = self.connection.getpeercert()
@@ -60,7 +73,14 @@ class EmulatedKME:
                 other, op = m.group(1), m.group(2)
                 if other != (kme.slave if sae == kme.master else kme.master):
                     return self._reply(401, {"message": "SAE par no autorizada para esta SAE"})
-                length = int(self.headers.get("Content-Length", "0"))
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except ValueError:
+                    return self._reply(400, {"message": "Content-Length inválido"})
+                if length < 0:
+                    return self._reply(400, {"message": "Content-Length inválido"})
+                if length > MAX_BODY:
+                    return self._reply(413, {"message": "cuerpo demasiado grande"})   # no se reserva memoria ni se espera un cuerpo que no cabe
                 try:
                     body = json.loads(self.rfile.read(length)) if length else {}
                 except ValueError:
@@ -114,11 +134,34 @@ class EmulatedKME:
             def do_POST(self):
                 self._handle("POST")
 
+        guard = ConnectionGuard(max_connections, max_per_origin)   # topes global y por origen (ValueError si no son positivos)
+        self.rejected_busy = 0
+        self.rejected_origin = 0
+
         class Quiet(ThreadingHTTPServer):
+            daemon_threads = True
+
             def handle_error(self, request, client_address):   # un cliente que corta o falla el TLS no debe llenar la salida de las pruebas
                 pass
+
+            def process_request(self, request, client_address):
+                refused = guard.acquire(str(client_address[0]))   # topes global y por origen: la que sobra se cierra sin hilo ni apretón
+                if refused is not None:
+                    if refused == "busy":
+                        kme.rejected_busy += 1
+                    else:
+                        kme.rejected_origin += 1
+                    self.shutdown_request(request)
+                    return
+                super().process_request(request, client_address)
+
+            def process_request_thread(self, request, client_address):
+                try:
+                    super().process_request_thread(request, client_address)
+                finally:
+                    guard.release(str(client_address[0]))
         self._srv = Quiet((host, port), H)
-        self._srv.socket = ssl_context.wrap_socket(self._srv.socket, server_side=True)
+        self._srv.socket = ssl_context.wrap_socket(self._srv.socket, server_side=True, do_handshake_on_connect=False)
         self.port = self._srv.server_address[1]
         self._thread = threading.Thread(target=self._srv.serve_forever, daemon=True)
 

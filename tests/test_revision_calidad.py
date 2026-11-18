@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from qce.core.errors import AuthenticationFailure, IntegrityError, QCEError
+from qce.core.errors import IntegrityError, QCEError
 from qce.core.policy import Policy
 from qce.core.ratelimit import OriginRateLimiter
 from qce.key_management import vault
@@ -85,7 +85,7 @@ def test_broker_hands_a_single_key_to_exactly_one_of_many_concurrent_reservers(t
             b, _ = broker_with_one_key(tmp_path)
             wins, start = [], threading.Barrier(8)
 
-            def go():
+            def go(start=start, wins=wins, b=b):
                 start.wait()
                 try:
                     wins.append(b.reserve("L1", "sess"))

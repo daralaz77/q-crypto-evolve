@@ -7,7 +7,6 @@ grupo híbrido, que sí está atestiguado en cada conexión y probado con el cli
 import shutil
 import socket
 import subprocess
-import threading
 import time
 
 import pytest
@@ -31,6 +30,7 @@ except P.PskTransportUnavailable:
 needs = pytest.mark.skipif(not HAVE, reason="sin GnuTLS (gnutls-cli/gnutls-serv) o sin OpenSSL ≥ 3.5")
 
 KEY, KID = bytes(range(32)), b"qkd-key-0001"
+KID_LABEL = KID.decode()   # evaluado una vez (no como valor por defecto de una función)
 SUITE, GROUP = "TLS_AES_128_GCM_SHA256", "X25519"      # la PSK externa de GnuTLS va ligada a SHA-256
 PRIO = "NORMAL:-VERS-ALL:+VERS-TLS1.3:-KX-ALL:+ECDHE-PSK:-GROUP-ALL:+GROUP-X25519:-CIPHER-ALL:+AES-128-GCM"
 
@@ -77,7 +77,7 @@ def wait(cond, secs=4.0):
     return cond()
 
 
-def gnutls_client(port, psk, user=KID.decode(), stdin=b"ping", timeout=15):
+def gnutls_client(port, psk, user=KID_LABEL, stdin=b"ping", timeout=15):
     return subprocess.run([CLI, "--priority", PRIO, f"--pskusername={user}", f"--pskkey={psk}", "--port", str(port), "127.0.0.1"], input=stdin,
                           capture_output=True, timeout=timeout)
 

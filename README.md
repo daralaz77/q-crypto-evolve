@@ -2,6 +2,7 @@
 
 Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0 y `q-crypto-qkd-adapters` 1.0).
 **Estado: laboratorio, sin auditoría externa. Lee `LIMITATIONS.md` antes de confiar en nada.**
+Release **v1.2** (rondas de auditoría 3 a 8, 2026-11): puertas G1–G4 en verde (1064 pruebas, 603 mutantes: 597 puntuables detectados, 5 equivalentes declarados); G5 (revisión independiente) **sigue pendiente**, así que el estado es `REVIEW_REQUIRED`. Cambios: [`docs/NOTAS_DEL_RELEASE_1_2.md`](docs/NOTAS_DEL_RELEASE_1_2.md).
 
 > **Estado / Status:** laboratorio, sin revisión humana externa. *Research lab; no external human review.* **No usar en producción / Do not use in production.**
 >
@@ -11,7 +12,7 @@ Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0
 
 [![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23584676.svg)](https://doi.org/10.5281/zenodo.23584676) [![Case study DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23583891.svg)](https://doi.org/10.5281/zenodo.23583891)
 
-**Cítalo / Cite:** código [10.5281/zenodo.23584676](https://doi.org/10.5281/zenodo.23584676) (v0.1.0) · informe *What an Independent Tool Finds in AI-Written Code Under Verification Gates* [10.5281/zenodo.23583891](https://doi.org/10.5281/zenodo.23583891) · [`CITATION.cff`](CITATION.cff)
+**Cítalo / Cite:** código [10.5281/zenodo.23584676](https://doi.org/10.5281/zenodo.23584676) (v0.1.0; el DOI del release v1.2 se añadirá al publicarlo) · informe *What an Independent Tool Finds in AI-Written Code Under Verification Gates* [10.5281/zenodo.23583891](https://doi.org/10.5281/zenodo.23583891) · [`CITATION.cff`](CITATION.cff)
 
 **Demo guiada / Guided demo:** <https://daralaz77.github.io/q-crypto-evolve/> (trazas reales, simulación; código en [`site/`](site/)) · **Panel local de solo lectura:** [`panel/`](panel/README.md)
 
@@ -49,7 +50,7 @@ Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`
 
 ```bash
 cd ~/Claude/q-crypto-evolve
-.venv/bin/python -m qce test      # batería completa (936 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
+.venv/bin/python -m qce test      # batería completa (1064 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
 .venv/bin/python -m qce scan      # malos usos, secretos, dependencias (pip-audit, con red)
 .venv/bin/python -m qce mutate    # ¿las pruebas detectan controles de seguridad rotos?
 .venv/bin/python -m qce gates     # G1–G6 completas → estado (REVIEW_REQUIRED/VERIFIED/…)
@@ -69,7 +70,7 @@ cd ~/Claude/q-crypto-evolve
 | `qce/qkd/etsi014.py` | adaptador de ETSI GS QKD 014 (KME) + emulador (simulación): `docs/ETSI014_ADAPTER.md` |
 | `qce/transport/hsm_tls.py` | servidor TLS 1.3 híbrido con la clave privada en un HSM/token PKCS#11 (probado con SoftHSM): `docs/HSM.md` |
 | `qce/core/openssl_ffi.py` | carga de OpenSSL ≥ 3.5 por `ctypes` (PSK, HSM y SLH-DSA la comparten) |
-| `qce/evolve/mutants/` | los 469 mutantes como datos, un módulo por familia |
+| `qce/evolve/mutants/` | los 603 mutantes como datos, un módulo por familia |
 | `qce/security/approvals.py` | declaraciones firmadas de implementador, revisor y aprobador (G5/G6) |
 | `qce/evolve/ceremony.py` | ceremonia de firma humana G5/G6 (`python -m qce identity new|register`, `python -m qce sign`): `review/GUIA_PARA_ENVIAR.md` §5 |
 | `qce/evolve/supply_chain.py` | hashes de dependencias + SBOM CycloneDX (`python -m qce supply-chain`): `docs/SUPPLY_CHAIN.md` |

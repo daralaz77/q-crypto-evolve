@@ -32,7 +32,7 @@ def parse(text: str) -> dict[str, tuple[str, list[str]]]:
 def test_every_test_dependency_is_pinned_with_hashes():
     pins = parse(FILE.read_text())
     assert {"pytest", "hypothesis"} <= set(pins)
-    for name, (ver, hashes) in pins.items():
+    for name, (_ver, hashes) in pins.items():
         assert hashes and all(HASH.match(h) for h in hashes), name
 
 
