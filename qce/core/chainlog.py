@@ -5,6 +5,7 @@ anclarse fuera del sistema (repositorio, sello de tiempo, otra máquina).
 """
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import hashlib
 import hmac
@@ -89,6 +90,15 @@ def _digest(index: int, ts: float, prev: str, body: str) -> str:
     return hashlib.sha256(f"{index}|{ts!r}|{prev}|{body}".encode()).hexdigest()
 
 
+def _well_formed(e: object) -> bool:
+    return (isinstance(e, dict) and type(e.get("i")) is int and isinstance(e.get("ts"), (int, float)) and not isinstance(e.get("ts"), bool)
+            and all(isinstance(e.get(k), str) for k in ("prev", "body", "hash")))
+
+
+def _same(a: str, b: str) -> bool:
+    return hmac.compare_digest(a.encode(), b.encode())  # en bytes: compare_digest sobre str no ASCII lanza TypeError (una entrada manipulada no debe dar otra excepción)
+
+
 class ChainLog:
     def __init__(self, path: str | Path, clock: Callable[[], float] = time.time) -> None:
         self.path = Path(path)
@@ -96,9 +106,28 @@ class ChainLog:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def entries(self) -> list[dict]:
+        """Lee el registro. FALLA CERRADO (IntegrityError) ante cualquier línea que no sea una entrada completa: un corte a mitad de escritura o un
+        truncado dejan una última línea incompleta, y antes eso reventaba con JSONDecodeError (o, peor, la siguiente `append` se pegaba a esa línea)."""
         if not self.path.exists():
             return []
-        return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        try:
+            text = self.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as e:
+            raise IntegrityError(f"el registro no se puede leer: {type(e).__name__}") from None
+        if text and not text.endswith("\n"):
+            raise IntegrityError("la última entrada del registro está incompleta (corte a mitad de escritura o truncado)")
+        out = []
+        for n, line in enumerate(text.splitlines()):
+            if not line.strip():
+                continue
+            try:
+                e = json.loads(line)
+            except ValueError:
+                raise IntegrityError(f"la línea {n + 1} del registro no es JSON válido") from None
+            if not _well_formed(e):
+                raise IntegrityError(f"la línea {n + 1} del registro no es una entrada válida")
+            out.append(e)
+        return out
 
     def head(self) -> str:
         es = self.entries()
@@ -114,17 +143,23 @@ class ChainLog:
                 raise IntegrityError("el registro cambió mientras se validaba la operación; reintentar")
             ts = self._clock()
             entry = {"i": len(es), "ts": ts, "prev": prev, "body": body, "hash": _digest(len(es), ts, prev, body)}
-            with open(self.path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(entry) + "\n")
-                fh.flush()
-                os.fsync(fh.fileno())
+            before = self.path.stat().st_size if self.path.exists() else 0
+            try:
+                with open(self.path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(entry) + "\n")
+                    fh.flush()
+                    os.fsync(fh.fileno())
+            except BaseException:
+                with contextlib.suppress(OSError):
+                    os.truncate(self.path, before)  # una escritura a medias (disco lleno, señal) no deja una línea rota que bloquee el registro
+                raise
         return entry
 
     def verify(self, expected_head: str | None = None) -> int:
         prev = GENESIS
         es = self.entries()
         for n, e in enumerate(es):
-            if e["i"] != n or e["prev"] != prev or not hmac.compare_digest(e["hash"], _digest(n, e["ts"], prev, e["body"])):
+            if e["i"] != n or e["prev"] != prev or not _same(e["hash"], _digest(n, e["ts"], prev, e["body"])):
                 raise IntegrityError(f"cadena rota en la entrada {n}")
             prev = e["hash"]
         if expected_head is not None and prev != expected_head:

@@ -6,7 +6,7 @@ Todo lo que el paquete afirma se puede volver a ejecutar. Esta guía se probó *
 
 | Para | Necesita |
 |---|---|
-| Pruebas y conformidad | Python ≥ 3.11 (probado con 3.14.7), acceso a PyPI para instalar `cryptography==50.0.2` y las herramientas de prueba |
+| Pruebas y conformidad | Python ≥ 3.13 (probado con 3.14.7), acceso a PyPI para instalar `cryptography==50.0.2` y las herramientas de prueba |
 | Modelo formal (opcional) | Tamarin Prover 1.12.0 y Maude 3.5.1 (ver <https://tamarin-prover.com>; en macOS con Homebrew: `brew trust tamarin-prover/tap` y `brew install tamarin-prover/tap/tamarin-prover` — confíe en ese tap solo si lo decide usted) |
 | Prueba de mutación (opcional) | lo mismo que las pruebas; tarda varios minutos |
 
