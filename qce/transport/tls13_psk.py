@@ -410,6 +410,10 @@ class PskServer:
 
     def close(self) -> None:
         self._stop = True
+        try:
+            self._ls.shutdown(socket.SHUT_RDWR)  # en Linux, cerrar el socket de escucha NO despierta a un `accept()` bloqueado en otro hilo; `shutdown` sí
+        except OSError:
+            pass  # macOS lo rechaza en un socket que solo escucha (ENOTCONN); allí `close()` ya despierta a `accept()`
         self._ls.close()
 
 
