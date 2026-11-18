@@ -351,12 +351,12 @@ def test_rollback_refuses_symlink_even_when_it_points_to_another_allowed_file(tm
     body = b"X = 'sobrescrito'\n"
     mm["files"]["qce/alias.py"] = hashlib.sha256(body).hexdigest()
     new_id = hashlib.sha256(json.dumps(mm["files"], sort_keys=True).encode()).hexdigest()[:16]
-    mm["release_id"], mm["sequence"] = new_id, 99
+    mm["release_id"] = new_id
     d2 = root / "releases" / new_id
     shutil.copytree(d, d2)
     (d2 / "src" / "qce" / "alias.py").write_bytes(body)
     (d2 / "manifest.json").write_text(json.dumps(mm))
-    approvals.sign_statement(root, key, "approver", "humano", new_id, "accept")
+    approvals.sign_statement(root, key, "approver", "humano", new_id, "accept", sequence=1)
     rel.mark_stable(root, new_id, "humano")  # este snapshot es "legítimo": el único freno es la regla de symlinks
     original = (root / "qce" / "m.py").read_text()
     with pytest.raises(IntegrityError, match="symlink"):

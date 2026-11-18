@@ -135,11 +135,11 @@ def test_edited_task_log_is_rejected_when_state_is_read(tmp_path):
 
 
 # ---- H4: reversión y snapshot estable ------------------------------------------------------------------------------
-def snap(root, key, name="humano"):
+def snap(root, key, name="humano", sequence=1):
     m = rel.build_manifest(root, "1", {}, [], {})
     d = rel.save_release(root, m)
     approvals.register(root, "approver", name, key.public_bytes) if not (root / "trust").exists() else None
-    approvals.sign_statement(root, key, "approver", name, m["release_id"], "accept")
+    approvals.sign_statement(root, key, "approver", name, m["release_id"], "accept", sequence=sequence)
     return m, d
 
 
@@ -188,8 +188,7 @@ def test_stable_cannot_move_to_an_older_snapshot(tmp_path):
     key = HybridSigPrivateKey.generate()
     m1, _ = snap(root, key)
     (root / "qce" / "m.py").write_text("def f(x):\n    return True\n")
-    m2, _ = snap(root, key)
-    assert m2["sequence"] > m1["sequence"]
+    m2, _ = snap(root, key, sequence=2)
     rel.mark_stable(root, m2["release_id"], "humano")
     with pytest.raises(QCEError, match="downgrade"):
         rel.mark_stable(root, m1["release_id"], "humano")

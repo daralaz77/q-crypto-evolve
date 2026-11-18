@@ -29,8 +29,16 @@ def _check_release_id(release_id: str) -> None:
         raise QCEError("release_id inválido")
 
 
-def _msg(role: str, signer: str, release_id: str, verdict: str) -> bytes:
-    return json.dumps([role, signer, release_id, verdict]).encode()
+def _msg(role: str, signer: str, release_id: str, verdict: str, sequence: int | None = None) -> bytes:
+    """Lo que se firma. Con `sequence` el mensaje lleva UN elemento más: una firma sin secuencia no sirve para una con ella ni al revés."""
+    parts: list = [role, signer, release_id, verdict]
+    if sequence is not None:
+        parts.append(sequence)
+    return json.dumps(parts).encode()
+
+
+def _valid_sequence(sequence) -> bool:
+    return type(sequence) is int and 1 <= sequence < 2**31  # bool es int en Python: True no es un número de secuencia
 
 
 def register(root: Path, role: str, identity: str, public_bytes: bytes) -> None:
@@ -57,18 +65,23 @@ def register(root: Path, role: str, identity: str, public_bytes: bytes) -> None:
 
 
 def sign_statement(root: Path, key: HybridSigPrivateKey, role: str, signer: str, release_id: str,
-                   verdict: str, notes: str = "") -> Path:
+                   verdict: str, notes: str = "", sequence: int | None = None) -> Path:
+    """`sequence`: número de la promoción a estable que el APROBADOR autoriza (queda dentro de la firma). Solo para un `accept` de aprobador."""
     if verdict not in ("accept", "reject"):
         raise QCEError("veredicto inválido")
     if role not in ROLES:
         raise QCEError("rol inválido")
     _check_release_id(release_id)
-    sig = key.sign(_msg(role, signer, release_id, verdict), CTX)
+    if sequence is not None and (role != "approver" or verdict != "accept" or not _valid_sequence(sequence)):
+        raise QCEError("la secuencia es un entero positivo y solo la firma un aprobador que acepta")
+    sig = key.sign(_msg(role, signer, release_id, verdict, sequence), CTX)
     d = root / "reviews"
     d.mkdir(exist_ok=True)
     p = d / f"{release_id}.{role}.{hashlib.sha256(signer.encode()).hexdigest()[:16]}.{verdict}.json"  # accept y reject no se pisan
-    atomic_write(p, json.dumps({"role": role, "signer": signer, "release_id": release_id,
-                                "verdict": verdict, "notes": notes, "signature": sig.hex()}, indent=2).encode(), mode=0o644)
+    body = {"role": role, "signer": signer, "release_id": release_id, "verdict": verdict, "notes": notes, "signature": sig.hex()}
+    if sequence is not None:
+        body["sequence"] = sequence
+    atomic_write(p, json.dumps(body, indent=2).encode(), mode=0o644)
     return p
 
 
@@ -83,14 +96,14 @@ def _read(f: Path) -> dict | None:
     return None
 
 
-def valid_statements(root: Path, release_id: str, role: str) -> list[str]:
-    """Firmantes con declaración 'accept' válida para ESTE release_id y con el rol registrado."""
+def _accepted(root: Path, release_id: str, role: str) -> dict[str, int | None]:
+    """firmante → secuencia firmada (None si firmó sin secuencia) para las declaraciones 'accept' VÁLIDAS de este release_id y rol."""
     _check_release_id(release_id)
     reg_p = root / "trust" / "registry.json"
     if not reg_p.exists() or has_valid_veto(root, release_id, role):
-        return []
+        return {}
     reg = json.loads(reg_p.read_text(encoding="utf-8"))
-    out = []
+    out: dict[str, int | None] = {}
     for f in sorted((root / "reviews").glob(f"{release_id}.{role}.*.json")) if (root / "reviews").exists() else []:
         s = _read(f)
         if s is None:
@@ -98,13 +111,25 @@ def valid_statements(root: Path, release_id: str, role: str) -> list[str]:
         entry = reg.get(s["signer"])
         if not entry or entry["role"] != role or s["release_id"] != release_id or s["verdict"] != "accept":
             continue
+        seq = s.get("sequence")  # sea lo que sea, solo cuenta si ES lo que se firmó: va dentro del mensaje que verifica la firma
         try:
-            hybrid_verify(bytes.fromhex(entry["public_key"]), _msg(role, s["signer"], release_id, "accept"),
+            hybrid_verify(bytes.fromhex(entry["public_key"]), _msg(role, s["signer"], release_id, "accept", seq),
                           bytes.fromhex(s["signature"]), CTX)
         except AuthenticationFailure:
             continue
-        out.append(s["signer"])
+        out[s["signer"]] = seq
     return out
+
+
+def valid_statements(root: Path, release_id: str, role: str) -> list[str]:
+    """Firmantes con declaración 'accept' válida para ESTE release_id y con el rol registrado."""
+    return list(_accepted(root, release_id, role))
+
+
+def signed_sequence(root: Path, release_id: str, approver: str) -> int | None:
+    """Número de promoción que `approver` firmó para este release_id, o None si no hay declaración válida con secuencia.
+    Es el ÚNICO orden de promociones en el que se confía: el que lleva la firma del aprobador (el `manifest.json` no está firmado)."""
+    return _accepted(root, release_id, "approver").get(approver)
 
 
 def has_valid_veto(root: Path, release_id: str, role: str) -> list[str]:

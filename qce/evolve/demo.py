@@ -73,7 +73,7 @@ def run(project: Path, out_dir: Path) -> dict:
         check("1. línea base: toda la batería pasa", rc == 0, out.strip().splitlines()[-1])
         m0 = rel.build_manifest(lab, "lab-0", {"pytest": "pass"}, [], {})
         rel.save_release(lab, m0)
-        approvals.sign_statement(lab, keys[HUMAN], "approver", HUMAN, m0["release_id"], "accept")  # firma humana (clave efímera de la demo)
+        approvals.sign_statement(lab, keys[HUMAN], "approver", HUMAN, m0["release_id"], "accept", sequence=1)  # firma humana (clave efímera de la demo)
         rel.mark_stable(lab, m0["release_id"], HUMAN)
         r0 = m0["release_id"]
         wf.create(Task("T-LAB-1", "demostrar el ciclo de reparación", "qce.protocols.session", "lab-0", "TM: suplantación del servidor",
