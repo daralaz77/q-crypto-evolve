@@ -188,6 +188,7 @@ def test_a_silent_client_cannot_block_the_kme_for_everybody_else(env):
 def _raw_https(env, headers: str, sae="sae-master"):
     cert, key = env.certs[sae]
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_3
     ctx.load_verify_locations(str(env.ca))
     ctx.load_cert_chain(str(cert), str(key))
     raw = socket.create_connection(("127.0.0.1", env.kme.port), timeout=5)
