@@ -1,7 +1,6 @@
 """Regresiones de la auditoría adversarial independiente (agente a32c6ce…, 2026-10-17). Una por hallazgo confirmado."""
 import json
 import shutil
-import sys
 import threading
 from pathlib import Path
 

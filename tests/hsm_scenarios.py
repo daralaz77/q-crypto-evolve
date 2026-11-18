@@ -176,7 +176,6 @@ def attempt(fn):
 
 def sc_refusals():
     from qce.transport import hsm_tls as H, pki
-    from qce.core.errors import PolicyViolation
     with tempfile.TemporaryDirectory() as td:
         s = setup(Path(td))
         mk = lambda **k: H.HsmServerContext(*[k.get(n, s[n]) if n != "uri" else k.get("uri", s["uri"]) for n in ("conf", "cert", "uri")])      # noqa: E731
@@ -190,7 +189,7 @@ def sc_refusals():
         out["config_inexistente"] = attempt(lambda: H.HsmServerContext(f"{td}/no.cnf", s["cert"], s["uri"]))
         out["cert_inexistente"] = attempt(lambda: H.HsmServerContext(s["conf"], f"{td}/no.pem", s["uri"]))
         bad = Path(td) / "sin_proveedor.cnf"
-        bad.write_text(f"openssl_conf = i\n[i]\nproviders = ps\n[ps]\ndefault = d\n[d]\nactivate = 1\n")      # sin el proveedor PKCS#11: NO debe caer a software
+        bad.write_text("openssl_conf = i\n[i]\nproviders = ps\n[ps]\ndefault = d\n[d]\nactivate = 1\n")      # sin el proveedor PKCS#11: NO debe caer a software
         out["sin_proveedor_pkcs11"] = attempt(lambda: H.HsmServerContext(bad, s["cert"], s["uri"]))
         other = Path(td) / "otro"; other.mkdir()
         ca2, ck2, cc2 = pki.issue_ca(other)

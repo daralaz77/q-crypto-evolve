@@ -1,5 +1,6 @@
 """Escenarios del límite de tasa por origen, en un PROCESO NUEVO (ver tests/tls_scenarios.py para el porqué).
 Uso: python tests/ratelimit_scenarios.py <escenario>  →  imprime un JSON (última línea)."""
+import contextlib
 import json
 import socket
 import sys
@@ -86,10 +87,8 @@ def sc_qil1_limited_real():
         srv = tls13.TlsServer(tls13.server_context(cert, key), handle).start()
         for _ in range(2):  # dos intentos desde el MISMO origen: el 2.º debe rechazarse antes de reservar
             c = tls13.connect(tls13.client_context(ca), "127.0.0.1", srv.port, "localhost", timeout=5)
-            try:
+            with contextlib.suppress(Exception):
                 Q.client_layer(c, b"qkd-key-0001", bytes(range(32)))
-            except Exception:  # noqa: BLE001
-                pass
             c.close()
             time.sleep(0.5)
         srv.close()

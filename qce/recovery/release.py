@@ -9,6 +9,7 @@ import shutil
 import time
 from pathlib import Path
 
+from ..core.atomic import atomic_write
 from ..core.errors import IntegrityError, QCEError
 from ..security import approvals
 
@@ -146,7 +147,7 @@ def mark_stable(root: Path, release_id: str, approver: str) -> None:
             old_seq = approvals.signed_sequence(root, old_id, old_approver) or 0  # un estable anterior sin número firmado cuenta como 0
             if new_seq <= old_seq:
                 raise QCEError(f"downgrade del snapshot estable rechazado: secuencia firmada {new_seq} no supera la del estable actual ({old_seq})")
-    cur.write_text(json.dumps({"release_id": release_id, "approver": approver}), encoding="utf-8")
+    atomic_write(cur, json.dumps({"release_id": release_id, "approver": approver}).encode("utf-8"), 0o644)   # un corte no deja un marcador a medias (luego «ilegible»)
 
 
 def rollback(root: Path, release_id: str | None = None) -> list[str]:

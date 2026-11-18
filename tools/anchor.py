@@ -37,7 +37,7 @@ def build(root: Path, commit: str | None = None) -> dict:
     log = ChainLog(ledger_path)
     entries = log.verify()  # lanza IntegrityError si la cadena está rota: no se ancla una cadena rota
     reviews = sorted((p.name, _sha(p)) for p in (root / "reviews").glob("*.json")) if (root / "reviews").is_dir() else []
-    return {
+    anchor = {
         "schema": SCHEMA,
         "commit": commit if commit is not None else _git_head(root),
         "ledger": {"file": "learning/incidents.jsonl", "entries": entries, "head": log.head()},
@@ -45,6 +45,10 @@ def build(root: Path, commit: str | None = None) -> dict:
         "reviews_sha256": hashlib.sha256(json.dumps(reviews).encode()).hexdigest(),
         "release_id": build_manifest(root, "anchor", {}, [], {})["release_id"],
     }
+    stable = root / "releases" / "STABLE"
+    if stable.is_file():  # el marcador no está firmado: anclarlo permite NOTAR que alguien lo movió a un snapshot viejo. Solo si existe: los resúmenes ya atestiguados no cambian.
+        anchor["stable_sha256"] = _sha(stable)
+    return anchor
 
 
 def _git_head(root: Path) -> str | None:

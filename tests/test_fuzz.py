@@ -76,7 +76,6 @@ def test_handshake_message_bitflips_never_succeed(which, xor, data):
     if xor == 0:
         return
     c, s = ClientHandshake(_ident.public_bytes), ServerHandshake(_ident)
-    msgs = []
 
     def mut(m, idx):
         pos = data.draw(st.integers(0, len(m) - 1))

@@ -5,7 +5,6 @@ import sys
 
 from qce.transport import custody, tls13  # noqa: E402  (tls13 va antes que cryptography)
 
-import datetime as dt  # noqa: E402
 import ssl  # noqa: E402
 import tempfile  # noqa: E402
 import time  # noqa: E402

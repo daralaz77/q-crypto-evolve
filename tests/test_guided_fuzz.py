@@ -1,6 +1,5 @@
 """Ítem 1.3 de la Fase 1: fuzzing guiado por cobertura de los parsers y del apretón. 0 caídas en un presupuesto FIJO, más canarios que prueban que el fuzzer SÍ encuentra fallos."""
 import inspect
-import re
 import sys
 from pathlib import Path
 
@@ -31,7 +30,7 @@ def ident():
 
 def test_the_parser_survives_guided_fuzzing_with_zero_crashes_and_finds_new_code():
     seeds = [pack(1, [b"a", b"bc"]), pack(3, [b"x" * 40]), pack(2, [b"", b"", b""]), b"\x01\x02"]
-    f = GuidedFuzzer(lambda d: [encoding.unpack(d, k, c) for k in (1, 2, 3) for c in (0, 1, 2, 3)], seeds, (QCE_ERR := QCEError,), watch_qce, rng_seed=7)
+    f = GuidedFuzzer(lambda d: [encoding.unpack(d, k, c) for k in (1, 2, 3) for c in (0, 1, 2, 3)], seeds, (QCEError,), watch_qce, rng_seed=7)
     rep = f.run(iterations=6000)
     assert rep["crashes"] == 0, rep["first_crash"]
     assert rep["new_lines_beyond_seeds"] > 0 and rep["corpus"] >= len(seeds)  # la guía descubrió código que las semillas no tocaban

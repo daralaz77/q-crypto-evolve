@@ -9,8 +9,12 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(os.environ["QCE_ROOT"]).resolve() if os.environ.get("QCE_ROOT") else Path(__file__).resolve().parent.parent   # el clon del repositorio
 VERSION = "0.3.0-lab"
+
+
+def _is_project_root(root: Path) -> bool:
+    return (root / "gates.json").is_file() and (root / "qce").is_dir()
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -249,7 +253,15 @@ COMMANDS = {
 def main(argv: list[str] | None = None) -> int:
     a = _build_parser().parse_args(argv)
     handler = COMMANDS.get(a.cmd)
-    return handler(a) if handler else 2
+    if handler is None:
+        return 2
+    if not _is_project_root(ROOT):
+        # Instalado con pip, `qce` solo trae el paquete: ni gates.json, ni pruebas, ni releases, ni libro. Antes ROOT apuntaba al directorio que contiene site-packages
+        # y los comandos corrían o escribían allí en silencio.
+        print(f"qce solo funciona desde un clon del repositorio (se esperaba gates.json y qce/ en {ROOT}).\n"
+              "Clona https://github.com/daralaz77/q-crypto-evolve y ejecuta `python -m qce <comando>` allí, o apunta QCE_ROOT a ese clon.", file=sys.stderr)
+        return 2
+    return handler(a)
 
 
 def bench() -> int:

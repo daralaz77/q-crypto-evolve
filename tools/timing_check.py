@@ -75,7 +75,7 @@ def targets():
     naive_guess = bytearray(secret)  # misma longitud; difiere pronto en la clase aleatoria, no en la fija
 
     def naive(guess: bytes) -> bool:
-        for a, b in zip(guess, secret):  # el canario: bucle con salida temprana (el tipo de comparación que esta prueba DEBE cazar)
+        for a, b in zip(guess, secret, strict=False):  # el canario: bucle con salida temprana (el tipo de comparación que esta prueba DEBE cazar)
             if a != b:
                 return False
         return True

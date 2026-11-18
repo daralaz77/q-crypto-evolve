@@ -42,4 +42,10 @@ MUTANTS = [
     M('e14-pin-check-skipped', 'qce/qkd/etsi014.py', (('            self._check_pin(conn.sock)  # ANTES', '            pass  # ANTES'),), 'ETSI 014: el certificado se comprueba en la conexión de cada petición'),
     M('e14-pin-not-set-on-auth', 'qce/qkd/etsi014.py', (('            pin(bytes(self._registry.get(self.device_id).public_key))\n', '            pass\n'),), 'ETSI 014: autenticar el dispositivo fija su certificado para las peticiones siguientes'),
     M('e14-pin-length-unchecked', 'qce/qkd/etsi014.py', (('or len(fingerprint) != 32:', 'or len(fingerprint) != 33:'),), 'ETSI 014: la huella fijada es un SHA-256 (32 bytes)'),
+    M('kme-handshake-in-accept-thread', 'qce/qkd/etsi014_emulator.py', (('server_side=True, do_handshake_on_connect=False)', 'server_side=True)'),), 'un cliente mudo no bloquea el KME entero'),
+    M('kme-content-length-cap-off', 'qce/qkd/etsi014_emulator.py', (('if length > MAX_BODY:', 'if False:'),), 'cuerpo demasiado grande rechazado'),
+    M('kme-content-length-negative-allowed', 'qce/qkd/etsi014_emulator.py', (('                if length < 0:\n', '                if False:\n'),), 'Content-Length negativo rechazado'),
+    M('kme-content-length-invalid-uncaught', 'qce/qkd/etsi014_emulator.py', (('                except ValueError:\n                    return self._reply(400, {"message": "Content-Length inválido"})', '                except KeyError:\n                    return self._reply(400, {"message": "Content-Length inválido"})'),), 'Content-Length no numérico rechazado'),
+    M('kme-connection-cap-off', 'qce/qkd/etsi014_emulator.py', (('if not slots.acquire(blocking=False):', 'if False:'),), 'tope de conexiones del KME'),
+    M('kme-slot-not-released', 'qce/qkd/etsi014_emulator.py', (('                finally:\n                    slots.release()', '                finally:\n                    pass'),), 'el hueco del KME vuelve'),
 ]

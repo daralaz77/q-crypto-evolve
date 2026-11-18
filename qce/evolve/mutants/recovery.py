@@ -16,4 +16,5 @@ MUTANTS = [
     M("rel-id-binding-off", "qce/recovery/release.py", (('if release_id != expected or m.get("release_id") != expected:', 'if False:'),), "id ligado al contenido"),
     M("rel-symlink-tree-off", "qce/recovery/release.py", (('raise IntegrityError(f"symlink no permitido en el árbol versionado: {p.relative_to(root)}")', 'pass'),), "sin symlinks en el árbol"),
     M("rel-rollback-symlink-off", "qce/recovery/release.py", (('if src.is_symlink() or _has_symlink(root, rel):  # OJO: dst ya está resuelto; hay que mirar la ruta SIN resolver', 'if False:'),), "reversión sin symlinks"),
+    M('rel-stable-marker-nonatomic', 'qce/recovery/release.py', (('atomic_write(cur, json.dumps({"release_id": release_id, "approver": approver}).encode("utf-8"), 0o644)', 'cur.write_text(json.dumps({"release_id": release_id, "approver": approver}), encoding="utf-8")'),), 'el marcador STABLE se escribe de forma atómica'),
 ]

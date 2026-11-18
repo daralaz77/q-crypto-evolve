@@ -6,8 +6,6 @@ import ssl
 import uuid
 
 import pytest
-from cryptography import x509
-from cryptography.hazmat.primitives import serialization
 
 from qce.core.chainlog import ChainLog
 from qce.core.errors import PolicyViolation
@@ -83,7 +81,7 @@ def brokers(env, spec=(("trusted_hops", 0),), fp=None, policy=LAB):
 # ---- extremo a extremo -----------------------------------------------------------------------------------------------
 def test_master_and_slave_get_the_same_key_through_the_brokers_and_it_is_delivered_once(env):
     bs = brokers(env)
-    for b, ad, reg in bs.values():
+    for b, ad, _reg in bs.values():
         b.attach("L1", ad)
     bm, bsl = bs["master"][0], bs["slave"][0]
     [kid] = bm.refill("L1", 1)
@@ -103,7 +101,7 @@ def test_qkd_key_from_the_etsi_emulator_feeds_tls13_with_external_psk_end_to_end
     except P.PskTransportUnavailable:
         pytest.skip("sin OpenSSL ≥ 3.5")
     bs = brokers(env)
-    for b, ad, reg in bs.values():
+    for b, ad, _reg in bs.values():
         b.attach("L1", ad)
     bm, bsl = bs["master"][0], bs["slave"][0]
     bm.refill("L1", 1)

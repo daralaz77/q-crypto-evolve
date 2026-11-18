@@ -1,5 +1,4 @@
 """`python -m pytest tools/tests -o addopts= -q` (fuera de `tests/`)."""
-import json
 import sys
 from pathlib import Path
 

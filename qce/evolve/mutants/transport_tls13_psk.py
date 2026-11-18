@@ -41,4 +41,8 @@ MUTANTS = [
     M('lvl-psk-high-group-name-off', 'qce/transport/tls13_psk.py', (('"SecP384r1MLKEM1024": "SecP384r1MLKEM1024", "X25519": "x25519"}', '"SecP384r1MLKEM1024": "x25519", "X25519": "x25519"}'),), 'niveles PSK: la atestación comprueba el grupo de nivel alto realmente negociado'),
     M('lvl-psk-pure-mlkem-allowed', 'qce/transport/tls13_psk.py', (('GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519")', 'GROUPS = ("X25519MLKEM768", "SecP384r1MLKEM1024", "X25519", "MLKEM1024")'),), 'niveles PSK: ML-KEM sin componente clásico no está permitido'),
     M('lvl-psk-default-group-high', 'qce/transport/tls13_psk.py', (('GROUP = "X25519MLKEM768"\n', 'GROUP = "SecP384r1MLKEM1024"\n'),), 'niveles PSK: el grupo por defecto no cambia en silencio al nivel alto'),
+    M('psk-server-cap-off', 'qce/transport/tls13_psk.py', (('if not self._slots.acquire(blocking=False):', 'if False:'),), 'tope de conexiones simultáneas (PSK)'),
+    M('psk-server-slot-not-released', 'qce/transport/tls13_psk.py', (('        try:\n            self._serve(raw)\n        finally:\n            self._slots.release()', '        try:\n            self._serve(raw)\n        finally:\n            pass'),), 'el hueco vuelve al terminar (PSK)'),
+    M('psk-server-accept-error-fatal', 'qce/transport/tls13_psk.py', (('if self._stop or self._ls.fileno() == -1:\n                    return  # se cerró el servidor', 'if True:\n                    return  # se cerró el servidor'),), 'un error transitorio de accept no mata el servidor (PSK)'),
+    M('psk-server-limits-unvalidated', 'qce/transport/tls13_psk.py', (('        if max_connections < 1:\n            raise ValueError', '        if False:\n            raise ValueError'),), 'límite positivo (PSK)'),
 ]

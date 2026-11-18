@@ -5,7 +5,6 @@ import json
 import shutil
 import os
 import random
-import threading
 import uuid
 from pathlib import Path
 
@@ -15,13 +14,13 @@ from qce.core.chainlog import ChainLog, sanitize
 from qce.core.errors import IntegrityError, QCEError
 from qce.evolve import gates, mutation
 from qce.security import approvals
-from qce.evolve.workflow import Task, Workflow
+from qce.evolve.workflow import Workflow
 from qce.learning.ledger import Incident, Ledger
 from qce.pqc.hybrid import HybridSigPrivateKey
-from qce.qkd.contract import DeviceAdapter, ErrorCategory, KeyMaterial, KeyReference, KeyState, QKDDeviceError
+from qce.qkd.contract import ErrorCategory, KeyState, QKDDeviceError
 from qce.recovery import release as rel
 from tests.test_audit_findings import mini_project, mk, snap
-from tests.test_qkd_adapters import LAB, Clock, attach, build
+from tests.test_qkd_adapters import attach, build
 
 ROOT = Path(__file__).resolve().parent.parent
 

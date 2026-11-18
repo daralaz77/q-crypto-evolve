@@ -5,7 +5,6 @@ import sys
 
 from qce.transport import custody, tls13  # noqa: E402  (tls13 se importa dentro de custody antes que cryptography)
 
-import datetime as dt  # noqa: E402
 import tempfile  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -14,9 +13,8 @@ from cryptography import x509  # noqa: E402
 from cryptography.hazmat.primitives import serialization  # noqa: E402
 
 from qce.core.chainlog import ChainLog  # noqa: E402
-from qce.core.errors import KeyStateError  # noqa: E402
 from qce.key_management import vault  # noqa: E402
-from qce.key_management.keystore import KeyStore, Purpose, State  # noqa: E402
+from qce.key_management.keystore import KeyStore, Purpose  # noqa: E402
 from qce.transport import pki  # noqa: E402
 
 

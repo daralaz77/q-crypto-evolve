@@ -103,13 +103,15 @@ def sign_csr(ca_key, ca_cert: x509.Certificate, csr: x509.CertificateSigningRequ
             .sign(ca_key, signing_hash(ca_key)))
 
 
-def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[x509.Certificate], days: int = 1, name: str = "crl.pem") -> Path:
-    """Lista de revocación (CRL) de la CA de laboratorio con los certificados indicados."""
+def issue_crl(directory: Path, ca_key, ca_cert: x509.Certificate, revoked: list[x509.Certificate], days: int = 1, name: str = "crl.pem",
+              number: int = 1) -> Path:
+    """Lista de revocación (CRL) de la CA de laboratorio con los certificados indicados. `number` es el `cRLNumber` (RFC 5280 §5.2.3): crece en cada emisión."""
     now = dt.datetime.now(UTC)
     b = (x509.CertificateRevocationListBuilder().issuer_name(ca_cert.subject).last_update(now - dt.timedelta(minutes=1))
          .next_update(now + dt.timedelta(days=days)))
     for cert in revoked:
         b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(cert.serial_number).revocation_date(now).build())
     b = b.add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()), critical=False)  # type: ignore[arg-type]  # el stub acepta menos tipos de los que public_key() puede devolver
+    b = b.add_extension(x509.CRLNumber(number), critical=False)
     crl = b.sign(ca_key, signing_hash(ca_key))
     return _write(directory / name, crl.public_bytes(serialization.Encoding.PEM), 0o644)
