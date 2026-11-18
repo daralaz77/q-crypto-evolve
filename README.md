@@ -17,7 +17,7 @@ Plataforma de ingeniería criptográfica evolutiva (skills `q-crypto-evolve` 3.0
 
 ## Pruébalo en 2 minutos
 
-Necesitas Python ≥ 3.11 y, para el último paso, OpenSSL ≥ 3.5 (en macOS: `brew install openssl@3`).
+Necesitas Python ≥ 3.13 y, para el último paso, OpenSSL ≥ 3.5 (en macOS: `brew install openssl@3`).
 
 ```bash
 git clone https://github.com/daralaz77/q-crypto-evolve && cd q-crypto-evolve

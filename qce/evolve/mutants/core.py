@@ -1,4 +1,4 @@
-"""Mutantes de core (14). Archivos que rompen: qce/core/chainlog.py, qce/core/encoding.py, qce/core/openssl_ffi.py, qce/core/policy.py."""
+"""Mutantes de core (20). Archivos que rompen: qce/core/chainlog.py, qce/core/encoding.py, qce/core/openssl_ffi.py, qce/core/policy.py."""
 from ._base import Mutant as M
 
 MUTANTS = [
@@ -6,7 +6,7 @@ MUTANTS = [
     M("policy-hybrid-required-off", "qce/core/policy.py", (("if \"+\" not in suite.kem or \"ML-KEM\" not in suite.kem:", "if False:"),), "KEM híbrido obligatorio"),
     M("encoding-trailing-bytes", "qce/core/encoding.py", (("if pos != len(data):", "if False:"),), "formato estricto"),
     M("encoding-length-cap", "qce/core/encoding.py", (("if ln > MAX_FIELD or pos + ln > len(data):", "if pos + ln > len(data):"),), "límite de campo"),
-    M("chain-hash-check-off", "qce/core/chainlog.py", (("or not hmac.compare_digest(e[\"hash\"], _digest(n, e[\"ts\"], prev, e[\"body\"]))", ""),), "integridad del registro"),
+    M("chain-hash-check-off", "qce/core/chainlog.py", (("or not _same(e[\"hash\"], _digest(n, e[\"ts\"], prev, e[\"body\"]))", ""),), "integridad del registro"),
     M("chain-anchor-off", "qce/core/chainlog.py", (("if expected_head is not None and prev != expected_head:\n            raise IntegrityError(\"la cabeza", "if False:\n            raise IntegrityError(\"la cabeza"),), "ancla externa"),
     M("chain-lock-off", "qce/core/chainlog.py", (("fcntl.flock(lk, fcntl.LOCK_EX)", "pass"),), "cadena concurrente"),
     M("san-key-name-off", "qce/core/chainlog.py", (('if _SENSITIVE_KEY.search(str(k)) and isinstance(v, (str, bytes, bytearray)):', 'if False:'),), "redacción por nombre de campo"),
@@ -16,4 +16,10 @@ MUTANTS = [
     M("psk-lib-version-floor-off", "qce/core/openssl_ffi.py", (('if crypto.OpenSSL_version_num() < OPENSSL_MIN:', 'if False:'),), "PSK: OpenSSL ≥ 3.5"),
     M('lvl-default-policy-includes-high', 'qce/core/policy.py', (('allowed_suites: tuple[str, ...] = ("QCE1-XMLKEM768-CHACHA", "QCE1-XMLKEM768-AESGCM")', 'allowed_suites: tuple[str, ...] = ("QCE1-XMLKEM768-CHACHA", "QCE1-XMLKEM768-AESGCM", "QCE1-XMLKEM1024-AESGCM")'),), 'niveles: la política por defecto no admite el nivel alto'),
     M('lvl-high-suite-marked-standard', 'qce/core/policy.py', (('"Ed25519+ML-DSA-87", "AES-256-GCM", "allowed", "high"),', '"Ed25519+ML-DSA-87", "AES-256-GCM", "allowed", "standard"),'),), 'niveles: la suite alta declara el nivel alto'),
+    M('chain-torn-tail-accepted', 'qce/core/chainlog.py', (('if text and not text.endswith("\\n"):', 'if False:'),), 'la última entrada incompleta se rechaza'),
+    M('chain-json-error-uncaught', 'qce/core/chainlog.py', (('            except ValueError:\n', '            except KeyError:\n'),), 'línea no JSON = IntegrityError'),
+    M('chain-wellformed-off', 'qce/core/chainlog.py', (('if not _well_formed(e):', 'if False:'),), 'entrada mal formada = IntegrityError'),
+    M('chain-compare-on-str', 'qce/core/chainlog.py', (('hmac.compare_digest(a.encode(), b.encode())', 'hmac.compare_digest(a, b)'),), 'hash no ASCII = cadena rota, no TypeError'),
+    M('chain-read-error-uncaught', 'qce/core/chainlog.py', (('except (OSError, UnicodeError) as e:', 'except OSError as e:'),), 'registro no UTF-8 = IntegrityError'),
+    M('chain-write-rollback-off', 'qce/core/chainlog.py', (('os.truncate(self.path, before)', 'pass'),), 'una escritura fallida no deja línea rota'),
 ]

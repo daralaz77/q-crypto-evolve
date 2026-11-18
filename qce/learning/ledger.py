@@ -34,6 +34,10 @@ def check_test_ref(ref: str) -> None:
 ROOT_CAUSES = ("codigo", "configuracion", "dependencia", "protocolo", "especificacion", "prueba_insuficiente")
 
 
+def _valid_level(level: object) -> bool:
+    return type(level) is int and 1 <= level <= 3
+
+
 @dataclass
 class Incident:
     incident_id: str
@@ -80,6 +84,8 @@ class Ledger:
             raise QCEError("estado inicial inválido: resolver/confirmar exige actualizaciones con evidencia")
         if inc.severity not in SEVERITIES:
             raise QCEError("severidad inválida")
+        if not _valid_level(inc.repair_level):
+            raise QCEError("nivel de reparación inválido (1, 2 o 3)")
         if inc.reproduction_test:
             check_test_ref(inc.reproduction_test)
         if inc.root_cause_category not in ROOT_CAUSES + ("desconocida",):
@@ -91,6 +97,15 @@ class Ledger:
         cur = self._state().get(incident_id)
         if cur is None:
             raise QCEError("incidente inexistente")
+        if "status" in changes and changes["status"] not in STATUSES:
+            raise QCEError("estado de incidente inválido")
+        if "root_cause_category" in changes and changes["root_cause_category"] not in ROOT_CAUSES + ("desconocida",):
+            raise QCEError("categoría de causa raíz inválida")
+        if "repair_level" in changes:
+            if not _valid_level(changes["repair_level"]):
+                raise QCEError("nivel de reparación inválido (1, 2 o 3)")
+            if changes["repair_level"] < cur.get("repair_level", 2) and not changes.get("approver"):
+                raise QCEError("bajar el nivel de reparación exige un aprobador humano identificado (evita esquivar la autorización del nivel 3)")
         if "reproduction_test" in changes:
             if not changes["reproduction_test"]:
                 raise QCEError("no se puede vaciar la prueba de reproducción de un incidente")
@@ -98,7 +113,7 @@ class Ledger:
         if "severity" in changes:
             if changes["severity"] not in SEVERITIES:
                 raise QCEError("severidad inválida")
-            if SEVERITIES.index(changes["severity"]) < SEVERITIES.index(cur.get("severity", "media")) and "approver" not in changes:
+            if SEVERITIES.index(changes["severity"]) < SEVERITIES.index(cur.get("severity", "media")) and not changes.get("approver"):
                 raise QCEError("bajar la severidad exige un aprobador humano identificado (evita esquivar max_open_high)")
         if changes.get("status") == "resuelto":
             if not (cur.get("reproduction_test") or changes.get("reproduction_test")):
@@ -115,7 +130,7 @@ class Ledger:
             merged = {**cur, **changes}
             if not merged.get("reproduction_test") or not merged.get("independent_evidence"):
                 raise QCEError("lección confirmada requiere prueba de regresión y evidencia independiente")
-        if changes.get("approval") == "aprobado" and cur.get("repair_level", 2) >= 3 and "approver" not in changes:
+        if changes.get("approval") == "aprobado" and changes.get("repair_level", cur.get("repair_level", 2)) >= 3 and not changes.get("approver"):
             raise QCEError("nivel 3 requiere aprobador humano identificado")
         self.log.append({"incident_id": incident_id, **changes})
 
