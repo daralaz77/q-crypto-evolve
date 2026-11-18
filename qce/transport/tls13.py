@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 from ..core.errors import MalformedMessage, QCEError
+from ..core.ratelimit import ConnectionGuard
 
 HYBRID_GROUP = "X25519MLKEM768"
 CIPHERSUITES = "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"
@@ -153,25 +154,34 @@ def require_hybrid_only() -> None:
         _attested = True
 
 
-def _apply_crl(ctx: ssl.SSLContext, crl_file: str | Path | None, ca_file: str | Path, min_crl_number: int | None) -> None:
-    """Activa la revocación del certificado de la otra parte. La CRL se COMPRUEBA antes (firma, emisor, vigencia, número) y se falla cerrado."""
+def _apply_crl(ctx: ssl.SSLContext, crl_file, ca_file: str | Path, min_crl_number: int | None, crl_pin=None) -> None:
+    """Activa la revocación del certificado de la otra parte. Cada CRL se COMPRUEBA antes (firma, emisor, vigencia, número) y se falla cerrado.
+    `crl_file` es una ruta (se comprueba solo la HOJA) o una lista/tupla de rutas (se comprueba la CADENA ENTERA: hace falta una CRL por cada CA que emite,
+    firmada por esa CA, y todas ellas —la raíz y las intermedias— deben figurar en `ca_file`; falta una = se rechaza)."""
     if crl_file is None:
-        if min_crl_number is not None:
-            raise TransportMisconfigured("min_crl_number sin crl_file: no hay lista que comprobar")
+        if min_crl_number is not None or crl_pin is not None:
+            raise TransportMisconfigured("min_crl_number/crl_pin sin crl_file: no hay lista que comprobar")
         return
+    chain = not isinstance(crl_file, (str, os.PathLike))
+    crls = list(crl_file) if chain else [crl_file]
+    if not crls:
+        raise TransportMisconfigured("la lista de CRL está vacía")
+    if chain and min_crl_number is not None:
+        raise TransportMisconfigured("min_crl_number vale para una sola CRL: con varias use crl_pin (un suelo por emisor)")
     from .crl import check_crl  # `cryptography` se importa aquí, ya fijado OPENSSL_CONF (require_hybrid_only se ejecutó antes)
-    check_crl(crl_file, ca_file, min_number=min_crl_number)
-    ctx.load_verify_locations(str(crl_file))
-    ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
+    for one in crls:
+        check_crl(one, ca_file, min_number=min_crl_number, pin=crl_pin)
+        ctx.load_verify_locations(str(one))
+    ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_CHAIN if chain else ssl.VERIFY_CRL_CHECK_LEAF
 
 
 def server_context(certfile: str | Path, keyfile: str | Path, client_ca: str | Path | None = None,
-                   key_password: bytes | None = None, crl_file: str | Path | None = None, min_crl_number: int | None = None) -> ssl.SSLContext:
+                   key_password: bytes | None = None, crl_file=None, min_crl_number: int | None = None, crl_pin=None) -> ssl.SSLContext:
     """Servidor TLS 1.3 híbrido. Con `client_ca` exige certificado de cliente (autenticación mutua; QCE1 no la tiene).
     Con `crl_file` (solo tiene sentido con `client_ca`) rechaza los clientes REVOCADOS; antes bastaba un certificado de cliente revocado para entrar."""
     require_hybrid_only()
-    if crl_file is not None and client_ca is None:
-        raise TransportMisconfigured("crl_file en el servidor exige client_ca: sin autenticación mutua no hay certificado de cliente que revocar")
+    if (crl_file is not None or crl_pin is not None or min_crl_number is not None) and client_ca is None:
+        raise TransportMisconfigured("crl_file/crl_pin/min_crl_number en el servidor exigen client_ca: sin autenticación mutua no hay certificado de cliente que revocar")
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_3
     ctx.load_cert_chain(str(certfile), str(keyfile), password=key_password)  # clave cifrada: la contraseña solo existe en memoria
@@ -180,12 +190,12 @@ def server_context(certfile: str | Path, keyfile: str | Path, client_ca: str | P
     if client_ca is not None:
         ctx.verify_mode = ssl.CERT_REQUIRED
         ctx.load_verify_locations(str(client_ca))
-        _apply_crl(ctx, crl_file, client_ca, min_crl_number)
+        _apply_crl(ctx, crl_file, client_ca, min_crl_number, crl_pin)
     return ctx
 
 
 def client_context(ca_file: str | Path, client_cert: str | Path | None = None, client_key: str | Path | None = None,
-                   crl_file: str | Path | None = None, min_crl_number: int | None = None) -> ssl.SSLContext:
+                   crl_file=None, min_crl_number: int | None = None, crl_pin=None) -> ssl.SSLContext:
     """Cliente TLS 1.3 híbrido: verifica cadena y nombre, y confía SOLO en `ca_file` (nunca en el almacén del sistema).
     Con `crl_file` comprueba la revocación del certificado del servidor y FALLA CERRADO —al crear el contexto— si la lista falta, no la firmó la CA,
     caducó o su número es menor que `min_crl_number` (retroceso a una lista vieja)."""
@@ -193,7 +203,7 @@ def client_context(ca_file: str | Path, client_cert: str | Path | None = None, c
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # check_hostname=True y CERT_REQUIRED por defecto
     ctx.minimum_version = ssl.TLSVersion.TLSv1_3
     ctx.load_verify_locations(str(ca_file))
-    _apply_crl(ctx, crl_file, ca_file, min_crl_number)
+    _apply_crl(ctx, crl_file, ca_file, min_crl_number, crl_pin)
     ctx.options |= ssl.OP_NO_COMPRESSION
     if client_cert is not None:
         ctx.load_cert_chain(str(client_cert), str(client_key))
@@ -236,23 +246,25 @@ class TlsServer:
     """Servidor de mensajes con hilo por conexión (laboratorio). `handler(conn, peer_cert)` recibe la conexión ya autenticada.
 
     Defensas contra agotamiento de recursos (T5; capa de aplicación, NO sustituyen a un cortafuegos):
-      - `max_connections`: tope de conexiones simultáneas (hilos). La que excede se cierra sin hilo ni criptografía (`rejected_busy`).
+      - `max_connections` y `max_per_origin`: tope de conexiones simultáneas (hilos), global y por origen. La que excede se cierra sin hilo ni criptografía
+        (`rejected_busy` / `rejected_origin`). Sin el tope por origen, uno solo llenaba el global y dejaba fuera a todos.
       - `handshake_timeout`: plazo TOTAL del apretón TLS. Antes solo había plazo por operación (10 s), y quien enviaba un byte cada 9 s lo mantenía vivo para siempre.
       - `max_lifetime`: vida máxima de una conexión ya autenticada (None = sin tope).
       - el bucle de `accept` sobrevive a los errores transitorios (sin descriptores, conexión abortada): antes UNO terminaba el servidor en silencio."""
 
     def __init__(self, ctx: ssl.SSLContext, handler, host: str = "127.0.0.1", port: int = 0, limiter=None, *, max_connections: int = 256,
-                 handshake_timeout: float = 10.0, max_lifetime: float | None = 300.0) -> None:
-        if max_connections < 1 or handshake_timeout <= 0 or (max_lifetime is not None and max_lifetime <= 0):
+                 handshake_timeout: float = 10.0, max_lifetime: float | None = 300.0, max_per_origin: int | None = 32) -> None:
+        if handshake_timeout <= 0 or (max_lifetime is not None and max_lifetime <= 0):
             raise ValueError("parámetros de límite inválidos")
         self._ctx: ssl.SSLContext | None = ctx
         self._handler = handler
         self._limiter = limiter  # OriginRateLimiter opcional: se aplica ANTES del apretón TLS (rechazo barato)
-        self._slots = threading.BoundedSemaphore(max_connections)
+        self._guard = ConnectionGuard(max_connections, max_per_origin)   # ValueError si los topes no son positivos
         self._handshake_timeout, self._max_lifetime = handshake_timeout, max_lifetime
         self._count_lock = threading.Lock()
         self.rate_limited = 0
         self.rejected_busy = 0
+        self.rejected_origin = 0
         self._ls = socket.socket()
         self._ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._ls.bind((host, port))
@@ -283,14 +295,16 @@ class TlsServer:
                 self._bump("rate_limited")
                 raw.close()  # sin hilo, sin apretón TLS, sin criptografía
                 continue
-            if not self._slots.acquire(blocking=False):
-                self._bump("rejected_busy")
+            origin = str(addr[0])
+            refused = self._guard.acquire(origin)
+            if refused is not None:
+                self._bump("rejected_busy" if refused == "busy" else "rejected_origin")
                 raw.close()
                 continue
             try:
-                threading.Thread(target=self._one, args=(raw,), daemon=True).start()
+                threading.Thread(target=self._one, args=(raw, origin), daemon=True).start()
             except RuntimeError:  # el sistema no da más hilos (`can't start new thread`): se libera el hueco y se cierra
-                self._slots.release()
+                self._guard.release(origin)
                 raw.close()
 
     def set_context(self, ctx: ssl.SSLContext) -> None:
@@ -301,11 +315,11 @@ class TlsServer:
         """Revocación: ninguna conexión nueva se atiende (las abiertas deben cerrarse por quien revoca)."""
         self._ctx = None
 
-    def _one(self, raw: socket.socket) -> None:
+    def _one(self, raw: socket.socket, origin: str) -> None:
         try:
             self._serve(raw)
         finally:
-            self._slots.release()
+            self._guard.release(origin)
 
     def _serve(self, raw: socket.socket) -> None:
         raw.settimeout(10)

@@ -16,13 +16,16 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
+from ..core.ratelimit import ConnectionGuard
+
 MAX_BODY = 64 * 1024   # una petición ETSI 014 legítima ocupa unos cientos de bytes
 KEY_PATH = re.compile(r"^/api/v1/keys/([A-Za-z0-9._:@-]{1,128})/(status|enc_keys|dec_keys)$")
 
 
 class EmulatedKME:
     def __init__(self, ssl_context: ssl.SSLContext, master_sae: str, slave_sae: str, key_size: int = 256, max_keys: int = 32, max_per_request: int = 4,
-                 host: str = "127.0.0.1", port: int = 0, max_connections: int = 64) -> None:
+                 host: str = "127.0.0.1", port: int = 0, max_connections: int = 64, max_per_origin: int | None = 16,
+                 io_timeout: float = 10.0) -> None:
         self.master, self.slave, self.key_size, self.max_keys, self.max_per_request = master_sae, slave_sae, key_size, max_keys, max_per_request
         self._store: dict[str, bytes] = {}
         self._lock = threading.Lock()
@@ -41,7 +44,7 @@ class EmulatedKME:
                 self.end_headers()
                 self.wfile.write(data)
 
-            timeout = 10   # por operación de socket (StreamRequestHandler lo aplica): una conexión que calla no retiene su hilo para siempre
+            timeout = io_timeout   # por operación de socket (StreamRequestHandler lo aplica): una conexión que calla no retiene su hilo para siempre
 
             def setup(self):
                 # El apretón TLS se hace AQUÍ, en el hilo de ESTA conexión. Antes ocurría dentro de `accept()`, en el único hilo de aceptación: un cliente que
@@ -131,8 +134,9 @@ class EmulatedKME:
             def do_POST(self):
                 self._handle("POST")
 
-        slots = threading.BoundedSemaphore(max_connections)
+        guard = ConnectionGuard(max_connections, max_per_origin)   # topes global y por origen (ValueError si no son positivos)
         self.rejected_busy = 0
+        self.rejected_origin = 0
 
         class Quiet(ThreadingHTTPServer):
             daemon_threads = True
@@ -141,8 +145,12 @@ class EmulatedKME:
                 pass
 
             def process_request(self, request, client_address):
-                if not slots.acquire(blocking=False):   # tope de conexiones simultáneas: la que sobra se cierra sin hilo ni apretón
-                    kme.rejected_busy += 1
+                refused = guard.acquire(str(client_address[0]))   # topes global y por origen: la que sobra se cierra sin hilo ni apretón
+                if refused is not None:
+                    if refused == "busy":
+                        kme.rejected_busy += 1
+                    else:
+                        kme.rejected_origin += 1
                     self.shutdown_request(request)
                     return
                 super().process_request(request, client_address)
@@ -151,7 +159,7 @@ class EmulatedKME:
                 try:
                     super().process_request_thread(request, client_address)
                 finally:
-                    slots.release()
+                    guard.release(str(client_address[0]))
         self._srv = Quiet((host, port), H)
         self._srv.socket = ssl_context.wrap_socket(self._srv.socket, server_side=True, do_handshake_on_connect=False)
         self.port = self._srv.server_address[1]

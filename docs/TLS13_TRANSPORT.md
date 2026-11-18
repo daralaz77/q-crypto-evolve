@@ -60,9 +60,22 @@ La clave **nace dentro del KeyStore** (PKCS#8, propósito `TLS`) y se persiste c
 
 - **QKD no se integra en este transporte.** TLS 1.3 admite una clave externa (PSK) para mezclar un secreto como el de QKD, pero la API de PSK de `ssl` en Python 3.14 **solo funciona hasta TLS 1.2** (probado: el apretón TLS 1.3 con PSK falla con `NO_SUITABLE_SIGNATURE_ALGORITHM`). Opciones: una versión futura de Python, otra pila TLS con PSK externo en 1.3, o seguir con QCE1 solo para el modo QKD.
 - **La clave privada vive en el KeyStore cifrado (§4), pero no en un HSM:** está en claro en la memoria del proceso mientras exista el contexto; una persona con acceso a esa memoria (volcado, depurador) la obtiene. La CA, la política de caducidad y la rotación automática (hoy se invoca a mano) siguen siendo de laboratorio.
-- **Sin revocación de certificados** (CRL/OCSP) ni gestión del ciclo de vida: la PKI incluida es de laboratorio (ECDSA P-256, 1 día).
+- **Revocación: CRL explícita, sin OCSP ni distribución automática** (§6). Sin gestión del ciclo de vida: la PKI incluida es de laboratorio (ECDSA P-256, 1 día).
 - **Los certificados ML-DSA-65 de las pruebas los genera el `openssl` del sistema** (3.6.4); la compatibilidad con otras pilas y clientes no se ha probado.
 - **Dependencia de OpenSSL ≥ 3.5** y de que el entorno no sustituya `OPENSSL_CONF` por una configuración permisiva; la atestación lo detecta, pero solo en el momento de crear contextos.
-- **El servidor de ejemplo (`TlsServer`) es de laboratorio:** hilo por conexión, sin límites de conexiones ni de tasa.
+- **El servidor de ejemplo (`TlsServer`) es de laboratorio:** hilo por conexión, con topes y plazos de capa de aplicación (§7) que no sustituyen a un cortafuegos.
 - **Autenticación ECDSA por defecto en laboratorio:** protege contra captura-hoy-descifrado-mañana (el KEM es híbrido), pero una firma clásica podría falsificarse con un ordenador cuántico futuro; para eso está la opción ML-DSA.
 - Nada de esto sustituye la **revisión de un experto** de la configuración TLS y de su despliegue.
+
+## 6. Revocación con CRL (`qce/transport/crl.py`)
+
+- **Cliente y servidor.** `client_context(ca, crl_file=…)` comprueba el certificado del servidor; `server_context(cert, key, client_ca=…, crl_file=…)` rechaza a los clientes revocados (con autenticación mutua). Sin `crl_file` no se comprueba nada.
+- **La lista se verifica ANTES de usarla** (`check_crl`): firma, emisor, vigencia y número (`cRLNumber`). Si algo falla se lanza `CrlRejected` al crear el contexto; no se espera a que falle una conexión.
+- **Contra el retroceso** (poner una lista vieja, todavía vigente, en lugar de la nueva): `CrlPin(ruta)` recuerda por emisor el número más alto visto y solo deja avanzar (`crl_pin=`), o se fija a mano con `min_crl_number=`. El suelo solo sube después de pasar el resto de comprobaciones. La primera lista vista fija el suelo: no protege contra una lista vieja presentada la PRIMERA vez, y quien pueda reescribir el archivo del ancla lo baja.
+- **Cadena entera.** Con una lista de CRL (`crl_file=[crl_intermedia, crl_raiz]`) se comprueba cada CA que emite: hace falta una CRL por cada una, firmada por esa CA, y todas deben figurar en `ca_file` (la raíz y las intermedias). Con una sola ruta se comprueba solo la hoja.
+- **Fuera de alcance:** OCSP, distribución automática de listas y revocación de la propia raíz.
+
+## 7. Topes y plazos anti-DoS del servidor (capa de aplicación)
+
+`TlsServer(…, max_connections=256, max_per_origin=32, handshake_timeout=10, max_lifetime=300)`: la conexión que excede un tope se cierra sin hilo ni criptografía (`rejected_busy` / `rejected_origin`); el apretón tiene un plazo TOTAL (un byte cada pocos segundos ya no lo mantiene vivo); la conexión autenticada tiene vida máxima; y el bucle de `accept` sobrevive a los errores transitorios (antes uno apagaba el servidor). `PskServer` y el KME emulado tienen los mismos topes (el KME, además, `io_timeout`). El origen se agrupa como en `OriginRateLimiter` (IPv6 por su /64). **Límites:** no sustituyen a un cortafuegos ni frenan un DoS volumétrico; detrás de NAT muchos usuarios comparten origen, y quien dispone de muchas direcciones esquiva el tope por origen (el global sigue protegiendo el proceso).
+

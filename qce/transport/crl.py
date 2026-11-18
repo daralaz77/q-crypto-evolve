@@ -9,10 +9,13 @@ que nunca disminuya (`min_number`). Fijar ese mínimo en un lugar que el atacant
 from __future__ import annotations
 
 import datetime as dt
+import fcntl
+import json
 from pathlib import Path
 
 from cryptography import x509
 
+from ..core.atomic import atomic_write
 from ..core.errors import QCEError
 
 
@@ -27,8 +30,48 @@ def _load_cas(ca_file: str | Path) -> list[x509.Certificate]:
         raise CrlRejected(f"no se pueden leer los certificados de la CA: {type(e).__name__}") from None
 
 
-def check_crl(crl_file: str | Path, ca_file: str | Path, *, min_number: int | None = None, now: dt.datetime | None = None) -> int:
-    """Verifica firma, emisor, vigencia y número de la CRL. Devuelve su `cRLNumber` (0 si no lo lleva y no se exigió un mínimo)."""
+class CrlPin:
+    """Ancla LOCAL del número de CRL: recuerda, por emisor, el `cRLNumber` más alto aceptado y rechaza cualquier lista con uno menor.
+
+    Así quien despliega no tiene que fijar `min_crl_number` a mano: la primera CRL válida fija el suelo y desde entonces solo se puede avanzar. El suelo solo
+    sube DESPUÉS de que la CRL pasó todas las demás comprobaciones (firma, emisor, vigencia): una lista falsa no puede subirlo. Archivo 0600, escritura atómica
+    y con cerrojo; si no se puede leer, se rechaza (no se acepta nada a ciegas).
+    LÍMITE: quien pueda reescribir este archivo puede bajar el suelo; guárdalo donde el atacante que cambia la CRL no escriba."""
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+
+    def _read(self) -> dict[str, int]:
+        if not self.path.exists():
+            return {}
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not all(isinstance(k, str) and type(v) is int and v >= 0 for k, v in data.items()):
+                raise ValueError("formato")
+            return data
+        except (OSError, ValueError):
+            raise CrlRejected("el ancla local de CRL no se puede leer: no se acepta ninguna lista a ciegas") from None
+
+    def check(self, issuer: str, number: int | None) -> int:
+        """Rechaza el retroceso y, si el número avanza, lo recuerda. Devuelve el suelo vigente tras la comprobación."""
+        if number is None:
+            raise CrlRejected("la CRL no lleva número: no se puede anclar (no se descarta un retroceso)")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.path.with_suffix(self.path.suffix + ".lock"), "w") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            seen = self._read()
+            floor = seen.get(issuer, 0)
+            if number < floor:
+                raise CrlRejected(f"retroceso de la CRL: número {number} < el más alto visto {floor}")
+            if number > floor:
+                seen[issuer] = number
+                atomic_write(self.path, json.dumps(seen, sort_keys=True).encode("utf-8"), 0o600)
+            return max(number, floor)
+
+
+def check_crl(crl_file: str | Path, ca_file: str | Path, *, min_number: int | None = None, now: dt.datetime | None = None, pin: CrlPin | None = None) -> int:
+    """Verifica firma, emisor, vigencia y número de la CRL. Devuelve su `cRLNumber` (0 si no lo lleva y no se exigió un mínimo).
+    Con `pin`, además rechaza un número menor que el más alto visto antes y lo recuerda si avanza (solo tras pasar todo lo demás)."""
     now = now or dt.datetime.now(dt.timezone.utc)
     try:
         crl = x509.load_pem_x509_crl(Path(crl_file).read_bytes())
@@ -52,6 +95,8 @@ def check_crl(crl_file: str | Path, ca_file: str | Path, *, min_number: int | No
             raise CrlRejected("la CRL no lleva número y se exige uno (no se puede descartar un retroceso)")
         if number < min_number:
             raise CrlRejected(f"retroceso de la CRL: número {number} < mínimo {min_number}")
+    if pin is not None:
+        pin.check(crl.issuer.rfc4514_string(), number)   # lo ÚLTIMO: una lista que no pasó lo anterior no puede subir el suelo
     return number or 0
 
 

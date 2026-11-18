@@ -7,11 +7,11 @@
 ## Si solo tiene una hora
 Lea `docs/QCE1_SPEC.md` (§7, §11, §13) y responda las preguntas 1 a 4 de `PREGUNTAS_ABIERTAS.md` (combinación de claves y derivación HKDF). Si es de QKD o TLS: preguntas 21 a 24 (QIL1).
 
-## Qué hay de comprobado (estado a 2026-11-06, release `7a26ae171848244a`)
+## Qué hay de comprobado (estado a 2026-11-18, release `1ffd60f1065228b0`)
 | Evidencia | Qué dice | Qué NO dice |
 |---|---|---|
-| Puertas G1–G4 y G6 pasan; G5 (revisión independiente) está pendiente | Integridad, 907 pruebas, seguridad y regresión OK; hay autorización humana del mantenedor | G5 sigue sin cumplirse: por eso se pide esta revisión |
-| Prueba de mutación: 447 de 447 mutantes detectados (5 declarados equivalentes) | Las pruebas detectan roturas de los controles listados | No descubre vulnerabilidades desconocidas |
+| Puertas G1–G4 pasan; G5 (revisión independiente) está pendiente y la firma G6 del mantenedor de este código exacto aún no consta | Integridad, 1064 pruebas, seguridad y regresión OK | G5 sigue sin cumplirse: por eso se pide esta revisión |
+| Prueba de mutación: 597 de 597 puntuables detectados (603 mutantes; 5 declarados equivalentes) | Las pruebas detectan roturas de los controles listados | No descubre vulnerabilidades desconocidas |
 | Vectores NIST ACVP (ML-KEM, ML-DSA, SLH-DSA) y `docs/PRUEBA_DIFERENCIAL_PQC.md` (0 discrepancias frente a OpenSSL 3.6/4.0 y a una implementación independiente en Python puro) | Las primitivas se comportan como el estándar | No prueba la seguridad de la composición |
 | Modelo Tamarin simbólico de QCE1 y QIL1 | Propiedades del diseño en el modelo | Sin modelo computacional, sin capa de registros, sin revisión humana |
 | `docs/QIL1_CONTRASTE_LITERATURA.md` | Ni el teorema de un solo uso de Dey–Safavi-Naini ni la combinación de Giestinhas–Spiller cubren QIL1; sus registros dependen del supuesto computacional del AEAD | No es una validación; los artículos se leyeron de forma parcial |

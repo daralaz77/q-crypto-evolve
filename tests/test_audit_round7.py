@@ -64,7 +64,8 @@ def test_a_transient_accept_error_does_not_kill_the_server():
 
 
 def test_server_limits_must_be_positive():
-    assert scenario("crl_args")["bad_limits"] == "ValueError"
+    r = scenario("crl_args")
+    assert [r[k] for k in ("bad_limits", "bad_origin_limit", "bad_handshake_timeout", "bad_lifetime")] == ["ValueError"] * 4
 
 
 # --- 2. CRL ---------------------------------------------------------------------------------------------------------------------------------------------
@@ -82,6 +83,7 @@ def test_crl_arguments_fail_closed_when_they_make_no_sense_or_the_list_goes_back
     assert r["client_min_without_crl"] == "TransportMisconfigured" and r["server_min_without_crl"] == "TransportMisconfigured"
     assert r["client_rollback"] == "CrlRejected" and r["server_rollback"] == "CrlRejected"
     assert r["client_ok"] == "ok"
+    assert r["server_min_without_mtls"] == "TransportMisconfigured"
 
 
 @pytest.fixture

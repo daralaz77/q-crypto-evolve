@@ -46,6 +46,8 @@ MUTANTS = [
     M('kme-content-length-cap-off', 'qce/qkd/etsi014_emulator.py', (('if length > MAX_BODY:', 'if False:'),), 'cuerpo demasiado grande rechazado'),
     M('kme-content-length-negative-allowed', 'qce/qkd/etsi014_emulator.py', (('                if length < 0:\n', '                if False:\n'),), 'Content-Length negativo rechazado'),
     M('kme-content-length-invalid-uncaught', 'qce/qkd/etsi014_emulator.py', (('                except ValueError:\n                    return self._reply(400, {"message": "Content-Length inválido"})', '                except KeyError:\n                    return self._reply(400, {"message": "Content-Length inválido"})'),), 'Content-Length no numérico rechazado'),
-    M('kme-connection-cap-off', 'qce/qkd/etsi014_emulator.py', (('if not slots.acquire(blocking=False):', 'if False:'),), 'tope de conexiones del KME'),
-    M('kme-slot-not-released', 'qce/qkd/etsi014_emulator.py', (('                finally:\n                    slots.release()', '                finally:\n                    pass'),), 'el hueco del KME vuelve'),
+    M('kme-connection-cap-off', 'qce/qkd/etsi014_emulator.py', (('                if refused is not None:\n', '                if False:\n'),), 'topes de conexiones del KME'),
+    M('kme-slot-not-released', 'qce/qkd/etsi014_emulator.py', (('                finally:\n                    guard.release(str(client_address[0]))', '                finally:\n                    pass'),), 'el hueco del KME vuelve'),
+    M('kme-origin-not-counted', 'qce/qkd/etsi014_emulator.py', (('                    if refused == "busy":\n', '                    if True:\n'),), 'el motivo del rechazo se cuenta aparte (KME)'),
+    M('kme-io-timeout-ignored', 'qce/qkd/etsi014_emulator.py', (('            timeout = io_timeout', '            timeout = None'),), 'plazo por operación del KME'),
 ]

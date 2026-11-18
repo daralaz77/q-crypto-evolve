@@ -28,6 +28,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from ..core import openssl_ffi as ffi
 from ..core.encoding import lp as _lp
 from ..core.errors import AuthenticationFailure, MalformedMessage, PolicyViolation, QCEError
+from ..core.ratelimit import ConnectionGuard
 
 GROUP = "X25519MLKEM768"
 CIPHERSUITE = "TLS_AES_256_GCM_SHA384"
@@ -345,13 +346,12 @@ class PskServer:
     """Servidor de laboratorio con un hilo por conexión: `handler(conn)` recibe la conexión ya atestiguada (el id de clave está en `conn.identity`)."""
 
     def __init__(self, source, handler: Callable[[PskTlsConnection], None], host: str = "127.0.0.1", port: int = 0, timeout: float = HANDSHAKE_TIMEOUT,
-                 suite: str = CIPHERSUITE, group: str = GROUP, *, max_connections: int = 256) -> None:
-        if max_connections < 1:
-            raise ValueError("max_connections inválido")
+                 suite: str = CIPHERSUITE, group: str = GROUP, *, max_connections: int = 256, max_per_origin: int | None = 32) -> None:
         self._source, self._handler, self._timeout, self._suite, self._group = source, handler, timeout, suite, group
-        self._slots = threading.BoundedSemaphore(max_connections)  # tope de conexiones simultáneas: la que sobra se cierra sin hilo ni criptografía
+        self._guard = ConnectionGuard(max_connections, max_per_origin)  # topes global y por origen (ValueError si no son positivos): la que sobra se cierra sin hilo ni criptografía
         self._count_lock = threading.Lock()
         self.rejected_busy = 0
+        self.rejected_origin = 0
         self._ls = socket.socket()
         self._ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._ls.bind((host, port))
@@ -372,27 +372,29 @@ class PskServer:
     def _loop(self) -> None:
         while not self._stop:
             try:
-                raw, _ = self._ls.accept()
+                raw, addr = self._ls.accept()
             except OSError:
                 if self._stop or self._ls.fileno() == -1:
                     return  # se cerró el servidor
                 time.sleep(0.05)  # error transitorio (EMFILE, ECONNABORTED…): antes UNO terminaba el servidor en silencio
                 continue
-            if not self._slots.acquire(blocking=False):
-                self._bump("rejected_busy")
+            origin = str(addr[0])
+            refused = self._guard.acquire(origin)
+            if refused is not None:
+                self._bump("rejected_busy" if refused == "busy" else "rejected_origin")
                 raw.close()
                 continue
             try:
-                threading.Thread(target=self._one, args=(raw,), daemon=True).start()
-            except RuntimeError:  # el sistema no da más hilos (`can't start new thread`)
-                self._slots.release()
+                threading.Thread(target=self._one, args=(raw, origin), daemon=True).start()
+            except RuntimeError:  # el sistema no da más hilos (`can't start new thread`): se libera el hueco y se cierra
+                self._guard.release(origin)
                 raw.close()
 
-    def _one(self, raw: socket.socket) -> None:
+    def _one(self, raw: socket.socket, origin: str) -> None:
         try:
             self._serve(raw)
         finally:
-            self._slots.release()
+            self._guard.release(origin)
 
     def _serve(self, raw: socket.socket) -> None:
         try:

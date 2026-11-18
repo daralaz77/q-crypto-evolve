@@ -67,7 +67,7 @@ Máquina: macOS (Apple Silicon), Python 3.14.7, `cryptography` 50.0.2, OpenSSL 3
 | §1 `shasum -a 256 -c MANIFEST.sha256` | 0 discrepancias |
 | §3 `pytest` completo | **389 passed, 11 skipped**, ≈ 52 s (omitidas: 3 pruebas formales pesadas que exigen `QCE_FORMAL=1` y 8 del propio empaquetado, que solo corren en el repositorio completo) |
 | §4 `python -m qce formal` | «modelo formal: veredictos y mutantes del modelo conformes…»: QCE1 (11 configuraciones, 3 mutantes) **y** QIL1 (8 configuraciones, 5 mutantes) |
-| §5 `python -m qce mutate` | **no reproducido desde el zip en esta ocasión** (≈ 25 min). Resultado en el repositorio completo: ~300 mutantes, todos los puntuables detectados, 5 equivalentes declarados con su justificación |
+| §5 `python -m qce mutate` | **no reproducido desde el zip en esta ocasión** (≈ 25 min). Resultado en el repositorio completo (2026-11-18): 603 mutantes, 597 puntuables, todos detectados, 5 equivalentes declarados con su justificación |
 
 Pruebas que dependen del entorno: el transporte PSK, SLH-DSA y la interoperabilidad con la herramienta `openssl` necesitan un OpenSSL ≥ 3.5 (se omiten o fallan cerrado si no está; ver `docs/TLS13_PSK_TRANSPORT.md`). Probado en macOS con Homebrew y en un contenedor Debian 13 aarch64 con OpenSSL 3.5.7 (suite completa: 463 pasan, 0 fallan).
 

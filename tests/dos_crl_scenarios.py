@@ -51,6 +51,14 @@ def try_roundtrip(ctx, port):
         return type(exc).__name__
 
 
+def try_ctx_error(fn):
+    try:
+        fn()
+        return "ok"
+    except Exception as exc:  # noqa: BLE001
+        return type(exc).__name__
+
+
 def run(name):
     with tempfile.TemporaryDirectory() as td:
         d = Path(td)
@@ -131,6 +139,75 @@ def run(name):
             srv.close()
             time.sleep(0.3)
             return {"echo": r, "failures_injected": flaky.n, "alive": alive, "stopped_after_close": not srv._thread.is_alive()}
+        if name == "origin_cap":
+            gate = threading.Event()
+
+            def hold(conn, peer):
+                gate.wait(10)
+            srv = tls13.TlsServer(tls13.server_context(cert, key), hold, max_connections=10, max_per_origin=2).start()
+            held = [tls13.connect(tls13.client_context(ca), "127.0.0.1", srv.port, "localhost", timeout=5) for _ in range(2)]
+            time.sleep(0.3)
+            extra = socket.create_connection(("127.0.0.1", srv.port))
+            t = closed_after(extra, 3)
+            out = {"extra_closed_in": t, "rejected_origin": srv.rejected_origin, "rejected_busy": srv.rejected_busy}
+            gate.set()
+            for c in held:
+                c.close()
+            time.sleep(0.5)
+            c = tls13.connect(tls13.client_context(ca), "127.0.0.1", srv.port, "localhost", timeout=5)   # al liberarse sus huecos, el origen vuelve a entrar
+            c.close()
+            out["served_after_release"] = True
+            return out
+        if name == "chain_crl":
+            from cryptography import x509
+            ca2, ck2, cc2 = P.issue_ca(d / "cadena", path_length=1) if (d / "cadena").mkdir() is None else None
+            ip, ik, ic = P.issue_intermediate(d / "cadena", ck2, cc2)
+            lcert, lkey = P.issue_leaf(d / "cadena", ik, ic, "localhost", server=True)
+            chain = d / "cadena" / "chain.pem"
+            chain.write_bytes(Path(lcert).read_bytes() + Path(ip).read_bytes())            # el servidor envía hoja + intermedia
+            trust = d / "cadena" / "trust.pem"
+            trust.write_bytes(Path(ca2).read_bytes() + Path(ip).read_bytes())              # el cliente confía en la raíz y conoce la intermedia
+            leaf = x509.load_pem_x509_certificate(Path(lcert).read_bytes())
+            inter = ic
+            crl_int = P.issue_crl(d / "cadena", ik, ic, [], name="int.pem")
+            crl_int_rev = P.issue_crl(d / "cadena", ik, ic, [leaf], name="int-rev.pem")
+            crl_root = P.issue_crl(d / "cadena", ck2, cc2, [], name="root.pem")
+            crl_root_rev = P.issue_crl(d / "cadena", ck2, cc2, [inter], name="root-rev.pem")
+            srv = tls13.TlsServer(tls13.server_context(chain, lkey), echo_handler).start()
+
+            def attempt(**kw):
+                try:
+                    return try_roundtrip(tls13.client_context(trust, **kw), srv.port)
+                except Exception as exc:  # noqa: BLE001
+                    return type(exc).__name__
+            out = {"both_empty": attempt(crl_file=[crl_int, crl_root]),
+                   "leaf_revoked": attempt(crl_file=[crl_int_rev, crl_root]),
+                   "intermediate_revoked": attempt(crl_file=[crl_int, crl_root_rev]),
+                   "root_crl_missing": attempt(crl_file=[crl_int]),
+                   "leaf_mode_misses_intermediate": attempt(crl_file=crl_int),             # límite declarado del modo hoja
+                   "issuer_not_in_trust": try_ctx_error(lambda: tls13.client_context(ca2, crl_file=[crl_int, crl_root])),
+                   "chain_with_min_number": try_ctx_error(lambda: tls13.client_context(trust, crl_file=[crl_int, crl_root], min_crl_number=1)),
+                   "empty_list": try_ctx_error(lambda: tls13.client_context(trust, crl_file=[]))}
+            srv.close()
+            return out
+        if name == "crl_pin":
+            from qce.transport.crl import CrlPin
+            pin_file = d / "pin" / "crl-pin.json"
+            pin = CrlPin(pin_file)
+            out = {}
+            def ctx(c):
+                return tls13.client_context(ca, crl_file=c, crl_pin=pin)
+            out["first"] = try_ctx_error(lambda: ctx(P.issue_crl(d, ck, cc, [], number=5, name="n5.pem")))
+            out["older"] = try_ctx_error(lambda: ctx(P.issue_crl(d, ck, cc, [], number=3, name="n3.pem")))
+            out["same"] = try_ctx_error(lambda: ctx(P.issue_crl(d, ck, cc, [], number=5, name="n5b.pem")))
+            out["newer"] = try_ctx_error(lambda: ctx(P.issue_crl(d, ck, cc, [], number=6, name="n6.pem")))
+            _ca2, ck2, _cc2 = P.issue_ca(d / "falsa", cn=cc.subject.rfc4514_string().removeprefix("CN=")) if (d / "falsa").mkdir() is None else None
+            out["forged_high"] = try_ctx_error(lambda: ctx(P.issue_crl(d / "falsa", ck2, cc, [], number=99, name="n99.pem")))
+            out["floor_after_forgery"] = json.loads(pin_file.read_text())
+            out["still_older_after_forgery"] = try_ctx_error(lambda: ctx(P.issue_crl(d, ck, cc, [], number=5, name="n5c.pem")))
+            out["pin_without_crl"] = try_ctx_error(lambda: tls13.client_context(ca, crl_pin=pin))
+            out["server_pin_without_mtls"] = try_ctx_error(lambda: tls13.server_context(cert, key, crl_pin=pin))
+            return out
         if name == "mtls_crl":
             ccert, ckey = P.issue_leaf(d, ck, cc, "cliente", server=False)
             bcert, bkey = P.issue_leaf(d, ck, cc, "cliente-malo", server=False)
@@ -154,7 +231,11 @@ def run(name):
                               ("client_rollback", lambda: tls13.client_context(ca, crl_file=crl, min_crl_number=4)),
                               ("server_rollback", lambda: tls13.server_context(cert, key, client_ca=ca, crl_file=crl, min_crl_number=4)),
                               ("client_ok", lambda: tls13.client_context(ca, crl_file=crl, min_crl_number=3)),
-                              ("bad_limits", lambda: tls13.TlsServer(tls13.server_context(cert, key), echo_handler, max_connections=0))):
+                              ("server_min_without_mtls", lambda: tls13.server_context(cert, key, min_crl_number=1)),
+                              ("bad_limits", lambda: tls13.TlsServer(tls13.server_context(cert, key), echo_handler, max_connections=0)),
+                              ("bad_origin_limit", lambda: tls13.TlsServer(tls13.server_context(cert, key), echo_handler, max_per_origin=0)),
+                              ("bad_handshake_timeout", lambda: tls13.TlsServer(tls13.server_context(cert, key), echo_handler, handshake_timeout=0)),
+                              ("bad_lifetime", lambda: tls13.TlsServer(tls13.server_context(cert, key), echo_handler, max_lifetime=0))):
                 try:
                     fn()
                     out[label] = "ok"
