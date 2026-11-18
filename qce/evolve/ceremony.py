@@ -87,7 +87,7 @@ def register(root: Path, role: str, identity: str, public_bytes: bytes) -> str:
     return fingerprint(public_bytes)
 
 
-def sign(root: Path, key_path: Path, role: str, signer: str, release_id: str, verdict: str, notes: str = "") -> Path:
+def sign(root: Path, key_path: Path, role: str, signer: str, release_id: str, verdict: str, notes: str = "", sequence: int | None = None) -> Path:
     """Firma una declaración. Comprueba antes que la clave corresponde a la identidad registrada con ese rol, y después que la firma verifica."""
     import json
     reg_file = root / "trust" / "registry.json"
@@ -100,7 +100,7 @@ def sign(root: Path, key_path: Path, role: str, signer: str, release_id: str, ve
     key = load_key(key_path)
     if key.public_bytes.hex() != entry["public_key"]:
         raise QCEError("la clave privada no corresponde a la clave pública registrada para esa identidad")
-    path = approvals.sign_statement(root, key, role, signer, release_id, verdict, notes)
+    path = approvals.sign_statement(root, key, role, signer, release_id, verdict, notes, sequence)
     if verdict == "accept" and signer not in approvals.valid_statements(root, release_id, role):
         path.unlink()
         raise AuthenticationFailure("la declaración recién firmada no verifica; no se conserva")

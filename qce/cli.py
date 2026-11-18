@@ -49,6 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sg.add_argument("--verdict", choices=("accept", "reject"), required=True)
     sg.add_argument("--release-id", default=None)
     sg.add_argument("--notes", default="")
+    sg.add_argument("--sequence", type=int, default=None, help="solo aprobador que acepta: número de la promoción a ESTABLE que autorizas (mayor que el del estable actual); queda dentro de la firma")
     return ap
 
 
@@ -203,13 +204,14 @@ def _cmd_sign(a: argparse.Namespace) -> int:
     try:
         rid = a.release_id or ceremony.current_release_id(ROOT)
         if sys.stdin.isatty():
-            print(f"Vas a firmar como {a.signer!r} ({a.role}) el veredicto {a.verdict!r} sobre el código release_id={rid}.")
+            seq = f" con secuencia de promoción {a.sequence}" if a.sequence is not None else ""
+            print(f"Vas a firmar como {a.signer!r} ({a.role}) el veredicto {a.verdict!r} sobre el código release_id={rid}{seq}.")
             who = a.signer
             typed = input(f"Escribe tu identidad ({who}) para confirmar: ").strip()
             if typed != who:
                 print("no confirmado")
                 return 2
-        p = ceremony.sign(ROOT, Path(a.key), a.role, a.signer, rid, a.verdict, a.notes)
+        p = ceremony.sign(ROOT, Path(a.key), a.role, a.signer, rid, a.verdict, a.notes, a.sequence)
         print(f"firmado: {p}\nCualquier cambio posterior de código invalida esta firma (cambia el release_id).")
         return 0
     except (QCEError, OSError) as exc:

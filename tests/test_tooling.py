@@ -100,13 +100,13 @@ def test_release_snapshot_rollback_preserves_evidence_and_detects_tamper(tmp_pat
     root = _mini_project(tmp_path)
     m = rel.build_manifest(root, "1.0", {}, [], {})
     rel.save_release(root, m)
-    with pytest.raises(QCEError):
+    with pytest.raises(QCEError, match="declaración firmada y válida"):
         rel.mark_stable(root, m["release_id"], approver="")
     human = HybridSigPrivateKey.generate()
     approvals.register(root, "approver", "humano", human.public_bytes)
-    with pytest.raises(QCEError):  # nombrar a un humano sin su firma no basta
+    with pytest.raises(QCEError, match="declaración firmada y válida"):  # nombrar a un humano sin su firma no basta
         rel.mark_stable(root, m["release_id"], approver="humano")
-    approvals.sign_statement(root, human, "approver", "humano", m["release_id"], "accept")
+    approvals.sign_statement(root, human, "approver", "humano", m["release_id"], "accept", sequence=1)
     rel.mark_stable(root, m["release_id"], approver="humano")
     (root / "qce" / "a.py").write_text("X = 999  # roto\n")
     (root / "learning" / "incidents.jsonl").write_text("evidencia NUEVA\n")

@@ -49,6 +49,7 @@ MUTANTS = [
     M('cer-sign-unregistered', 'qce/evolve/ceremony.py', (('    if entry is None:', '    if False:'),), 'ceremonia: identidad registrada'),
     M('cer-sign-role-unchecked', 'qce/evolve/ceremony.py', (('    if entry["role"] != role:', '    if False:'),), 'ceremonia: rol registrado'),
     M('cer-sign-key-mismatch-unchecked', 'qce/evolve/ceremony.py', (('    if key.public_bytes.hex() != entry["public_key"]:', '    if False:'),), 'ceremonia: clave = registrada'),
+    M('cer-sequence-not-signed', 'qce/evolve/ceremony.py', (('release_id, verdict, notes, sequence)', 'release_id, verdict, notes)'),), 'ceremonia: la secuencia va dentro de la firma'),
     M('cer-sign-no-self-verify', 'qce/evolve/ceremony.py', (('    if verdict == "accept" and signer not in approvals.valid_statements(root, release_id, role):', '    if False:'),), 'ceremonia: la firma se autoverifica'),
     M('cer-fingerprint-short', 'qce/evolve/ceremony.py', (('.hexdigest()[:16]', '.hexdigest()[:8]'),), 'ceremonia: huella de 16 hex'),
     # --- límite de tiempo del arnés de mutación: depende de la línea base, no de un valor fijo ---

@@ -73,9 +73,7 @@ def build_manifest(root: Path, version: str, results: dict, risks: list[str], de
             "files": files, "dependencies": deps, "results": results, "known_risks": risks,
             "approval": "pendiente"}
     body["release_id"] = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:16]
-    rd = root / "releases"
-    body["sequence"] = len([p for p in rd.iterdir() if p.is_dir()]) + 1 if rd.exists() else 1
-    return body
+    return body  # sin número de secuencia: un campo del manifiesto no está firmado y cualquiera con escritura lo cambiaría (ver mark_stable)
 
 
 def _has_symlink(root: Path, rel_path: str) -> bool:
@@ -126,17 +124,28 @@ def verify_release(root: Path, release_id: str) -> None:
 
 
 def mark_stable(root: Path, release_id: str, approver: str) -> None:
-    """Requiere una declaración FIRMADA y válida del aprobador para ESTE release; nunca retrocede a una secuencia menor."""
+    """Requiere una declaración FIRMADA y válida del aprobador para ESTE release, y que ese aprobador haya firmado el número de la promoción.
+
+    El orden de las promociones es el NÚMERO QUE FIRMÓ el aprobador (`qce sign --sequence N`), no un campo del manifiesto: éste no está firmado
+    (el `release_id` cubre solo los archivos) y quien tuviera escritura sobre `releases/` podría subirlo para presentar un snapshot viejo,
+    ya firmado en su día, como el más nuevo. Nunca se retrocede ni se repite: el número ha de ser MAYOR que el del estable actual."""
     if not approver or approver not in approvals.valid_statements(root, release_id, "approver"):
         raise QCEError("marcar estable requiere una declaración firmada y válida de un aprobador registrado")
     verify_release(root, release_id)
-    new_seq = json.loads((root / "releases" / release_id / "manifest.json").read_text(encoding="utf-8")).get("sequence", 0)
+    new_seq = approvals.signed_sequence(root, release_id, approver)
+    if new_seq is None:
+        raise QCEError("marcar estable exige que el aprobador firme el número de la promoción (qce sign --sequence N)")
     cur = root / "releases" / "STABLE"
     if cur.exists():
-        old = json.loads(cur.read_text(encoding="utf-8"))["release_id"]
-        old_seq = json.loads((root / "releases" / old / "manifest.json").read_text(encoding="utf-8")).get("sequence", 0)
-        if new_seq < old_seq:
-            raise QCEError("downgrade del snapshot estable rechazado (secuencia menor)")
+        try:
+            st = json.loads(cur.read_text(encoding="utf-8"))
+            old_id, old_approver = st["release_id"], st["approver"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise IntegrityError("el marcador STABLE no se puede leer: no se comprueba el downgrade a ciegas") from exc
+        if old_id != release_id:
+            old_seq = approvals.signed_sequence(root, old_id, old_approver) or 0  # un estable anterior sin número firmado cuenta como 0
+            if new_seq <= old_seq:
+                raise QCEError(f"downgrade del snapshot estable rechazado: secuencia firmada {new_seq} no supera la del estable actual ({old_seq})")
     cur.write_text(json.dumps({"release_id": release_id, "approver": approver}), encoding="utf-8")
 
 
