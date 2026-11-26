@@ -24,6 +24,7 @@ Repository = "https://github.com/daralaz77/q-crypto-evolve"
 [project.scripts]
 qce-kme = "qce_kme:main"
 qce = "qce.cli:main"
+qce-sello = "qce.sealed.cli:main"
 
 [tool.setuptools]
 py-modules = ["qce_kme"]
