@@ -42,6 +42,14 @@ Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`
 
 **Límites:** sin KME real probado, solo 1 clave por petición en el cliente, sin extensiones de fabricante. Está en `qce_kme.py`, fuera del código revisado (`qce/`).
 
+## Sobre poscuántico con quórum: `qce-sello`
+
+Sella archivos que solo se abren con un quórum de custodios y, opcionalmente, un candado simétrico que resiste aunque se rompa la criptografía de clave pública. **Prototipo de laboratorio, sin revisión externa.** Ceremonia y límites: [`docs/SEALED_ENVELOPE.md`](docs/SEALED_ENVELOPE.md); formato: [`docs/SEALED_ENVELOPE_SPEC.md`](docs/SEALED_ENVELOPE_SPEC.md).
+
+```bash
+.venv/bin/python -m qce.sealed --help
+```
+
 ## Caso de estudio
 
 [**Qué encuentra una herramienta independiente en código escrito por una IA bajo puertas de verificación**](docs/CASO_DE_ESTUDIO.md): 33 incidentes, 612 pruebas, 389 mutantes y dos defectos reales que solo halló un tercero (`qkdsec`). Incluye lo que NO demuestra. *(Cifras del informe, fechadas en octubre de 2026; el estado actual, 936 pruebas y 469 mutantes, está en `benchmarks/gates_latest.json`.)*
@@ -50,7 +58,7 @@ Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`
 
 ```bash
 cd ~/Claude/q-crypto-evolve
-.venv/bin/python -m qce test      # batería completa (1064 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
+.venv/bin/python -m qce test      # batería completa (1287 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
 .venv/bin/python -m qce scan      # malos usos, secretos, dependencias (pip-audit, con red)
 .venv/bin/python -m qce mutate    # ¿las pruebas detectan controles de seguridad rotos?
 .venv/bin/python -m qce gates     # G1–G6 completas → estado (REVIEW_REQUIRED/VERIFIED/…)
@@ -69,8 +77,9 @@ cd ~/Claude/q-crypto-evolve
 | `qce/protocols` | handshake `QCE1` (no revisado) y capa de registros |
 | `qce/qkd/etsi014.py` | adaptador de ETSI GS QKD 014 (KME) + emulador (simulación): `docs/ETSI014_ADAPTER.md` |
 | `qce/transport/hsm_tls.py` | servidor TLS 1.3 híbrido con la clave privada en un HSM/token PKCS#11 (probado con SoftHSM): `docs/HSM.md` |
+| `qce/sealed/` | sobre con quórum, candado simétrico, guardián y custodios con diario (`docs/SEALED_ENVELOPE.md`) |
 | `qce/core/openssl_ffi.py` | carga de OpenSSL ≥ 3.5 por `ctypes` (PSK, HSM y SLH-DSA la comparten) |
-| `qce/evolve/mutants/` | los 603 mutantes como datos, un módulo por familia |
+| `qce/evolve/mutants/` | los 727 mutantes como datos, un módulo por familia |
 | `qce/security/approvals.py` | declaraciones firmadas de implementador, revisor y aprobador (G5/G6) |
 | `qce/evolve/ceremony.py` | ceremonia de firma humana G5/G6 (`python -m qce identity new|register`, `python -m qce sign`): `review/GUIA_PARA_ENVIAR.md` §5 |
 | `qce/evolve/supply_chain.py` | hashes de dependencias + SBOM CycloneDX (`python -m qce supply-chain`): `docs/SUPPLY_CHAIN.md` |

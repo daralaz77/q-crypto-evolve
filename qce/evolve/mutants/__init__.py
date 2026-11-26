@@ -15,6 +15,7 @@ from . import qkd_otros
 from . import qkd_profiles
 from . import recovery
 from . import revision
+from . import sealed
 from . import security
 from . import symmetric
 from . import transport_custody
@@ -41,6 +42,7 @@ ALL = [
     *qkd_profiles.MUTANTS,
     *recovery.MUTANTS,
     *revision.MUTANTS,
+    *sealed.MUTANTS,
     *security.MUTANTS,
     *symmetric.MUTANTS,
     *transport_custody.MUTANTS,
