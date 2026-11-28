@@ -16,6 +16,14 @@ from . import envelope, keeper, keys, lockshare
 
 
 def _passphrase(a, path: Path, new: bool = False) -> str:
+    if new and path.exists():  # antes de pedir o MOSTRAR una frase que no llegaría a usarse
+        raise PolicyViolation(f"{path} ya existe: no se sobrescribe una clave")
+    if new and a.generate_passphrase:
+        if a.passphrase_file:
+            raise PolicyViolation("--generate-passphrase y --passphrase-file se excluyen")
+        phrase = keys.random_passphrase()
+        print(f"frase de {path.name} (anótala AHORA, no se guarda en ningún sitio): {phrase}")
+        return phrase
     if a.passphrase_file:
         f = Path(a.passphrase_file)
         if f.stat().st_mode & 0o077:
@@ -66,8 +74,13 @@ def _sender(a) -> bytes:
 
 
 def _show_request(a) -> envelope.Request:
-    req = envelope.read_request(envelope.read_header(a.file, _sender(a)), Path(a.request).read_bytes())
-    print(f"solicitante autorizado {req.requester[:16]} · motivo: {req.reason} · caduca {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(req.expires))}")
+    hd = envelope.read_header(a.file, _sender(a))
+    blob = Path(a.request).read_bytes()
+    if hd.hidden:  # la lista de solicitantes va cegada: la autorización se comprueba al entregar
+        req, who = envelope.inspect_request(hd, blob), "solicitante (autorización aún sin comprobar)"
+    else:
+        req, who = envelope.read_request(hd, blob), "solicitante autorizado"
+    print(f"{who} {req.requester[:16]} · motivo: {req.reason} · caduca {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(req.expires))}")
     return req
 
 
@@ -103,14 +116,27 @@ def _split_lock(a) -> None:
     print("Comprueba que las partes reconstruyen y SOLO entonces destruye el archivo del candado completo.")
 
 
-def _seal(a) -> None:
+def _policy(a) -> tuple[list[envelope.Group], list[bytes]]:
     groups = []
     for spec in a.group:
         name, k, pubs = spec.split(":", 2)
         groups.append(envelope.Group(name, int(k), tuple(keys.load_public(p, keys.CUSTODIO) for p in pubs.split(","))))
-    header = envelope.seal(a.src, a.dst, _signing_key(a, a.sender), groups, [keys.load_public(p, keys.EMISOR) for p in a.opener], a.need,
-                           locks=[_load_lock(a, p) for p in a.lock])
+    return groups, [keys.load_public(p, keys.EMISOR) for p in a.opener]
+
+
+def _seal(a) -> None:
+    groups, openers = _policy(a)
+    header = envelope.seal(a.src, a.dst, _signing_key(a, a.sender), groups, openers, a.need, locks=[_load_lock(a, p) for p in a.lock], hidden=a.discreet)
     print(json.dumps(header.describe(), indent=1, ensure_ascii=False))
+
+
+def _reseal(a) -> None:
+    groups, openers = _policy(a)
+    header, report = envelope.reseal(a.file, a.dst, _sender(a), _custody_key(a, a.key), [Path(p).read_bytes() for p in a.parts], _signing_key(a, a.new_sender),
+                                     groups, openers, a.need, [_load_lock(a, p) for p in a.lock], [Path(p).read_bytes() for p in a.token],
+                                     hidden=True if a.discreet else None, drop_locks=a.drop_locks)
+    print(json.dumps({**header.describe(), "participaciones": report}, indent=1, ensure_ascii=False))
+    print("Las copias antiguas siguen abriéndose hasta que el guardián retire el archivo viejo (si tenía candado) y los custodios lo retiren (`custodian withdraw`).")
 
 
 def _info(a) -> None:
@@ -127,10 +153,14 @@ def _request(a) -> None:
     _output(a.out, blob, 0o644)
 
 
+def _custodian_with_memory(a, key) -> keeper.Custodian:
+    return keeper.Custodian(key, a.journal or str(Path(a.key).with_suffix(".diario")), anchor=a.anchor, pinned_head=_pin(a.pin))
+
+
 def _contribute(a) -> None:
     key = _custody_key(a, a.key)
     _show_request(a)
-    who = keeper.Custodian(key, a.journal or str(Path(a.key).with_suffix(".diario")), anchor=a.anchor, pinned_head=_pin(a.pin))
+    who = _custodian_with_memory(a, key)
     _output(a.out, who.contribute(a.file, _sender(a), Path(a.request).read_bytes()))
 
 
@@ -140,12 +170,33 @@ def _prove(a) -> None:
     _output(a.out, keeper.prove(req.ident, secret).hex().encode())
 
 
+def _head(journal) -> None:
+    count, code = journal.head()
+    print(f"{count}:{code.hex()}")
+
+
+def _custodian(a) -> None:
+    who = _custodian_with_memory(a, _custody_key(a, a.key))
+    if a.op == "withdraw":
+        who.withdraw(envelope.read_header(a.file, _sender(a)).data["sid"])
+        print("retirado: este custodio no volverá a participar en abrirlo")
+    elif a.op == "tick":
+        who.tick()
+        print("latido anotado")
+    elif a.op == "adopt-anchor":
+        who.journal.adopt_anchor()
+        print("ancla creada")
+    else:
+        _head(who.journal)
+
+
 def _guardian(a) -> None:
     who = keeper.Keeper(_lock_from(a), a.journal, anchor=a.anchor, pinned_head=_pin(a.pin))
     if a.op == "register":
         print(f"registrado {who.register(a.file, _sender(a))}")
     elif a.op == "withdraw":
-        who.withdraw(envelope.read_header(a.file, _sender(a)).digest.hex())
+        hd = envelope.read_header(a.file, _sender(a))
+        who.withdraw(hd.digest.hex(), hd.data["sid"])
         print("retirado: no habrá fichas nuevas para ese archivo (las ya emitidas siguen valiendo)")
     elif a.op == "enroll":
         out = Path(a.out)
@@ -161,8 +212,10 @@ def _guardian(a) -> None:
         who.journal.adopt_anchor()
         print("ancla creada")
     elif a.op == "head":
-        count, code = who.journal.head()
-        print(f"{count}:{code.hex()}")
+        _head(who.journal)
+    elif a.op == "tick":
+        who.tick()
+        print("latido anotado")
     else:
         _show_request(a)
         token = who.release(a.file, _sender(a), Path(a.request).read_bytes(), bytes.fromhex(Path(a.proof).read_text(encoding="ascii").strip()))
@@ -180,6 +233,7 @@ def _open(a) -> None:
 def _parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--passphrase-file", help="archivo 0600 con la frase (si no, se pide por terminal)")
+    common.add_argument("--generate-passphrase", action="store_true", help="para claves NUEVAS: genera una frase de 128 bits y la muestra una vez")
     ap = argparse.ArgumentParser(prog="qce-sello", description="Sobre poscuántico con quórum (LABORATORIO: sin revisión externa)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -196,10 +250,21 @@ def _parser() -> argparse.ArgumentParser:
     sp = command("split-lock", _split_lock, help_text="reparte la maestra de un candado k de n")
     sp.add_argument("--lock", required=True), sp.add_argument("--k", type=int, required=True), sp.add_argument("--n", type=int, required=True)
     sp.add_argument("--out-prefix", required=True)
+    def policy(p):
+        p.add_argument("--opener", action="append", required=True), p.add_argument("--group", action="append", required=True, help="nombre:umbral:pub1,pub2")
+        p.add_argument("--need", type=int), p.add_argument("--lock", action="append", default=[])
+        p.add_argument("--discreet", action="store_true", help="no identificar a custodios, solicitantes ni candados; acolchar el tamaño")
+
+    def journal_options(p):
+        p.add_argument("--journal"), p.add_argument("--anchor", action="append", help="archivo en OTRO medio con la cabeza del diario (repetible)")
+        p.add_argument("--pin")
+
     s = command("seal", _seal, help_text="sella un archivo")
-    s.add_argument("src"), s.add_argument("dst"), s.add_argument("--sender", required=True)
-    s.add_argument("--opener", action="append", required=True), s.add_argument("--group", action="append", required=True, help="nombre:umbral:pub1,pub2")
-    s.add_argument("--need", type=int), s.add_argument("--lock", action="append", default=[])
+    s.add_argument("src"), s.add_argument("dst"), s.add_argument("--sender", required=True), policy(s)
+    rs = command("reseal", _reseal, help_text="rotación: abre con el quórum y vuelve a sellar sin escribir el claro")
+    about_file(rs), rs.add_argument("dst"), rs.add_argument("parts", nargs="+"), rs.add_argument("--key", required=True, help="clave de apertura")
+    rs.add_argument("--token", action="append", default=[]), rs.add_argument("--new-sender", required=True), policy(rs)
+    rs.add_argument("--drop-locks", action="store_true", help="permitir que el archivo nuevo lleve menos candados que el viejo")
     about_file(command("info", _info, help_text="verifica y describe"))
     st = command("stub", _stub, help_text="resguardo (sin cuerpo) para custodios y guardián")
     about_file(st), st.add_argument("--out", required=True)
@@ -208,14 +273,20 @@ def _parser() -> argparse.ArgumentParser:
     q.add_argument("--out", required=True), q.add_argument("--ttl-hours", type=int, default=24)
     c = command("contribute", _contribute, help_text="un custodio entrega su participación")
     about_file(c), c.add_argument("--key", required=True), c.add_argument("--request", required=True), c.add_argument("--out", required=True)
-    c.add_argument("--journal"), c.add_argument("--anchor"), c.add_argument("--pin")
+    journal_options(c)
+    cu = sub.add_parser("custodian", help="memoria de un custodio").add_subparsers(dest="op", required=True)
+    for op in ("withdraw", "tick", "head", "adopt-anchor"):
+        p = command(op, _custodian, parent=cu)
+        p.add_argument("--key", required=True), journal_options(p)
+        if op == "withdraw":
+            about_file(p)
     pv = command("prove", _prove, help_text="prueba simétrica para el guardián")
     about_file(pv), pv.add_argument("--request", required=True), pv.add_argument("--secret", required=True), pv.add_argument("--out", required=True)
     gd = sub.add_parser("guardian", help="operaciones del guardián de un candado").add_subparsers(dest="op", required=True)
-    for op in ("register", "release", "withdraw", "enroll", "revoke", "head", "adopt-anchor"):
+    for op in ("register", "release", "withdraw", "enroll", "revoke", "head", "tick", "adopt-anchor"):
         p = command(op, _guardian, parent=gd)
         p.add_argument("--lock"), p.add_argument("--share", action="append", default=[]), p.add_argument("--journal", required=True)
-        p.add_argument("--anchor", help="archivo en OTRO medio que guarda la cabeza del diario"), p.add_argument("--pin")
+        p.add_argument("--anchor", action="append", help="archivo en OTRO medio con la cabeza del diario (repetible)"), p.add_argument("--pin")
         if op in ("register", "release", "withdraw"):
             about_file(p)
         if op == "release":

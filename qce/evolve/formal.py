@@ -1,4 +1,4 @@
-"""Verificación formal: ejecuta el modelo Tamarin de QCE1 y compara los veredictos con formal/expected.json.
+"""Verificación formal: ejecuta los modelos Tamarin (QCE1, QIL1 y el sobre con quórum) y compara los veredictos con los esperados en formal/.
 
 Un veredicto distinto del esperado (en cualquier sentido) es un fallo: tanto un lema que deja de cumplirse como uno de los
 lemas «sanidad» (que deben ser FALSOS al romper ambos componentes) que pasa a cumplirse indican que el modelo cambió.
@@ -48,26 +48,40 @@ QIL1_MODEL_MUTANTS = {
 }
 
 
+# Mutantes del modelo del sobre con quórum (formal/qsel.spthy): si se rompe un control del diseño, su lema debe caer
+QSEL_MODEL_MUTANTS: dict[str, tuple[list[tuple[str, str]], list[str], list[str]]] = {
+    "custodio_no_comprueba_la_firma_de_la_solicitud": (
+        [("Eq(verify(rsig, msg, pkR), true), Served(", "Served(")], [], ["custodians_serve_only_signed_requests"]),
+    "guardian_sin_prueba_simetrica": (
+        [("Eq(proof, mac(kdf(lm, pkR), h(msg))), ", "")], [], ["token_needs_the_symmetric_secret"]),
+    "guardian_no_comprueba_la_firma_de_la_solicitud": (
+        [("Eq(verify(rsig, msg, pkR), true), Eq(proof", "Eq(proof")], [], ["token_needs_a_signed_request"]),
+}
+
+
 def available() -> bool:
     return shutil.which("tamarin-prover") is not None
 
 
-def run_model(model: Path, defines: list[str], timeout: int = 600, lemmas: list[str] | None = None) -> dict[str, str]:
-    """`lemmas` limita la prueba a esos lemas (los mutantes solo necesitan el que debe caer; evita lemas que con el defecto no terminan)."""
+def run_model(model: Path, defines: list[str], timeout: int = 600, lemmas: list[str] | None = None, args: list[str] | None = None) -> dict[str, str]:
+    """`lemmas` limita la prueba a esos lemas (los mutantes solo necesitan el que debe caer; evita lemas que con el defecto no terminan). `args`: opciones del
+    probador que una configuración necesita para terminar (estrategia de búsqueda)."""
     prove = [f"--prove={l}" for l in lemmas] if lemmas else ["--prove"]
-    cmd = ["tamarin-prover", str(model), *prove, *[f"-D{d}" for d in defines]]
+    cmd = ["tamarin-prover", str(model), *prove, *[f"-D{d}" for d in defines], *(args or [])]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout
     return dict(VERDICT.findall(out))
 
 
-def check_matrix(root: Path, workers: int = 4, model_name: str = "qce1.spthy", expected_name: str = "expected.json") -> list[str]:
+def check_matrix(root: Path, workers: int = 4, model_name: str = "qce1.spthy", expected_name: str = "expected.json", timeout: int = 600) -> list[str]:
     exp = json.loads((root / "formal" / expected_name).read_text(encoding="utf-8"))
     model = root / "formal" / model_name
     items = list(exp["configs"].items())
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        got = list(pool.map(lambda kv: run_model(model, kv[1]["defines"]), items))
+        got = list(pool.map(lambda kv: run_model(model, kv[1]["defines"], timeout, kv[1].get("prove"), kv[1].get("args")), items))
     problems = []
     for (name, cfg), verdicts in zip(items, got, strict=True):
+        if cfg.get("prove"):  # configuración que solo prueba algunos lemas: los demás salen «incompletos» y no se comparan
+            verdicts = {k: v for k, v in verdicts.items() if k in cfg["prove"]}
         if verdicts != cfg["verdicts"]:
             diff = {k: (cfg["verdicts"].get(k), verdicts.get(k)) for k in set(cfg["verdicts"]) | set(verdicts)
                     if cfg["verdicts"].get(k) != verdicts.get(k)}

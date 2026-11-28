@@ -86,3 +86,45 @@ def test_the_past_session_leak_lemma_excludes_an_earlier_reveal():
 def test_qil1_matrix_and_model_mutants_match_the_expected_verdicts():
     assert formal.check_matrix(ROOT, model_name="qil1.spthy", expected_name="expected_qil1.json") == []
     assert formal.check_model_mutants(ROOT, "qil1.spthy", formal.QIL1_MODEL_MUTANTS) == []
+
+
+QSEL = ROOT / "formal" / "qsel.spthy"
+needs_qsel = pytest.mark.skipif(not QSEL.exists(), reason="sin formal/qsel.spthy")
+
+
+@needs_qsel
+def test_qsel_expected_verdicts_name_real_lemmas_and_encode_its_claims():
+    lemmas = set(re.findall(r"^lemma (\w+)", QSEL.read_text(), re.M))
+    exp = json.loads((ROOT / "formal" / "expected_qsel.json").read_text())["configs"]
+    assert set(exp["base"]["verdicts"]) == lemmas and set(exp["base"]["verdicts"].values()) == {"verified"}
+    assert exp["base"]["defines"] == [] and exp["unbound"]["defines"] == ["UNBOUND"]
+    # el ataque que motivó atar las participaciones: sin la atadura, el quórum deja de ser necesario
+    assert exp["unbound"]["verdicts"]["quorum_is_necessary"] == "falsified"
+    assert set(exp["unbound"]["prove"]) == set(exp["unbound"]["verdicts"]) <= lemmas
+
+
+@needs_qsel
+def test_qsel_model_mutants_still_apply_to_the_model():
+    text = QSEL.read_text()
+    for name, (edits, defines, must_fail) in formal.QSEL_MODEL_MUTANTS.items():
+        assert not defines and must_fail and all(old in text and old != new for old, new in edits), name
+
+
+def test_the_matrix_check_passes_the_lemma_selection_and_the_time_limit(tmp_path, monkeypatch):
+    (tmp_path / "formal").mkdir()
+    (tmp_path / "formal" / "e.json").write_text(json.dumps({"configs": {"a": {"defines": ["X"], "prove": ["l1"], "args": ["--opt"], "verdicts": {"l1": "falsified"}}}}))
+    seen = []
+
+    def fake(model, defines, timeout=600, lemmas=None, args=None):
+        seen.append((model.name, defines, timeout, lemmas, args))
+        return {"l1": "falsified", "otro": "analysis"}
+    monkeypatch.setattr(formal, "run_model", fake)
+    assert formal.check_matrix(tmp_path, model_name="m.spthy", expected_name="e.json", timeout=7) == []
+    assert seen == [("m.spthy", ["X"], 7, ["l1"], ["--opt"])]
+
+
+@heavy
+@needs_qsel
+def test_qsel_matrix_and_model_mutants_match_the_expected_verdicts():
+    assert formal.check_matrix(ROOT, 2, "qsel.spthy", "expected_qsel.json", timeout=3600) == []
+    assert formal.check_model_mutants(ROOT, "qsel.spthy", formal.QSEL_MODEL_MUTANTS) == []

@@ -29,8 +29,10 @@ class Vector:
         self.parts = [(VEC / f"{self.name}.{g}-{x}.msg").read_bytes() for g, x in case["quorum"]]
         self.locks = [envelope.Lock(derive(self.name, f"candado-id-{n}", 16), n, derive(self.name, f"candado-{n}", 32)) for n in case["locks"]]
         sid = bytes.fromhex(other.read_file(self.blob, self.sender.public_bytes)["h"]["sid"])
-        self.tokens = [json.dumps({"v": 3, "file": other.read_file(self.blob, self.sender.public_bytes)["D"].hex(), "id": k.ident.hex(),
-                                   "key": envelope._b64(other.lock_file_key(k.key, sid))}).encode() for k in self.locks]
+        self.hidden = case.get("hidden", False)
+        self.tokens = [json.dumps({"v": 3, "file": other.read_file(self.blob, self.sender.public_bytes)["D"].hex(),
+                                   "id": other.lock_header_id(self.hidden, sid, k.ident), "key": envelope._b64(other.lock_file_key(k.key, sid))}).encode()
+                       for k in self.locks]
 
     def custodian_seed(self, g, x):
         return derive(self.name, f"custodio-{g}-{x}", kem_seed_length(self.c["level"]))
@@ -44,6 +46,10 @@ def test_the_vectors_cover_both_levels_both_aeads_several_chunks_and_two_locks()
     assert set(MANIFEST) == {v.name for v in VECTORS}
     assert {v.c["level"] for v in VECTORS} == {"standard", "high"} and {v.c["aead"] for v in VECTORS} == {"AES-256-GCM", "CHACHA20-POLY1305"}
     assert any(v.c["plain_len"] > envelope.CHUNK for v in VECTORS) and any(len(v.locks) == 2 for v in VECTORS)
+    assert {v.c["level"] for v in VECTORS if v.hidden} == {"standard", "high"} and any(v.locks for v in VECTORS if v.hidden)
+    versions = {v.name: other.read_file(v.blob, v.sender.public_bytes)["h"]["v"] for v in VECTORS}
+    assert sorted(set(versions.values())) == [3, 4, 5]
+    assert {v.c["level"] for v in VECTORS if versions[v.name] == 4} == {"standard", "high"} and [n[:2] for n, ver in sorted(versions.items()) if ver == 3] == ["v1", "v2", "v3", "v4"]
 
 
 def test_the_second_reader_does_not_import_the_code_it_checks():
@@ -63,10 +69,17 @@ def test_the_second_reader_opens_the_vector_and_reproduces_every_intermediate_va
     _, _, share = other.member_wrap(v.blob, pk, g, x, v.custodian_seed(g, x))
     assert short(share) == expected["shares"][f"{g},{x}"]
     f = other.read_file(v.blob, pk)
-    ident = other.read_request(f, v.request, ISSUED)
+    salt = other.unwrap(v.blob, pk, g, x, v.custodian_seed(g, x))[3]
+    ident = other.read_request(f, v.request, ISSUED, salt)
     assert short(ident) == expected["request_id"]
+    if v.hidden:
+        with pytest.raises(other.Rejected, match="sal"):
+            other.read_request(f, v.request, ISSUED)
+        for lock in v.locks:                                                  # el guardián obtiene la MISMA sal por su candado
+            sid = bytes.fromhex(f["h"]["sid"])
+            assert other.lock_salt(f, other.lock_header_id(True, sid, lock.ident), other.lock_file_key(lock.key, sid)) == salt
     with pytest.raises(other.Rejected, match="plazo"):
-        other.read_request(f, v.request, ISSUED + 10**7)
+        other.read_request(f, v.request, ISSUED + 10**7, salt)
 
 
 @every
@@ -88,7 +101,7 @@ def test_the_main_code_opens_the_stored_vector_and_its_stub(v, tmp_path):
 def test_a_fresh_contribution_and_a_fresh_token_are_accepted_by_the_second_reader(v, tmp_path):
     pk = v.sender.public_bytes
     parts = [envelope.contribute(v.file, pk, v.suite.from_seed(v.custodian_seed(g, x)), v.request, now=ISSUED) for g, x in v.c["quorum"]]
-    ident = envelope.read_request(envelope.read_header(v.file, pk), v.request, ISSUED).ident
+    ident = envelope.inspect_request(envelope.read_header(v.file, pk), v.request, ISSUED).ident
     assert short(ident) == MANIFEST[v.name]["request_id"]                      # el identificador del código es el publicado (no depende solo del número)
     tokens = []
     for lock in v.locks:
@@ -102,7 +115,7 @@ def test_a_fresh_contribution_and_a_fresh_token_are_accepted_by_the_second_reade
 
 
 def test_both_agree_on_how_a_split_master_is_rebuilt():
-    lock = VECTORS[-1].locks[0]
+    lock = next(v for v in VECTORS if v.locks).locks[0]
     parts = lockshare.split_lock(lock, 2, 3)
     chosen = {p.x: p.share for p in parts[1:]}
     assert other.join_lock(chosen, lock.ident, parts[0].commitments, parts[0].master) == lock.key

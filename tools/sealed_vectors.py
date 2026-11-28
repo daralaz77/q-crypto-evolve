@@ -1,5 +1,5 @@
-"""Genera los vectores del sobre sellado en tests/sealed_vectors/. El sellado usa aleatoriedad fresca (ML-KEM no admite fijarla), así que volver a ejecutarlo
-produce archivos DISTINTOS: los publicados son los guardados y las pruebas no los regeneran.  Uso: python tools/sealed_vectors.py"""
+"""Genera en tests/sealed_vectors/ los vectores del sobre sellado que FALTEN. El sellado usa aleatoriedad fresca (ML-KEM no admite fijarla), así que regenerar un
+vector produce un archivo DISTINTO: los publicados no se tocan (para rehacer uno, borra antes su `.qsel`).  Uso: python tools/sealed_vectors.py"""
 import json
 import sys
 import tempfile
@@ -17,9 +17,14 @@ OUT = ROOT / "tests" / "sealed_vectors"
 
 def main() -> None:
     OUT.mkdir(exist_ok=True)
+    stored = OUT / "manifest.json"
+    published = {m["name"]: m for m in json.loads(stored.read_text(encoding="utf-8"))} if stored.exists() else {}
     manifest = []
     for c in CASES:
         name, level, suite = c["name"], LEVELS[c["level"]], envelope.SUITES[c["level"]]
+        if name in published and (OUT / f"{name}.qsel").exists():
+            manifest.append(published[name])
+            continue
         n_kem = kem_seed_length(c["level"])
         sender = HybridSigPrivateKey.from_seed(derive(name, "emisor", 64), level)
         requester = HybridSigPrivateKey.from_seed(derive(name, "solicitante", 64), level)
@@ -31,7 +36,7 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as td:
             src = Path(td) / "claro"
             src.write_bytes(plaintext(c["plain_len"]))
-            hd = envelope.seal(src, out, sender, groups, [requester.public_bytes], c["need"], c["aead"], locks)
+            hd = envelope.seal(src, out, sender, groups, [requester.public_bytes], c["need"], c["aead"], locks, c.get("hidden", False))
         (OUT / f"{name}.stub").write_bytes(envelope.make_stub(out, sender.public_bytes))
         request = envelope.request_open(out, sender.public_bytes, requester, opener.public_bytes, "vector de prueba", 3600, ISSUED)
         (OUT / f"{name}.req.msg").write_bytes(request)
@@ -46,7 +51,7 @@ def main() -> None:
         file_keys = tuple(k.file_key(sid) for k in locks)
         manifest.append({"name": name, "digests": {
             "header": short(hd.digest), "secret": short(secret), "payload_key": short(envelope._payload_key(secret, hd.digest, file_keys)),
-            "request_id": short(envelope.read_request(hd, request, ISSUED).ident), "shares": {f"{g},{x}": short(s) for (g, x), s in sorted(shares.items())},
+            "request_id": short(envelope.inspect_request(hd, request, ISSUED).ident), "shares": {f"{g},{x}": short(s) for (g, x), s in sorted(shares.items())},
             "lock_file_keys": [short(k) for k in file_keys]}})
         print(name, out.stat().st_size, "bytes")
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")

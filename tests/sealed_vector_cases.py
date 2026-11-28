@@ -11,6 +11,14 @@ CASES = [
      "groups": [("solo", 1, 1), ("pareja", 2, 2)], "quorum": [(2, 1), (2, 2)], "locks": []},
     {"name": "v4-estandar-dos-candados", "level": "standard", "aead": "AES-256-GCM", "plain_len": 300, "need": 1,
      "groups": [("unico", 1, 2)], "quorum": [(1, 2)], "locks": ["caja-fuerte", "plazo-2031"]},
+    {"name": "v5-estandar-discreto-con-candado", "level": "standard", "aead": "AES-256-GCM", "plain_len": 70000, "need": 1,
+     "groups": [("direccion", 2, 3)], "quorum": [(1, 1), (1, 3)], "locks": ["caja-fuerte"], "hidden": True},
+    {"name": "v6-alto-discreto-vacio", "level": "high", "aead": "CHACHA20-POLY1305", "plain_len": 0, "need": 2,
+     "groups": [("a", 1, 1), ("b", 2, 2)], "quorum": [(1, 1), (2, 1), (2, 2)], "locks": [], "hidden": True},
+    {"name": "v7-estandar-atado-con-candado", "level": "standard", "aead": "CHACHA20-POLY1305", "plain_len": 65536, "need": 2,
+     "groups": [("direccion", 1, 2), ("legal", 1, 1)], "quorum": [(1, 2), (2, 1)], "locks": ["plazo-2031"]},
+    {"name": "v8-alto-atado", "level": "high", "aead": "AES-256-GCM", "plain_len": 9, "need": 1,
+     "groups": [("pareja", 2, 2)], "quorum": [(1, 1), (1, 2)], "locks": []},
 ]
 
 
