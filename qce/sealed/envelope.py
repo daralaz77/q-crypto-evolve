@@ -5,6 +5,12 @@ custodio (X-Wing en el nivel «standard», el híbrido propio con ML-KEM-1024 en
 una SOLICITUD firmada, vigente y de un solicitante listado, y entrega su participación re-cifrada para la clave de apertura de esa solicitud. Opcionalmente el archivo
 exige además CANDADOS simétricos (ver `keeper.py`), de modo que romper la criptografía de clave pública no baste para leerlo.
 
+La envoltura de cada participación está ATADA a la política (cabecera v4 y v5): quien logre firmar como el emisor no puede trasplantar las participaciones de un
+archivo a otra cabecera con otros solicitantes, candados o umbrales. Las cabeceras v3, sin esa atadura, solo se leen.
+
+Modo DISCRETO (cabecera v5): la cabecera no identifica a custodios, solicitantes ni candados, no nombra los grupos y el cuerpo va acolchado (Padmé, mínimo 4 KiB).
+Siguen visibles el emisor (su firma lo delata), el nivel, cuántos grupos, miembros, umbrales, solicitantes y candados hay, y el tamaño aproximado.
+
     MAGIC | u32 H | cabecera JSON (H bytes) | firma de cabecera | trozos AEAD (64 KiB + 16) | firma del archivo
 
 Un RESGUARDO (`make_stub`) es la cabecera y las firmas sin el cuerpo: permite a custodios y guardián decidir sobre archivos grandes sin recibirlos.
@@ -12,12 +18,14 @@ Un RESGUARDO (`make_stub`) es la cabecera y las firmas sin el cuerpo: permite a 
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import itertools
 import json
 import os
 import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,6 +51,8 @@ CTX_HEADER, CTX_FILE, CTX_REQUEST = b"QSEL3/header", b"QSEL3/file", b"QSEL3/requ
 MAX_OPENERS, MAX_REASON, MAX_LOCKS = 8, 500, 4
 DEFAULT_TTL, MAX_TTL, CLOCK_SKEW = 86_400, 7 * 86_400, 300   # segundos: vida de una solicitud y desajuste de reloj tolerado
 ZERO_NONCE = b"\x00" * 12  # SOLO con claves de un único uso (derivadas de un secreto KEM fresco)
+V_LEGACY, V_OPEN, V_HIDDEN = 3, 4, 5   # versión de la cabecera: 3 solo se lee (envoltura sin atar); 5 = modo discreto
+PAD_FLOOR = 4096           # en modo discreto ningún claro acolchado mide menos
 
 
 # ---------------------------------------------------------------------------------------------------------------- suites de KEM
@@ -145,6 +155,80 @@ def _nonce(i: int, final: bool) -> bytes:
     return i.to_bytes(11, "big") + (b"\x01" if final else b"\x00")  # construcción STREAM: contador + marca de último trozo
 
 
+# ---------------------------------------------------------------------------------------------------------------- modo discreto
+def _blind_member(ss: bytes, sid: bytes) -> str:
+    """Etiqueta de un custodio: solo quien puede desencapsular SU texto cifrado la reconoce."""
+    return hkdf(ss, lp(b"QSEL3/blind-id") + lp(sid)).hex()
+
+
+def _blind_opener(sid: bytes, salt: bytes, requester: str) -> str:
+    return _h(b"QSEL3/blind-opener", sid, salt, bytes.fromhex(requester)).hex()
+
+
+def _salt_commitment(sid: bytes, salt: bytes) -> str:
+    """Todos los custodios y guardianes deben recibir LA MISMA sal: así la lista de solicitantes es la misma para todos."""
+    return _h(b"QSEL3/blind-salt", sid, salt).hex()
+
+
+def _salt_key(file_key: bytes, sid: bytes) -> bytes:
+    return hkdf(file_key, lp(b"QSEL3/blind-salt-key") + lp(sid))
+
+
+def lock_header_id(hidden: bool, sid: bytes, ident: bytes) -> str:
+    """Cómo aparece un candado en la cabecera: su identificador o, en modo discreto, uno distinto en cada archivo."""
+    return (_h(b"QSEL3/blind-lock", sid, ident)[:16] if hidden else ident).hex()
+
+
+def padded_size(n: int) -> int:
+    """Padmé: redondea hacia arriba dejando pocos bits significativos (como mucho un 12 % de más), con un mínimo."""
+    if n <= PAD_FLOOR:
+        return PAD_FLOOR
+    e = n.bit_length() - 1
+    mask = (1 << (e - e.bit_length())) - 1
+    return (n + mask) & ~mask
+
+
+class _Padded:
+    """u64(longitud) ‖ claro ‖ ceros hasta `padded_size`, leído por trozos de `src`, que DEBE medir exactamente lo declarado."""
+
+    def __init__(self, src, size: int) -> None:
+        self._src, self._unread = src, size
+        self._head = size.to_bytes(8, "big")
+        self.size = self._left = padded_size(size + 8)
+
+    def read(self, n: int) -> bytes:
+        n = min(n, self._left)
+        out = bytearray(self._head[:n])
+        self._head = self._head[len(out):]
+        while len(out) < n and self._unread:
+            b = self._src.read(min(n - len(out), self._unread))
+            if not b:
+                raise MalformedMessage("el origen se acortó mientras se sellaba")
+            out += b
+            self._unread -= len(b)
+        out += bytes(n - len(out))
+        self._left -= n
+        if not self._left and self._src.read(1):  # además, obliga a un origen en flujo a terminar sus comprobaciones
+            raise MalformedMessage("el origen creció mientras se sellaba")
+        return bytes(out)
+
+
+def _unpadded(chunks: Iterator[bytes]) -> Iterator[bytes]:
+    left: int | None = None
+    for chunk in chunks:
+        if left is None:
+            if len(chunk) < 8:
+                raise MalformedMessage("relleno imposible")
+            left, chunk = int.from_bytes(chunk[:8], "big"), chunk[8:]
+        data, pad = chunk[:left], chunk[left:]
+        if pad.count(0) != len(pad):
+            raise MalformedMessage("el relleno no es de ceros")
+        left -= len(data)
+        yield data
+    if left:
+        raise MalformedMessage("el relleno declara más datos de los que hay")
+
+
 # ---------------------------------------------------------------------------------------------------------------- candado simétrico
 @dataclass(frozen=True, repr=False)
 class Lock:
@@ -198,21 +282,32 @@ class Header:
     def suite(self) -> Suite:
         return SUITES[self.data["level"]]
 
+    @property
+    def hidden(self) -> bool:
+        return self.data["v"] == V_HIDDEN
+
     def describe(self) -> dict:
         d = self.data
-        return {"file_id": d["sid"], "level": d["level"], "kem": d["kem"], "aead": d["aead"], "groups_needed": d["need"],
+        return {"file_id": d["sid"], "discreet": self.hidden, "level": d["level"], "kem": d["kem"], "aead": d["aead"], "groups_needed": d["need"],
                 "authorized_openers": d["openers"], "locks": [{"id": k["id"], "label": k["label"]} for k in d["locks"]],
                 "groups": [{"name": g["name"], "k": g["k"], "members": [m["id"] for m in g["members"]]} for g in d["groups"]]}
 
 
+def _box_len(hidden: bool) -> int:
+    return (64 if hidden else 32) + TAG  # en modo discreto cada participación viaja con la sal de los solicitantes
+
+
 def _check_header(obj: dict) -> dict:
-    _keys(obj, {"v", "level", "kem", "aead", "sid", "sender", "need", "groups", "commit", "openers", "locks"})
-    if type(obj["v"]) is not int or obj["v"] != 3 or obj["level"] not in SUITES or obj["aead"] not in AEADS:
+    hidden = obj.get("v") == V_HIDDEN
+    _keys(obj, {"v", "level", "kem", "aead", "sid", "sender", "need", "groups", "commit", "openers", "locks"} | ({"saltcom"} if hidden else set()))
+    if type(obj["v"]) is not int or obj["v"] not in (V_LEGACY, V_OPEN, V_HIDDEN) or obj["level"] not in SUITES or obj["aead"] not in AEADS:
         raise MalformedMessage("versión, nivel o AEAD no admitidos")
     suite = SUITES[obj["level"]]
     if obj["kem"] != suite.kem:
         raise MalformedMessage("el KEM no es el que corresponde al nivel")
     _hex32(obj["sid"]), _hex32(obj["sender"]), _hex32(obj["commit"])
+    if hidden:
+        _hex32(obj["saltcom"])
     openers = obj["openers"]
     if not isinstance(openers, list) or not 1 <= len(openers) <= MAX_OPENERS:
         raise MalformedMessage("número de solicitantes autorizados fuera de rango")
@@ -223,7 +318,9 @@ def _check_header(obj: dict) -> dict:
         raise MalformedMessage("número de candados fuera de rango")
     lock_ids: set[str] = set()
     for k in locks:
-        _keys(k, {"id", "label", "com"})
+        _keys(k, {"id", "label", "com"} | ({"salt"} if hidden else set()))
+        if hidden:
+            _unb64(k["salt"], 32 + TAG)
         if not isinstance(k["id"], str) or len(k["id"]) != 32 or any(c not in "0123456789abcdef" for c in k["id"]) or k["id"] in lock_ids:
             raise MalformedMessage("identificador de candado inválido o repetido")
         if not isinstance(k["label"], str) or not 1 <= len(k["label"]) <= 64 or not k["label"].isprintable():
@@ -247,15 +344,28 @@ def _check_header(obj: dict) -> dict:
         for m in ms:
             _keys(m, {"id", "ct", "box", "com"})
             _hex32(m["id"]), _hex32(m["com"])
-            _unb64(m["ct"], suite.ct_len), _unb64(m["box"], 32 + TAG)
+            _unb64(m["ct"], suite.ct_len), _unb64(m["box"], _box_len(hidden))
             if m["id"] in seen:
                 raise MalformedMessage("un custodio aparece dos veces: tendría dos participaciones")
             seen.add(m["id"])
     return obj
 
 
-def _wrap_key(ss: bytes, sid: bytes, g: int, x: int, member_id: str, sender_id: str) -> bytes:
-    return hkdf(ss, b"".join(lp(p) for p in (b"QSEL3/wrap", sid, _int(g), _int(x), bytes.fromhex(member_id), bytes.fromhex(sender_id))))
+def _canonical_header(obj: dict) -> bytes:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def _policy_digest(obj: dict) -> bytes:
+    """Todo lo que la cabecera dice, salvo los textos cifrados de las participaciones (que dependen de esta huella)."""
+    groups = [{**g, "members": [{"id": m["id"], "com": m["com"]} for m in g["members"]]} for g in obj["groups"]]
+    return _h(b"QSEL3/policy", _canonical_header({**obj, "groups": groups}))
+
+
+def _wrap_key(ss: bytes, sid: bytes, g: int, x: int, member_id: str, sender_id: str, policy: bytes | None) -> bytes:
+    """`policy` None = formato 3."""
+    label = (b"QSEL3/wrap",) if policy is None else (b"QSEL3/wrap-policy",)
+    parts = label + (sid, _int(g), _int(x), bytes.fromhex(member_id), bytes.fromhex(sender_id)) + (() if policy is None else (policy,))
+    return hkdf(ss, b"".join(lp(p) for p in parts))
 
 
 def _payload_key(secret: bytes, header_digest: bytes, lock_keys: tuple[bytes, ...] = ()) -> bytes:
@@ -264,10 +374,20 @@ def _payload_key(secret: bytes, header_digest: bytes, lock_keys: tuple[bytes, ..
 
 
 # ---------------------------------------------------------------------------------------------------------------- sellar
-def seal(src: str | Path, dst: str | Path, sender: HybridSigPrivateKey, groups: list[Group], openers: list[bytes], need: int | None = None,
-         aead: str = "AES-256-GCM", locks: list[Lock] | None = None, _split=split) -> Header:
+@contextlib.contextmanager
+def _source(src):
+    """(lector, tamaño) de una ruta o de un flujo que ya declara su tamaño."""
+    if isinstance(src, (str, Path)):
+        with open(src, "rb") as fh:
+            yield fh, os.fstat(fh.fileno()).st_size
+    else:
+        yield src, src.size
+
+
+def seal(src, dst: str | Path, sender: HybridSigPrivateKey, groups: list[Group], openers: list[bytes], need: int | None = None,
+         aead: str = "AES-256-GCM", locks: list[Lock] | None = None, hidden: bool = False, _split=split) -> Header:
     """Sella `src` en `dst`. `openers` = claves públicas de FIRMA de quienes pueden pedir la apertura. `need` = cuántos grupos hacen falta (por defecto,
-    todos). El nivel lo fija la clave del emisor."""
+    todos). El nivel lo fija la clave del emisor. `hidden` = modo discreto."""
     level, suite = sender.level, SUITES[sender.level.name]
     need = len(groups) if need is None else need
     if aead not in AEADS or not 1 <= len(groups) <= MAX_GROUPS or not 1 <= need <= len(groups):
@@ -285,11 +405,11 @@ def seal(src: str | Path, dst: str | Path, sender: HybridSigPrivateKey, groups: 
     locks = list(locks or [])
     if len(locks) > MAX_LOCKS or len({k.ident for k in locks}) != len(locks):
         raise PolicyViolation(f"entre 0 y {MAX_LOCKS} candados distintos")
-    sid, secret = os.urandom(32), os.urandom(32)
+    sid, secret, salt = os.urandom(32), os.urandom(32), os.urandom(32)
     lock_keys = tuple(k.file_key(sid) for k in locks)
     sender_id = fingerprint(sender.public_bytes)
     group_secrets = _split(secret, need, len(groups))
-    out_groups = []
+    out_groups, pending = [], []  # `pending`: (miembro, secreto KEM, participación); se envuelven cuando la cabecera está completa
     for gi, g in enumerate(groups, start=1):
         gs = group_secrets[gi]
         shares = _split(gs, g.k, len(g.members))
@@ -297,15 +417,30 @@ def seal(src: str | Path, dst: str | Path, sender: HybridSigPrivateKey, groups: 
         for x, pk in enumerate(g.members, start=1):
             share = shares[x]
             ss, ct = suite.encapsulate(pk)
-            mid = fingerprint(pk)
+            mid = _blind_member(ss, sid) if hidden else fingerprint(pk)
             com = _h(b"QSEL3/share", sid, _int(gi), _int(x), share)
-            box = AESGCM(_wrap_key(ss, sid, gi, x, mid, sender_id)).encrypt(ZERO_NONCE, share, com)
-            members.append({"id": mid, "ct": _b64(ct), "box": _b64(box), "com": com.hex()})
-        out_groups.append({"name": g.name, "k": g.k, "com": _h(b"QSEL3/group", sid, _int(gi), gs).hex(), "members": members})
-    obj = {"v": 3, "level": level.name, "kem": suite.kem, "aead": aead, "sid": sid.hex(), "sender": sender_id, "need": need, "groups": out_groups,
-           "commit": _h(b"QSEL3/key", sid, secret).hex(), "openers": [fingerprint(pk) for pk in openers],
-           "locks": [{"id": k.ident.hex(), "label": k.label, "com": _lock_commitment(sid, k.ident, fk)} for k, fk in zip(locks, lock_keys, strict=True)]}
-    raw = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            members.append({"id": mid, "ct": _b64(ct), "com": com.hex()})
+            pending.append((gi, x, members[-1], ss, share))
+        name = f"g{gi}" if hidden else g.name
+        out_groups.append({"name": name, "k": g.k, "com": _h(b"QSEL3/group", sid, _int(gi), gs).hex(), "members": members})
+    out_locks = []
+    for k, fk in zip(locks, lock_keys, strict=True):
+        ident = lock_header_id(hidden, sid, k.ident)
+        entry = {"id": ident, "label": "candado" if hidden else k.label, "com": _lock_commitment(sid, bytes.fromhex(ident), fk)}
+        if hidden:
+            entry["salt"] = _b64(AESGCM(_salt_key(fk, sid)).encrypt(ZERO_NONCE, salt, bytes.fromhex(ident)))
+        out_locks.append(entry)
+    authorised = [fingerprint(pk) for pk in openers]
+    obj = {"v": V_HIDDEN if hidden else V_OPEN, "level": level.name, "kem": suite.kem, "aead": aead, "sid": sid.hex(), "sender": sender_id, "need": need,
+           "groups": out_groups, "commit": _h(b"QSEL3/key", sid, secret).hex(),
+           "openers": [_blind_opener(sid, salt, who) for who in authorised] if hidden else authorised, "locks": out_locks}
+    if hidden:
+        obj["saltcom"] = _salt_commitment(sid, salt)
+    policy = _policy_digest(obj)
+    for gi, x, member, ss, share in pending:
+        key = _wrap_key(ss, sid, gi, x, member["id"], sender_id, policy)
+        member["box"] = _b64(AESGCM(key).encrypt(ZERO_NONCE, share + salt if hidden else share, bytes.fromhex(member["com"])))
+    raw = _canonical_header(obj)
     if len(raw) > MAX_HEADER:
         raise PolicyViolation("cabecera demasiado grande")
     prefix = MAGIC + _int(len(raw)) + raw
@@ -314,7 +449,8 @@ def seal(src: str | Path, dst: str | Path, sender: HybridSigPrivateKey, groups: 
     cipher = AEADS[aead](_payload_key(secret, digest, lock_keys))
     dst = Path(dst)
     payload_hash, length = hashlib.sha256(), 0
-    with open(src, "rb") as fin, _atomic_output(dst) as fout:
+    with _source(src) as (plain, size), _atomic_output(dst) as fout:
+        fin = _Padded(plain, size) if hidden else plain
         fout.write(prefix + head_sig)
         i, chunk = 0, fin.read(CHUNK)
         while True:
@@ -432,12 +568,51 @@ def make_stub(path: str | Path, sender_public: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------------------------------------------------------- custodio y apertura
-def _slot(hd: Header, member_id: str) -> tuple[int, int, dict]:
+def _slot(hd: Header, custodian) -> tuple[int, int, dict, bytes]:
+    """(grupo, posición, miembro, secreto KEM) de este custodio. En modo discreto prueba cada hueco: solo en el suyo la etiqueta coincide."""
+    suite, sid = hd.suite, bytes.fromhex(hd.data["sid"])
+    own = None if hd.hidden else fingerprint(custodian.public_bytes)
     for gi, g in enumerate(hd.data["groups"], start=1):
         for x, m in enumerate(g["members"], start=1):
-            if m["id"] == member_id:
-                return gi, x, m
+            if own is not None and m["id"] != own:
+                continue
+            try:
+                ss = custodian.decapsulate(_unb64(m["ct"], suite.ct_len))
+            except (ValueError, AuthenticationFailure) as exc:  # basura de un emisor defectuoso
+                if own is not None:
+                    raise AuthenticationFailure("el texto cifrado de esta participación es inválido") from exc
+                continue  # en modo discreto puede ser el hueco de otro: se sigue buscando
+            if own is not None or ct_equal(bytes.fromhex(m["id"]), bytes.fromhex(_blind_member(ss, sid))):
+                return gi, x, m, ss
     raise PolicyViolation("esta clave no es de ningún custodio del archivo")
+
+
+def _unwrap(hd: Header, custodian) -> tuple[int, int, bytes, bytes]:
+    """(grupo, posición, participación, sal) de este custodio, comprobada contra su compromiso."""
+    if not hd.suite.owns(custodian):
+        raise PolicyViolation("la clave del custodio es de otro nivel o de otro KEM")
+    gi, x, m, ss = _slot(hd, custodian)
+    sid, com = bytes.fromhex(hd.data["sid"]), bytes.fromhex(m["com"])
+    wk = _wrap_key(ss, sid, gi, x, m["id"], hd.data["sender"], None if hd.data["v"] == V_LEGACY else _policy_digest(hd.data))
+    try:
+        plain = AESGCM(wk).decrypt(ZERO_NONCE, _unb64(m["box"], _box_len(hd.hidden)), com)
+    except InvalidTag as exc:
+        raise AuthenticationFailure("la participación envuelta no se puede abrir: otra clave, o no pertenece a esta política") from exc
+    share, salt = plain[:32], plain[32:]
+    if not ct_equal(com, _h(b"QSEL3/share", sid, _int(gi), _int(x), share)):
+        raise AuthenticationFailure("la participación no cumple su compromiso (emisor defectuoso)")
+    return gi, x, share, salt
+
+
+def lock_salt(hd: Header, entry: dict, file_key: bytes) -> bytes:
+    """La sal de los solicitantes que un candado lleva para su guardián (vacía fuera del modo discreto)."""
+    if not hd.hidden:
+        return b""
+    sid = bytes.fromhex(hd.data["sid"])
+    try:
+        return AESGCM(_salt_key(file_key, sid)).decrypt(ZERO_NONCE, _unb64(entry["salt"], 32 + TAG), bytes.fromhex(entry["id"]))
+    except InvalidTag as exc:
+        raise AuthenticationFailure("la sal del candado no se puede abrir") from exc
 
 
 def _contrib_context(hd: Header, gi: int, x: int, opener_public: bytes) -> bytes:
@@ -462,7 +637,8 @@ def request_open(path: str | Path, sender_public: bytes, requester: HybridSigPri
                  now: int | None = None) -> bytes:
     """Quien quiere abrir firma: ESTE archivo, ESTA clave efímera de apertura, el MOTIVO y hasta CUÁNDO vale. Es lo que cada custodio y el guardián revisan."""
     hd, _, _ = verify_file(path, sender_public)
-    if requester.level.name != hd.data["level"] or fingerprint(requester.public_bytes) not in hd.data["openers"]:
+    # En modo discreto el propio solicitante no puede saber si está en la lista: lo comprueban custodios y guardián.
+    if requester.level.name != hd.data["level"] or (not hd.hidden and fingerprint(requester.public_bytes) not in hd.data["openers"]):
         raise PolicyViolation("este solicitante no está autorizado para este archivo")
     if not 1 <= len(reason) <= MAX_REASON or not reason.isprintable() or len(opening_key_public) != hd.suite.pk_len:
         raise PolicyViolation("motivo o clave de apertura inválidos")
@@ -475,8 +651,19 @@ def request_open(path: str | Path, sender_public: bytes, requester: HybridSigPri
                        "issued": issued, "expires": issued + ttl, "nonce": _b64(nonce), "sig": _b64(sig)}, sort_keys=True, ensure_ascii=False).encode("utf-8")
 
 
-def read_request(hd: Header, blob: bytes, now: int | None = None) -> Request:
-    """Verifica una solicitud contra la cabecera FIRMADA y contra el reloj de quien la lee."""
+def read_request(hd: Header, blob: bytes, now: int | None = None, salt: bytes = b"") -> Request:
+    """Verifica una solicitud contra la cabecera FIRMADA y contra el reloj de quien la lee, y que su firmante esté AUTORIZADO (en modo discreto hace falta la sal)."""
+    req = inspect_request(hd, blob, now)
+    sid = bytes.fromhex(hd.data["sid"])
+    if hd.hidden and not ct_equal(bytes.fromhex(hd.data["saltcom"]), bytes.fromhex(_salt_commitment(sid, salt))):
+        raise AuthenticationFailure("la sal de los solicitantes falta o no es la comprometida en la cabecera")
+    if (_blind_opener(sid, salt, req.requester) if hd.hidden else req.requester) not in hd.data["openers"]:
+        raise PolicyViolation("solicitante NO autorizado por la cabecera")
+    return req
+
+
+def inspect_request(hd: Header, blob: bytes, now: int | None = None) -> Request:
+    """Firma y vigencia de una solicitud, SIN comprobar que su firmante esté autorizado. Solo sirve para mostrarla: quien entrega algo usa `read_request`."""
     r = _keys(_strict_json(blob), {"v", "file", "kem", "signer", "reason", "issued", "expires", "nonce", "sig"})
     level = hd.level
     if type(r["v"]) is not int or r["v"] != 4 or not _same_text(r["file"], hd.digest.hex()):
@@ -487,8 +674,6 @@ def read_request(hd: Header, blob: bytes, now: int | None = None) -> Request:
         raise MalformedMessage("motivo inválido")
     issued = _count(r["issued"], 0, 2**62, "fecha de emisión")
     expires = _count(r["expires"], issued + 1, issued + MAX_TTL, "caducidad")
-    if fingerprint(signer) not in hd.data["openers"]:
-        raise PolicyViolation("solicitante NO autorizado por la cabecera")
     message = _request_message(hd.digest, kem, signer, reason, issued, expires, nonce)
     hybrid_verify(signer, message, _unb64(r["sig"], level.sig_len), CTX_REQUEST, level)
     now = int(time.time()) if now is None else now
@@ -502,20 +687,9 @@ def read_request(hd: Header, blob: bytes, now: int | None = None) -> Request:
 def contribute(path: str | Path, sender_public: bytes, custodian, request: bytes, now: int | None = None) -> bytes:
     """El custodio verifica TODO el archivo y la SOLICITUD firmada, y entrega su participación re-cifrada para la clave de apertura de esa solicitud."""
     hd, _, _ = verify_file(path, sender_public)
-    opener_public = read_request(hd, request, now).opening_key
+    gi, x, share, salt = _unwrap(hd, custodian)
+    opener_public = read_request(hd, request, now, salt).opening_key
     suite = hd.suite
-    if not suite.owns(custodian):
-        raise PolicyViolation("la clave del custodio es de otro nivel o de otro KEM")
-    gi, x, m = _slot(hd, fingerprint(custodian.public_bytes))
-    sid, com = bytes.fromhex(hd.data["sid"]), bytes.fromhex(m["com"])
-    ss = custodian.decapsulate(_unb64(m["ct"], suite.ct_len))
-    wk = _wrap_key(ss, sid, gi, x, m["id"], hd.data["sender"])
-    try:
-        share = AESGCM(wk).decrypt(ZERO_NONCE, _unb64(m["box"], 32 + TAG), com)
-    except InvalidTag as exc:
-        raise AuthenticationFailure("la participación envuelta no se puede abrir con esta clave") from exc
-    if not ct_equal(com, _h(b"QSEL3/share", sid, _int(gi), _int(x), share)):
-        raise AuthenticationFailure("la participación no cumple su compromiso (emisor defectuoso)")
     ss2, ct2 = suite.encapsulate(opener_public)
     ctx = _contrib_context(hd, gi, x, opener_public)
     box = AESGCM(hkdf(ss2, ctx)).encrypt(ZERO_NONCE, share, ctx)
@@ -608,8 +782,8 @@ def recover_secret(hd: Header, shares: dict[tuple[int, int], bytes]) -> bytes:
     return secret
 
 
-def open_sealed(path: str | Path, dst: str | Path, sender_public: bytes, opener, contributions: list[bytes], lock_tokens: list[bytes] | None = None) -> dict:
-    """Abre el archivo. Las contribuciones defectuosas se informan y se descartan; si quedan suficientes, se abre igual."""
+def _unlock(path: str | Path, sender_public: bytes, opener, contributions: list[bytes], lock_tokens: list[bytes] | None):
+    """Verifica el archivo y reconstruye la clave del cuerpo: (cabecera, huella del cuerpo, longitud, cifrador, informe)."""
     hd, body_hash, length = verify_file(path, sender_public)
     if hd.stub:
         raise PolicyViolation("es un resguardo: para abrir hace falta el archivo completo")
@@ -631,8 +805,13 @@ def open_sealed(path: str | Path, dst: str | Path, sender_public: bytes, opener,
         detail = "; ".join(f"contribución {r['index']}: {r['reason']}" for r in rejected)
         raise PolicyViolation(f"{exc}" + (f" | rechazadas -> {detail}" if detail else "")) from exc
     cipher = AEADS[hd.data["aead"]](_payload_key(secret, hd.digest, lock_keys))
+    return hd, body_hash, length, cipher, {"used": sorted(shares), "rejected": rejected}
+
+
+def _body_chunks(path: str | Path, hd: Header, body_hash: bytes, length: int, cipher) -> Iterator[bytes]:
+    """Descifra trozo a trozo. El ÚLTIMO no se entrega sin comprobar que el cuerpo leído es el que se verificó: quien consume no necesita pedir nada más."""
     ph = hashlib.sha256()
-    with open(path, "rb") as fin, _atomic_output(Path(dst)) as fout:
+    with open(path, "rb") as fin:
         fin.seek(hd.payload_start)
         left, i = length, 0
         while left:
@@ -642,10 +821,62 @@ def open_sealed(path: str | Path, dst: str | Path, sender_public: bytes, opener,
             left -= len(c)
             ph.update(c)
             try:
-                fout.write(cipher.decrypt(_nonce(i, left == 0), c, None))
+                plain = cipher.decrypt(_nonce(i, left == 0), c, None)
             except InvalidTag as exc:
                 raise AuthenticationFailure(f"trozo {i} alterado, desordenado o truncado") from exc
+            if not left and not ct_equal(ph.digest(), body_hash):  # el archivo cambió entre la verificación y el descifrado: no se publica la salida
+                raise AuthenticationFailure("el archivo cambió mientras se abría")
+            yield plain
             i += 1
-        if not ct_equal(ph.digest(), body_hash):  # el archivo cambió entre la verificación y el descifrado: no se publica la salida
-            raise AuthenticationFailure("el archivo cambió mientras se abría")
-    return {"used": sorted(shares), "rejected": rejected}
+
+
+def _plaintext(path: str | Path, hd: Header, body_hash: bytes, length: int, cipher) -> tuple[int, Iterator[bytes]]:
+    """(tamaño del claro, sus trozos), sin el relleno del modo discreto."""
+    chunks = _body_chunks(path, hd, body_hash, length, cipher)
+    if not hd.hidden:
+        return length - TAG * -(-length // (CHUNK + TAG)), chunks
+    first = next(chunks)
+    return int.from_bytes(first[:8], "big"), _unpadded(itertools.chain([first], chunks))
+
+
+class _Stream:
+    """Un claro en memoria, trozo a trozo, con la forma que espera `seal`: nunca toca el disco."""
+
+    def __init__(self, size: int, chunks: Iterator[bytes]) -> None:
+        self.size, self._chunks, self._buffer = size, chunks, bytearray()
+
+    def read(self, n: int) -> bytes:
+        while len(self._buffer) < n:
+            more = next(self._chunks, None)
+            if more is None:
+                break
+            self._buffer += more
+        out = bytes(self._buffer[:n])
+        del self._buffer[:n]
+        return out
+
+
+def open_sealed(path: str | Path, dst: str | Path, sender_public: bytes, opener, contributions: list[bytes], lock_tokens: list[bytes] | None = None) -> dict:
+    """Abre el archivo. Las contribuciones defectuosas se informan y se descartan; si quedan suficientes, se abre igual."""
+    hd, body_hash, length, cipher, report = _unlock(path, sender_public, opener, contributions, lock_tokens)
+    _, chunks = _plaintext(path, hd, body_hash, length, cipher)
+    with _atomic_output(Path(dst)) as fout:
+        for chunk in chunks:
+            fout.write(chunk)
+    return report
+
+
+def reseal(path: str | Path, dst: str | Path, sender_public: bytes, opener, contributions: list[bytes], new_sender: HybridSigPrivateKey, groups: list[Group],
+           openers: list[bytes], need: int | None = None, locks: list[Lock] | None = None, lock_tokens: list[bytes] | None = None,
+           aead: str | None = None, hidden: bool | None = None, drop_locks: bool = False) -> tuple[Header, dict]:
+    """ROTACIÓN: abre con el quórum actual y vuelve a sellar con otra política (clave nueva) sin escribir el claro en disco. Por sí solo NO invalida las copias
+    antiguas: eso lo hacen el guardián (retirar o destruir el candado viejo) y los custodios que retiren el archivo anterior. Quien lo ejecuta ve el claro.
+    El cifrado y el modo discreto se heredan; dejar el archivo con MENOS candados exige pedirlo (`drop_locks`)."""
+    if Path(dst).exists() and os.path.samefile(path, dst):
+        raise PolicyViolation("no se vuelve a sellar sobre el archivo original")
+    hd, body_hash, length, cipher, report = _unlock(path, sender_public, opener, contributions, lock_tokens)
+    if len(locks or []) < len(hd.data["locks"]) and not drop_locks:
+        raise PolicyViolation("la política nueva lleva MENOS candados que el archivo: indícalos todos o pide expresamente quitarlos")
+    stream = _Stream(*_plaintext(path, hd, body_hash, length, cipher))
+    header = seal(stream, dst, new_sender, groups, openers, need, aead or hd.data["aead"], locks, hd.hidden if hidden is None else hidden)
+    return header, report

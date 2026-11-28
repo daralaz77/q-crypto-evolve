@@ -3,11 +3,11 @@
 Cada entrada es una línea JSON canónica `{data, mac, n, type}` cuyo `mac` (HMAC-SHA256 con una clave que solo tiene su dueño) cubre el `mac` anterior: sin la clave no
 se puede añadir, cambiar, quitar de en medio ni reordenar nada. Tres defensas más:
 
-- **Ancla** (`anchor`): otro archivo, idealmente en OTRO medio, con la cabeza autenticada. Detecta que se corte el final del diario o se restaure una copia vieja del
-  diario sin la del ancla. Sin ancla ni `pinned_head`, un corte del final no se detecta.
+- **Anclas** (`anchor`, una o varias): otros archivos, cada uno idealmente en un medio DISTINTO, con la cabeza autenticada. Detectan que se corte el final del diario o
+  se restaure una copia vieja: para ocultarlo hay que restaurar a la vez el diario y TODAS las anclas. Sin ancla ni `pinned_head`, un corte del final no se detecta.
 - **Cabeza fijada** (`pinned_head`): la misma comprobación contra un valor anotado a mano fuera del equipo.
 - **Reloj que no retrocede:** cada entrada lleva su instante; no se anota nada si el reloj está más de 5 minutos antes del último (retrasar el reloj resucitaría
-  solicitudes caducadas). No protege contra un reloj retrasado hasta justo después del último evento.
+  solicitudes caducadas). Quien entrega rechaza además lo que caducó antes del último apunte; un latido periódico (`tick`) acorta esa ventana.
 
 Quien tiene la clave del diario puede reescribirlo entero.
 """
@@ -20,7 +20,7 @@ import hmac
 import json
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from ..core.atomic import atomic_write
@@ -43,17 +43,21 @@ def _canonical(obj: dict) -> bytes:
 
 class Journal:
     def __init__(self, path: str | Path, key: bytes, events: dict[str, set[str]], clock: Callable[[], float] = time.time,
-                 anchor: str | Path | None = None, pinned_head: tuple[int, bytes] | None = None) -> None:
+                 anchor: str | Path | Sequence[str | Path] | None = None, pinned_head: tuple[int, bytes] | None = None) -> None:
         self.path, self._key, self._clock, self._pin = Path(path), key, clock, pinned_head
-        self.anchor = None if anchor is None else Path(anchor)
+        given = () if anchor is None else (anchor,) if isinstance(anchor, (str, Path)) else tuple(anchor)
+        self.anchors = tuple(Path(a) for a in given)
+        distinct = {str(p.resolve()).casefold() for p in (*self.anchors, self.path)}  # el disco de macOS no distingue mayúsculas
+        if len(distinct) != len(self.anchors) + 1:
+            raise PolicyViolation("cada ancla debe ser un archivo distinto de las demás y del diario")
         self._events = {kind: fields | {"at"} for kind, fields in events.items()}
 
     # ------------------------------------------------------------------------------------------------------------ lectura
-    def _read_anchor(self) -> tuple[int, bytes] | None:
-        if self.anchor is None or not self.anchor.exists():
+    def _read_anchor(self, anchor: Path) -> tuple[int, bytes] | None:
+        if not anchor.exists():
             return None
         try:
-            a = json.loads(self.anchor.read_text(encoding="utf-8"))
+            a = json.loads(anchor.read_text(encoding="utf-8"))
             count, mac, tag = a["n"], bytes.fromhex(a["mac"]), bytes.fromhex(a["tag"])
             if type(count) is not int or count < 1:
                 raise ValueError("n")
@@ -68,9 +72,9 @@ class Journal:
         if count > 0 and (len(entries) < count or not ct_equal(entries[count - 1]["mac"], mac)):
             raise IntegrityError(f"el diario no contiene {what}: se cortó o se sustituyó")
 
-    def _load(self) -> list[dict]:
-        """Lee y VERIFICA todo (sin candado: lo pone quien llama). Falla cerrado ante cualquier anomalía."""
-        anchored = self._read_anchor()
+    def _load(self, adopting: bool = False) -> list[dict]:
+        """Lee y VERIFICA todo (sin candado: lo pone quien llama). Falla cerrado ante cualquier anomalía. `adopting`: tolera las anclas que aún no existen."""
+        anchored = [self._read_anchor(a) for a in self.anchors]
         try:
             text = self.path.read_text(encoding="utf-8") if self.path.exists() else ""
         except (OSError, UnicodeError) as exc:
@@ -91,11 +95,11 @@ class Journal:
                 raise IntegrityError(f"el diario está roto en la entrada {n} (alterado, reordenado o de otro dueño)")
             previous = mac
             entries.append({**body, "mac": mac})
-        if self.anchor is not None:
-            if anchored is None and entries:
+        for head in anchored:
+            if head is not None:
+                self._check_head(entries, head, "la cabeza anclada")
+            elif entries and not adopting:
                 raise IntegrityError("falta el ancla de un diario que ya tiene entradas (si la ancla es nueva, adóptala expresamente)")
-            if anchored is not None:
-                self._check_head(entries, anchored, "la cabeza anclada")
         if self._pin is not None:
             self._check_head(entries, self._pin, "la cabeza fijada")
         return entries
@@ -117,25 +121,21 @@ class Journal:
         return len(entries), entries[-1]["mac"] if entries else GENESIS
 
     # ------------------------------------------------------------------------------------------------------------ escritura
-    def _write_anchor(self, count: int, mac: bytes) -> None:
-        if self.anchor is None:
-            return
+    def _write_anchors(self, count: int, mac: bytes, anchors: Sequence[Path]) -> None:
         tag = _mac(self._key, b"QSEL3/journal-anchor", count.to_bytes(8, "big"), mac)
-        self.anchor.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write(self.anchor, _canonical({"n": count, "mac": mac.hex(), "tag": tag.hex()}), 0o600)
+        for anchor in anchors:
+            anchor.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write(anchor, _canonical({"n": count, "mac": mac.hex(), "tag": tag.hex()}), 0o600)
 
     def adopt_anchor(self) -> None:
-        """Crea el ancla de un diario que ya existía. Es una decisión EXPRESA: a partir de aquí lo que haya es la verdad."""
-        if self.anchor is None or self.anchor.exists():
-            raise PolicyViolation("no hay ancla que adoptar (sin ruta de ancla, o ya existe)")
+        """Crea las anclas que faltan de un diario que ya existía. Es una decisión EXPRESA: las que ya existen se siguen exigiendo."""
         with self._locked(fcntl.LOCK_EX):
-            anchor, self.anchor = self.anchor, None
-            try:
-                entries = self._load()
-            finally:
-                self.anchor = anchor
+            missing = [a for a in self.anchors if not a.exists()]
+            if not missing:
+                raise PolicyViolation("no hay ancla que adoptar (sin ruta de ancla, o ya existen todas)")
+            entries = self._load(adopting=True)
             if entries:
-                self._write_anchor(len(entries), entries[-1]["mac"])
+                self._write_anchors(len(entries), entries[-1]["mac"], missing)
 
     @contextlib.contextmanager
     def transaction(self):
@@ -163,5 +163,5 @@ class Journal:
                         os.truncate(self.path, before)
                     raise
                 entries.append({**body, "mac": mac})
-                self._write_anchor(len(entries), mac)  # si falla, quien llama NO entrega nada: el diario queda por delante del ancla, que es válido
+                self._write_anchors(len(entries), mac, self.anchors)  # si falla, quien llama NO entrega nada: el diario queda por delante del ancla, que es válido
             yield entries, append

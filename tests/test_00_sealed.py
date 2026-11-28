@@ -133,7 +133,7 @@ def test_the_same_contribution_twice_counts_once(w):
 def forged_contribution(w, f, who, share):
     """Un custodio malicioso (o un tercero) fabrica una contribución bien cifrada pero con una participación falsa para SU posición."""
     hd = qsello.read_header(f, w.sender.public_bytes)
-    gi, x, _ = qsello._slot(hd, qsello.fingerprint(w.cust[who].public_bytes))
+    gi, x, _, _ = qsello._slot(hd, w.cust[who])
     ss, ct = hd.suite.encapsulate(w.opener.public_bytes)
     ctx = qsello._contrib_context(hd, gi, x, w.opener.public_bytes)
     box = qsello.AESGCM(qsello.hkdf(ss, ctx)).encrypt(qsello.ZERO_NONCE, share, ctx)
@@ -516,7 +516,7 @@ def _attacker_with_every_private_key(w, f):
         for x, m in enumerate(group["members"], start=1):
             key = next(k for k in w.cust.values() if qsello.fingerprint(k.public_bytes) == m["id"])
             ss = key.decapsulate(base64.b64decode(m["ct"]))
-            wk = qsello._wrap_key(ss, sid, g, x, m["id"], hd.data["sender"])
+            wk = qsello._wrap_key(ss, sid, g, x, m["id"], hd.data["sender"], qsello._policy_digest(hd.data))
             shares[(g, x)] = qsello.AESGCM(wk).decrypt(qsello.ZERO_NONCE, base64.b64decode(m["box"]), bytes.fromhex(m["com"]))
     return hd, qsello.recover_secret(hd, shares)
 
@@ -558,7 +558,7 @@ def _keeper(w, lock, name=None, clock=time.time):
 
 
 def _proof(w, k, f, request):
-    ident = qsello.read_request(qsello.read_header(f, w.sender.public_bytes), request, now=json.loads(request)["issued"]).ident
+    ident = qsello.inspect_request(qsello.read_header(f, w.sender.public_bytes), request, now=json.loads(request)["issued"]).ident
     return guardian.prove(ident, k.requester_secret(qsello.fingerprint(w.requester.public_bytes)))
 
 
@@ -776,6 +776,7 @@ def test_registration_withdrawal_enrolment_and_revocation(w):
     f = w.seal(DATA, locks=[lock])
     k = guardian.Keeper(lock, w.tmp / "g.diario", clock=Clock())
     digest = qsello.read_header(f, w.sender.public_bytes).digest.hex()
+    sid = qsello.read_header(f, w.sender.public_bytes).data["sid"]
     request = _request_at(w, f)
 
     def attempt(match):
@@ -784,7 +785,7 @@ def test_registration_withdrawal_enrolment_and_revocation(w):
             k.release(f, w.sender.public_bytes, request, guardian.prove(ident, k.requester_secret(qsello.fingerprint(w.requester.public_bytes))))
     attempt("NO registrado")
     with pytest.raises(PolicyViolation, match="no está registrado"):
-        k.withdraw(digest)
+        k.withdraw(digest, sid)
     assert k.register(f, w.sender.public_bytes) == digest
     with pytest.raises(PolicyViolation, match="ya está registrado"):
         k.register(f, w.sender.public_bytes)
@@ -799,7 +800,7 @@ def test_registration_withdrawal_enrolment_and_revocation(w):
     attempt("sin alta")
     with pytest.raises(PolicyViolation, match="BAJA"):
         k.enroll(w.requester.public_bytes)
-    k.withdraw(digest)
+    k.withdraw(digest, sid)
     attempt("NO registrado")
     with pytest.raises(PolicyViolation, match="RETIRADO"):
         k.register(f, w.sender.public_bytes)

@@ -1,0 +1,193 @@
+/*
+  Modelo simbólico del sobre con quórum (docs/SEALED_ENVELOPE_SPEC.md). ESTADO: NO REVISADO por terceros.
+
+  Qué modela:   sellar, solicitar, la entrega de DOS custodios (un grupo de 2 de 2), el guardián de un candado y la apertura. Adversario Dolev-Yao que además puede
+                obtener cada secreto por separado: firma del emisor, firma del solicitante, claves KEM de los custodios, clave de apertura, maestra del candado,
+                secreto de alta y ficha. «Romper la criptografía de clave pública» = revelar las claves asimétricas.
+  Abstracciones: el KEM + AEAD de cada participación es un cifrado asimétrico ideal; Shamir es ideal (hacen falta las dos participaciones); las dos firmas híbridas
+                son una firma ideal; el registro de un archivo en el guardián y la entrega de secreto y ficha van por canales seguros ideales.
+  Qué NO modela: umbrales k<n ni varios grupos, diarios (una sola entrega por solicitud, caducidad, retiradas, anclas), modo discreto, resguardos, trozos del cuerpo,
+                codificaciones, canales laterales ni seguridad computacional. Es un modelo del DISEÑO, no del código.
+  -DUNBOUND:    formato 3 antiguo: la participación envuelta NO está atada a la política. Demuestra el ataque que motivó atarla (falsifica `quorum_is_necessary`).
+*/
+theory QSEL
+begin
+
+builtins: asymmetric-encryption, signing, symmetric-encryption, hashing
+
+functions: kdf/2, mac/2
+
+#ifdef UNBOUND
+macros: bind(sid, who, mode) = 'unbound'                 /* formato 3: la participación no dice a qué política pertenece */
+#else
+macros: bind(sid, who, mode) = h(<'policy', sid, who, mode>)
+#endif
+
+restriction Equality:
+  "All x y #i. Eq(x, y) @ i ==> x = y"
+
+/* ---------------- claves ---------------- */
+rule Sender_key:
+  [ Fr(~sk) ] --[ SenderKey(~sk) ]-> [ !SenderSk(~sk), !SenderPk(pk(~sk)), Out(pk(~sk)) ]
+
+rule Requester_key:
+  [ Fr(~sk) ] --[ RequesterKey(~sk, pk(~sk)) ]-> [ !ReqSk(~sk, pk(~sk)), !ReqPk(pk(~sk)), Out(pk(~sk)) ]
+
+rule Custodians:
+  [ Fr(~c1), Fr(~c2) ] --[ CustKey(~c1), CustKey(~c2) ]-> [ !Cust1(~c1, ~c2), !Cust2(~c2), !Group(pk(~c1), pk(~c2)), Out(<pk(~c1), pk(~c2)>) ]
+
+rule Lock_master:
+  [ Fr(~lm) ] --[ LockKey(~lm) ]-> [ !Lock(~lm) ]
+
+rule Enroll:            /* el guardián da de alta: el secreto llega al solicitante por un canal seguro */
+  [ !Lock(lm), !ReqPk(pkR) ] --> [ !Enrolled(lm, pkR), !ReqSecret(pkR, lm, kdf(lm, pkR)) ]
+
+/* ---------------- sellar ---------------- */
+rule Seal_plain:
+  let
+      pol = bind(~sid, pkR, 'plain')
+      w1 = aenc{<'share', ~sid, '1', pol, ~s1>}pk1
+      w2 = aenc{<'share', ~sid, '2', pol, ~s2>}pk2
+      hdr = <'hdr', ~sid, pkR, 'plain', w1, w2>
+  in
+  [ Fr(~sid), Fr(~m), Fr(~s1), Fr(~s2), !SenderSk(sk), !ReqPk(pkR), !Group(pk1, pk2) ]
+  --[ Sealed(~m, ~sid, pkR, pk1, pk2), SealedPlain(~m, pkR), SealedShare(~s1), SealedShare(~s2), ShareOf(~s1, pk1, pkR), ShareOf(~s2, pk2, pkR) ]->
+  [ Out(<hdr, sign(hdr, sk), senc(~m, kdf(<~s1, ~s2>, h(hdr)))>) ]
+
+rule Seal_locked:
+  let fk = kdf(lm, ~sid)
+      mode = <'locked', h(<'lockcom', ~sid, fk>)>
+      pol = bind(~sid, pkR, mode)
+      w1 = aenc{<'share', ~sid, '1', pol, ~s1>}pk1
+      w2 = aenc{<'share', ~sid, '2', pol, ~s2>}pk2
+      hdr = <'hdr', ~sid, pkR, mode, w1, w2>
+  in
+  [ Fr(~sid), Fr(~m), Fr(~s1), Fr(~s2), !SenderSk(sk), !ReqPk(pkR), !Group(pk1, pk2), !Lock(lm) ]
+  --[ Sealed(~m, ~sid, pkR, pk1, pk2), SealedLocked(~m, ~sid, lm), SealedShare(~s1), SealedShare(~s2), ShareOf(~s1, pk1, pkR), ShareOf(~s2, pk2, pkR) ]->
+  [ !Registered(lm, hdr), Out(<hdr, sign(hdr, sk), senc(~m, kdf(<~s1, ~s2, fk>, h(hdr)))>) ]
+
+/* ---------------- solicitar ---------------- */
+rule Request:           /* un solicitante honrado firma la solicitud de la cabecera que le den, hacia SU clave de apertura */
+  let msg = <'req', h(hdr), pk(~sko), ~n> in
+  [ In(hdr), !ReqSk(skR, pkR), Fr(~sko), Fr(~n) ]
+  --[ Requested(pkR, msg) ]->
+  [ !Opening(pkR, ~sko, msg, hdr), Out(<msg, sign(msg, skR)>) ]
+
+rule Prove:             /* y la acompaña con la prueba simétrica ante el guardián */
+  [ !Opening(pkR, sko, msg, hdr), !ReqSecret(pkR, lm, rs) ]
+  --[ Proved(msg) ]->
+  [ Out(mac(rs, h(msg))) ]
+
+/* ---------------- custodios ---------------- */
+rule Custodian_1:
+  let hdr = <'hdr', sid, pkR, mode, aenc{<'share', sid, '1', bind(sid, pkR, mode), s>}pk(c1), w2>
+      msg = <'req', h(hdr), pkO, n>
+  in
+  [ !Cust1(c1, c2), !SenderPk(spk), In(<hdr, hsig, msg, rsig>) ]
+  --[ Eq(verify(hsig, hdr, spk), true), Eq(verify(rsig, msg, pkR), true), Served(pkR, msg), Unwrapped(s) ]->
+  [ Out(aenc{<'contrib', h(hdr), '1', s>}pkO) ]
+
+rule Custodian_2:
+  let hdr = <'hdr', sid, pkR, mode, w1, aenc{<'share', sid, '2', bind(sid, pkR, mode), s>}pk(c2)>
+      msg = <'req', h(hdr), pkO, n>
+  in
+  [ !Cust2(c2), !SenderPk(spk), In(<hdr, hsig, msg, rsig>) ]
+  --[ Eq(verify(hsig, hdr, spk), true), Eq(verify(rsig, msg, pkR), true), Served(pkR, msg), Unwrapped(s) ]->
+  [ Out(aenc{<'contrib', h(hdr), '2', s>}pkO) ]
+
+/* ---------------- guardián ---------------- */
+rule Keeper:
+  let hdr = <'hdr', sid, pkR, <'locked', com>, w1, w2>
+      msg = <'req', h(hdr), pkO, n>
+  in
+  [ !Registered(lm, hdr), !Enrolled(lm, pkR), In(<msg, rsig, proof>) ]
+  --[ Eq(verify(rsig, msg, pkR), true), Eq(proof, mac(kdf(lm, pkR), h(msg))), Token(pkR, lm, msg) ]->
+  [ !TokenFor(pkR, sid, kdf(lm, sid)) ]      /* canal seguro hacia el solicitante */
+
+/* ---------------- abrir ---------------- */
+rule Open_plain:
+  let hdr = <'hdr', sid, pkR, 'plain', w1, w2> in
+  [ !Opening(pkR, sko, msg, hdr),
+    In(<aenc{<'contrib', h(hdr), '1', s1>}pk(sko), aenc{<'contrib', h(hdr), '2', s2>}pk(sko), senc(m, kdf(<s1, s2>, h(hdr)))>) ]
+  --[ Opened(m) ]->
+  [ ]
+
+rule Open_locked:
+  let hdr = <'hdr', sid, pkR, <'locked', com>, w1, w2> in
+  [ !Opening(pkR, sko, msg, hdr), !TokenFor(pkR, sid, fk),
+    In(<aenc{<'contrib', h(hdr), '1', s1>}pk(sko), aenc{<'contrib', h(hdr), '2', s2>}pk(sko), senc(m, kdf(<s1, s2, fk>, h(hdr)))>) ]
+  --[ Opened(m) ]->
+  [ ]
+
+/* ---------------- revelaciones ---------------- */
+rule Reveal_sender_signature:
+  [ !SenderSk(sk) ] --[ Reveal(), RevealSender(sk) ]-> [ Out(sk) ]
+rule Reveal_requester_signature:
+  [ !ReqSk(sk, pkR) ] --[ Reveal(), RevealRequester(pkR) ]-> [ Out(sk) ]
+rule Reveal_custodian_1:
+  [ !Cust1(c1, c2) ] --[ Reveal(), RevealCust(pk(c1)) ]-> [ Out(c1) ]
+rule Reveal_custodian_2:
+  [ !Cust2(c2) ] --[ Reveal(), RevealCust(pk(c2)) ]-> [ Out(c2) ]
+rule Reveal_opening_key:
+  [ !Opening(pkR, sko, msg, hdr) ] --[ Reveal(), RevealOpening(pkR) ]-> [ Out(sko) ]
+rule Reveal_lock_master:
+  [ !Lock(lm) ] --[ Reveal(), RevealLock(lm) ]-> [ Out(lm) ]
+rule Reveal_request_secret:
+  [ !ReqSecret(pkR, lm, rs) ] --[ Reveal(), RevealSecret(pkR, lm) ]-> [ Out(rs) ]
+rule Reveal_token:
+  [ !TokenFor(pkR, sid, fk) ] --[ Reveal(), RevealToken(sid) ]-> [ Out(fk) ]
+
+/* ---------------- propiedades ---------------- */
+/* Lema de fuentes: lo que un custodio desenvuelve o lo selló un emisor honrado o el atacante ya lo conocía (le sirve a Tamarin para no divergir). */
+lemma unwrapped_shares_have_a_known_origin [sources]:
+  "All s #i. Unwrapped(s) @ i ==> (Ex #j. SealedShare(s) @ j & j < i) | (Ex #j. KU(s) @ j & j < i)"
+
+lemma executable_plain: exists-trace
+  "Ex m p #i #j. SealedPlain(m, p) @ i & Opened(m) @ j & not (Ex #r. Reveal() @ r)"
+
+lemma executable_locked: exists-trace
+  "Ex m sid lm #i #j. SealedLocked(m, sid, lm) @ i & Opened(m) @ j & not (Ex #r. Reveal() @ r)"
+
+/* Auxiliares (se reutilizan): ningún secreto de larga duración sale solo. */
+lemma custodian_keys_stay_secret [reuse]:
+  "All c #i #j. CustKey(c) @ i & K(c) @ j ==> (Ex #r. RevealCust(pk(c)) @ r & r < j)"
+lemma requester_keys_stay_secret [reuse]:
+  "All sk p #i #j. RequesterKey(sk, p) @ i & K(sk) @ j ==> (Ex #r. RevealRequester(p) @ r & r < j)"
+lemma lock_masters_stay_secret [reuse]:
+  "All lm #i #j. LockKey(lm) @ i & K(lm) @ j ==> (Ex #r. RevealLock(lm) @ r & r < j)"
+
+#ifdef UNBOUND
+lemma shares_stay_secret:      /* aquí es FALSO: no puede darse por supuesto al probar los siguientes */
+  "All s k p #i #j. ShareOf(s, k, p) @ i & K(s) @ j ==>
+     (Ex #r. RevealCust(k) @ r) | (Ex #r. RevealRequester(p) @ r) | (Ex #r. RevealOpening(p) @ r)"
+#else
+lemma shares_stay_secret [reuse]:
+  "All s k p #i #j. ShareOf(s, k, p) @ i & K(s) @ j ==>
+     (Ex #r. RevealCust(k) @ r) | (Ex #r. RevealRequester(p) @ r) | (Ex #r. RevealOpening(p) @ r)"
+#endif
+
+/* Con candado o sin él: leer exige la clave de apertura o la firma del solicitante LISTADO, o las claves de LOS DOS custodios. La firma del EMISOR no basta. */
+lemma quorum_is_necessary:
+  "All m sid p k1 k2 #i #j. Sealed(m, sid, p, k1, k2) @ i & K(m) @ j ==>
+     (Ex #r. RevealOpening(p) @ r) | (Ex #r. RevealRequester(p) @ r) | ((Ex #a. RevealCust(k1) @ a) & (Ex #b. RevealCust(k2) @ b))"
+
+/* Con candado: ni TODAS las claves de clave pública bastan; hace falta su maestra o la ficha de ese archivo. */
+lemma lock_is_necessary:
+  "All m sid lm #i #j. SealedLocked(m, sid, lm) @ i & K(m) @ j ==> (Ex #r. RevealLock(lm) @ r) | (Ex #r. RevealToken(sid) @ r)"
+
+/* Romper las firmas no consigue una ficha: hace falta el secreto simétrico del solicitante (o la maestra). */
+lemma token_needs_the_symmetric_secret:
+  "All p lm msg #i. Token(p, lm, msg) @ i ==> (Ex #j. Proved(msg) @ j & j < i) | (Ex #r. RevealSecret(p, lm) @ r & r < i) | (Ex #r. RevealLock(lm) @ r & r < i)"
+
+lemma token_needs_a_signed_request:
+  "All p lm msg #i. Token(p, lm, msg) @ i ==> (Ex #j. Requested(p, msg) @ j & j < i) | (Ex #r. RevealRequester(p) @ r & r < i)"
+
+lemma custodians_serve_only_signed_requests:
+  "All sk p msg #i #k. Served(p, msg) @ i & RequesterKey(sk, p) @ k ==> (Ex #j. Requested(p, msg) @ j & j < i) | (Ex #r. RevealRequester(p) @ r & r < i)"
+
+/* Sanidad y límite medido: sin candado, romper SOLO la firma del solicitante basta para leer. */
+lemma without_a_lock_the_requester_signature_is_enough: exists-trace
+  "Ex m p #i #j #r. SealedPlain(m, p) @ i & K(m) @ j & RevealRequester(p) @ r
+     & (All x #a. RevealCust(x) @ a ==> F) & (All x #a. RevealOpening(x) @ a ==> F) & (All x #a. RevealSender(x) @ a ==> F)"
+
+end

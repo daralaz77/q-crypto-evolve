@@ -22,7 +22,7 @@ python -m qce.sealed keygen custodio carla
 python -m qce.sealed keygen custodio apertura
 python -m qce.sealed keygen candado plazo-2031
 ```
-Cada clave secreta se guarda **cifrada** con una frase (mínimo 12 caracteres). Para repartir la maestra: `split-lock --lock plazo-2031.candado --k 2 --n 3 --out-prefix parte` (luego se usa `--share` en lugar de `--lock`).
+Cada clave secreta se guarda **cifrada** con una frase (mínimo 12 caracteres; con `--generate-passphrase` se genera una de 128 bits y se muestra una sola vez, solo en la terminal: ni la salida redirigida ni un registro la reciben, y sin terminal la orden se niega). Para repartir la maestra: `split-lock --lock plazo-2031.candado --k 2 --n 3 --out-prefix parte` (luego se usa `--share` en lugar de `--lock`).
 
 ```bash
 python -m qce.sealed seal informe.pdf informe.qsel --sender ana.key --opener gil.pub --group direccion:2:bea.pub,carla.pub --lock plazo-2031.candado
@@ -40,15 +40,41 @@ python -m qce.sealed open informe.qsel informe-abierto.pdf --sender-pub ana.pub 
 ```
 La ficha y el secreto del solicitante se entregan por canales que **no dependan de clave pública**.
 
+## Rotación y revocación
+Quitar a un custodio (o cambiar solicitantes, umbrales o candados) es volver a sellar **y retirar el archivo anterior**:
+```bash
+python -m qce.sealed reseal informe.qsel informe-2.qsel bea.part carla.part --sender-pub ana.pub --key apertura.key --token informe.ficha --new-sender ana.key --opener gil.pub --group direccion:2:bea.pub,carla.pub --lock plazo-2031.candado
+python -m qce.sealed guardian register informe-2.qsel --sender-pub ana.pub --lock plazo-2031.candado --journal guardian.diario
+python -m qce.sealed guardian withdraw informe.qsel --sender-pub ana.pub --lock plazo-2031.candado --journal guardian.diario
+python -m qce.sealed custodian withdraw informe.qsel --sender-pub ana.pub --key bea.key
+```
+`reseal` no escribe el claro en disco, hereda cifrado y modo, y se niega a quitar candados sin `--drop-locks`. Si el guardián usa anclas, repite `--anchor` en sus comandos.
+
+Qué consigue cada retirada:
+- **Con candado:** el guardián no vuelve a dar fichas para el archivo viejo; un excustodio con su copia no la abre sin una ficha emitida antes.
+- **Sin candado:** basta con que retiren el archivo tantos custodios honrados que los restantes no lleguen al umbral.
+- **No consigue:** deshacer fichas o contribuciones ya entregadas, ni borrar copias.
+
+## Modo discreto
+`seal --discreet`: la cabecera no identifica a custodios, solicitantes ni candados, no nombra los grupos y el cuerpo se acolcha (como mínimo 4 KiB y como mucho un 12 % de más). Siguen visibles el emisor, el nivel, el número de grupos, miembros, umbrales, solicitantes y candados y el tamaño aproximado. El custodio prueba cada hueco con su clave. El solicitante no puede saber si está autorizado: lo comprueban custodios y guardián.
+
+## Anclas y latidos
+`--anchor` se puede repetir: para ocultar un recorte del diario habría que restaurar a la vez el diario y todas las anclas. Programa `guardian tick` y `custodian tick` (por ejemplo cada hora): una solicitud que caducó antes del último apunte se rechaza aunque alguien retrase el reloj.
+
+## Modelo formal
+[`../formal/qsel.spthy`](../formal/qsel.spthy) es un modelo **simbólico** en Tamarin (veredictos en `formal/expected_qsel.json`, se ejecutan con `python -m qce formal`). Para un grupo de dos custodios y un candado comprueba que leer exige el quórum, la clave de apertura o la firma del solicitante (la del emisor no basta); que un archivo con candado exige además la maestra o la ficha; y que romper las firmas no consigue una ficha. La variante `-DUNBOUND` reproduce el ataque contra el formato 3. **No** modela umbrales parciales, diarios, modo discreto ni el código, y supone primitivas ideales.
+
 ## Límites declarados
-- Quien **abre** reconstruye la clave y ve el texto claro: es un punto único de confianza en ese momento.
-- No hay revocación de custodios (hay que volver a sellar; las copias antiguas siguen valiendo) ni secreto hacia adelante. Retirar un archivo o destruir una maestra solo impide **fichas nuevas**; la destrucción no se puede demostrar sin hardware especial.
-- La cabecera revela huellas, nombres de grupo, umbrales, solicitantes e identificadores de candado.
-- Diario: sin ancla en otro medio, cortar el final no se detecta; quien restaure a la vez diario y ancla antiguos lo consigue. Un reloj retrasado hasta justo después del último apunte revive solicitudes.
-- El emisor ve el texto claro y define la política. Quien robe el secreto de alta **y** rompa la firma del solicitante, o logre que el guardián registre un archivo falso, obtiene fichas.
-- Frases débiles se pueden probar sin conexión; Python no es de tiempo constante ni borra secretos.
+- Quien **abre** (o **rota**) reconstruye la clave y ve el texto claro: es un punto único de confianza en ese momento.
+- La revocación no es retroactiva: fichas y contribuciones ya entregadas siguen valiendo, y las copias antiguas no se borran. Sin candado depende de que haya suficientes custodios honrados que retiren el archivo. No hay secreto hacia adelante, y la destrucción de una maestra no se puede demostrar sin hardware especial.
+- La cabecera normal revela huellas, nombres de grupo, umbrales, solicitantes e identificadores de candado; la discreta, solo lo dicho arriba.
+- Diario: sin ancla en otro medio, cortar el final no se detecta; quien restaure a la vez el diario y todas las anclas lo consigue. Un reloj retrasado revive las solicitudes que caducaron **después** del último apunte (los latidos acortan esa ventana).
+- Quien pueda firmar como un solicitante autorizado puede pedir las participaciones de un archivo **sin** candado y leerlo. Quien además tenga su secreto de alta puede obtener fichas.
+- El emisor ve el texto claro y define la política; logrando que el guardián registre un archivo falso obtiene fichas para él.
+- Los archivos de formato 3 siguen permitiendo trasladar sus participaciones a otra política a quien pueda firmar como el emisor: vuelve a sellarlos.
+- Las frases elegidas a mano se pueden probar sin conexión (usa `--generate-passphrase`); Python no es de tiempo constante ni borra secretos.
 - X-Wing es un **borrador** de la IETF; el nivel «high» usa el combinador propio de QCE. No es interoperable con age, HPKE ni otras herramientas.
-- El segundo lector (`tests/sealed_reader.py`) lo escribió el mismo autor: detecta divergencias entre código y especificación, no errores de concepto compartidos.
+- El segundo lector (`tests/sealed_reader.py`) y el modelo formal los escribió el mismo autor que el código: detectan divergencias, no errores de concepto compartidos.
 
 ## Antecedentes (no se afirma novedad)
 El quórum sobre sobres cifrados ya existe (p. ej. el complemento `age-plugin-sss` para `age`, que además tiene un destinatario híbrido poscuántico); también existen las claves precompartidas contra ordenadores cuánticos (RFC 8784), el borrado de claves para hacer datos irrecuperables (Perlman, *The Ephemerizer*) y los diarios de transparencia para descifrados. No se hizo búsqueda de patentes.

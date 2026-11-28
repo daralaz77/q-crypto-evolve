@@ -56,5 +56,66 @@
     "0d08e8adf9c09b28"
    ]
   }
+ },
+ {
+  "name": "v5-estandar-discreto-con-candado",
+  "digests": {
+   "header": "d1350621b41f98ff",
+   "secret": "0e37112f13c55b53",
+   "payload_key": "7889f992caeeafee",
+   "request_id": "38053c97823621c1",
+   "shares": {
+    "1,1": "8695f0a227b62dc4",
+    "1,3": "007e27bf6d87eb0d"
+   },
+   "lock_file_keys": [
+    "ce4c1c44b11e40b6"
+   ]
+  }
+ },
+ {
+  "name": "v6-alto-discreto-vacio",
+  "digests": {
+   "header": "006e02e91f4bef08",
+   "secret": "e610e8afc7ce0257",
+   "payload_key": "910a5958f1c92752",
+   "request_id": "34dc2d1dd15fba70",
+   "shares": {
+    "1,1": "65cd7ad154eb3cac",
+    "2,1": "fa05ab93c746058e",
+    "2,2": "80d9f2a06df402b1"
+   },
+   "lock_file_keys": []
+  }
+ },
+ {
+  "name": "v7-estandar-atado-con-candado",
+  "digests": {
+   "header": "20fc924cd1b25e5a",
+   "secret": "b3aabe7901d5d5c5",
+   "payload_key": "87e01ae2af9c4c2a",
+   "request_id": "6c3b85e892653c3d",
+   "shares": {
+    "1,2": "223c1004251892b9",
+    "2,1": "1b35e4713870caf3"
+   },
+   "lock_file_keys": [
+    "eab9720e41a1aac0"
+   ]
+  }
+ },
+ {
+  "name": "v8-alto-atado",
+  "digests": {
+   "header": "68ea50e6be5f1fe4",
+   "secret": "2b4779b59c840283",
+   "payload_key": "19a02b07f544e42e",
+   "request_id": "71e17f5d9b92ca3c",
+   "shares": {
+    "1,1": "a65e691a662b6a33",
+    "1,2": "754b45129effd3ae"
+   },
+   "lock_file_keys": []
+  }
  }
 ]

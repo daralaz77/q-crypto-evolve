@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import struct
 import unicodedata
 
@@ -150,14 +151,16 @@ def read_file(blob, sender_pk):
     else:
         body, body_hash, length = rest, hashlib.sha256(rest).digest(), struct.pack(">Q", len(rest))
     verify(level, sender_pk, b"QSEL3/file", d + body_hash + length, file_sig)
-    h = obj(prefix[10:], ["v", "level", "kem", "aead", "sid", "sender", "openers", "need", "groups", "commit", "locks"])
-    need(type(h["v"]) is int and h["v"] == 3 and h["level"] == level and h["kem"] == p["kem"], "versión, nivel o KEM")
+    version = json.loads(prefix[10:].decode("utf-8")).get("v")
+    hidden = version == 5                                              # sección 3.3: modo discreto
+    h = obj(prefix[10:], ["v", "level", "kem", "aead", "sid", "sender", "openers", "need", "groups", "commit", "locks"] + (["saltcom"] if hidden else []))
+    need(type(h["v"]) is int and h["v"] in (3, 4, 5) and h["level"] == level and h["kem"] == p["kem"], "versión, nivel o KEM")
     need(h["sender"] == hashlib.sha256(sender_pk).hexdigest() and h["aead"] in ("AES-256-GCM", "CHACHA20-POLY1305"), "emisor o AEAD")
     need(1 <= len(h["openers"]) <= 8 and 1 <= len(h["groups"]) <= 8, "listas")
     integer(h["need"], 1, len(h["groups"]))
     need(isinstance(h["locks"], list) and len(h["locks"]) <= 4, "candados")
     for k in h["locks"]:
-        need(set(k) == {"id", "label", "com"} and len(bytes.fromhex(k["id"])) == 16 and printable(k["label"], 64), "candado")
+        need(set(k) == {"id", "label", "com"} | ({"salt"} if hidden else set()) and len(bytes.fromhex(k["id"])) == 16 and printable(k["label"], 64), "candado")
     need(len({k["id"] for k in h["locks"]}) == len(h["locks"]), "candado repetido")
     seen = set()
     for g in h["groups"]:
@@ -165,18 +168,53 @@ def read_file(blob, sender_pk):
         integer(g["k"], 1, len(g["members"]))
         for m in g["members"]:
             need(set(m) == {"id", "ct", "box", "com"} and m["id"] not in seen, "miembro")
+            b64(m["box"], 80 if hidden else 48)
             seen.add(m["id"])
-    return {"level": level, "p": p, "h": h, "D": d, "body": body, "body_hash": body_hash}
+    return {"level": level, "p": p, "h": h, "D": d, "body": body, "body_hash": body_hash, "hidden": hidden}
 
 
-def read_request(f, blob, now=None):
+def policy_digest(h):
+    """Sección 4.1: la cabecera sin los `ct` ni los `box`, en JSON canónico."""
+    bare = json.loads(json.dumps(h))
+    for g in bare["groups"]:
+        g["members"] = [{"id": m["id"], "com": m["com"]} for m in g["members"]]
+    return H(b"QSEL3/policy", json.dumps(bare, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode())
+
+
+def lock_header_id(hidden, sid, lock_id):
+    return (H(b"QSEL3/blind-lock", sid, lock_id)[:16] if hidden else lock_id).hex()
+
+
+def lock_salt(f, entry_id, file_key):
+    """Sección 3.3: la sal que la entrada de un candado lleva para su guardián."""
+    sid = bytes.fromhex(f["h"]["sid"])
+    entry = next(k for k in f["h"]["locks"] if k["id"] == entry_id)
+    key = hkdf(file_key, lp(b"QSEL3/blind-salt-key") + lp(sid))
+    return AESGCM(key).decrypt(bytes(12), b64(entry["salt"], 48), bytes.fromhex(entry_id))
+
+
+def padded_size(n):
+    """Sección 3.3: Padmé con un mínimo de 4096."""
+    if n <= 4096:
+        return 4096
+    e = int(math.floor(math.log2(n)))
+    z = e - (int(math.floor(math.log2(e))) + 1)
+    return ((n + (1 << z) - 1) >> z) << z
+
+
+def read_request(f, blob, now=None, salt=None):
     r = obj(blob, ["v", "file", "kem", "signer", "reason", "issued", "expires", "nonce", "sig"])
     p = f["p"]
     need(type(r["v"]) is int and r["v"] == 4 and r["file"] == f["D"].hex() and printable(r["reason"], 500), "solicitud")
     signer, kem, nonce = b64(r["signer"], p["sig_pk"]), b64(r["kem"], p["kem_pk"]), b64(r["nonce"], 16)
     integer(r["issued"], 0, 2**62)
     integer(r["expires"], r["issued"] + 1, r["issued"] + 604800)
-    need(hashlib.sha256(signer).hexdigest() in f["h"]["openers"], "solicitante no autorizado")
+    who, h = hashlib.sha256(signer).digest(), f["h"]
+    if f["hidden"]:
+        sid = bytes.fromhex(h["sid"])
+        need(salt is not None and H(b"QSEL3/blind-salt", sid, salt).hex() == h["saltcom"], "sal")
+        who = H(b"QSEL3/blind-opener", sid, salt, who)
+    need(who.hex() in h["openers"], "solicitante no autorizado")
     message = b"".join(lp(v) for v in (f["D"], kem, signer, r["reason"].encode(), struct.pack(">Q", r["issued"]), struct.pack(">Q", r["expires"]), nonce))
     verify(f["level"], signer, b"QSEL3/request", message, b64(r["sig"], p["sig"]))
     need(now is None or r["issued"] - 300 <= now <= r["expires"], "solicitud fuera de plazo")
@@ -230,6 +268,11 @@ def open_file(blob, sender_pk, opener_seed, contributions, tokens=()):
         if last:
             break
         i += 1
+    if f["hidden"]:
+        need(len(out) >= 8, "relleno")
+        real = struct.unpack(">Q", out[:8])[0]
+        need(real <= len(out) - 8 and not any(out[8 + real:]) and len(out) == padded_size(real + 8), "relleno")
+        out = out[8: 8 + real]
     return bytes(out), {"header_digest": f["D"], "shares": shares, "group_secrets": group_secrets, "secret": K, "payload_key": payload_key}
 
 
@@ -255,11 +298,23 @@ def join_lock(parts, lock_id, commitments, master_commitment):
 
 def member_wrap(blob, sender_pk, g, x, seed):
     """Intermedios de la sección 4 para un custodio: (secreto KEM, clave de envoltura, participación)."""
+    return unwrap(blob, sender_pk, g, x, seed)[:3]
+
+
+def unwrap(blob, sender_pk, g, x, seed):
+    """(secreto KEM, clave de envoltura, participación, sal) del hueco (g, x); la sal va vacía fuera del modo discreto."""
     f = read_file(blob, sender_pk)
     h, sid = f["h"], bytes.fromhex(f["h"]["sid"])
     pk, decap = kem_private(f["level"], seed)
     m = h["groups"][g - 1]["members"][x - 1]
-    need(hashlib.sha256(pk).hexdigest() == m["id"], "la clave no es de ese custodio")
     ss = decap(b64(m["ct"], f["p"]["ct"]))
-    wk = hkdf(ss, b"".join(lp(v) for v in (b"QSEL3/wrap", sid, u32(g), u32(x), bytes.fromhex(m["id"]), bytes.fromhex(h["sender"]))))
-    return ss, wk, AESGCM(wk).decrypt(bytes(12), b64(m["box"], 48), bytes.fromhex(m["com"]))
+    own = hkdf(ss, lp(b"QSEL3/blind-id") + lp(sid)) if f["hidden"] else hashlib.sha256(pk).digest()
+    need(own.hex() == m["id"], "la clave no es de ese custodio")
+    context = [sid, u32(g), u32(x), bytes.fromhex(m["id"]), bytes.fromhex(h["sender"])]
+    if h["v"] == 3:
+        context = [b"QSEL3/wrap"] + context
+    else:                                                              # sección 4.1: atada a la política
+        context = [b"QSEL3/wrap-policy"] + context + [policy_digest(h)]
+    wk = hkdf(ss, b"".join(lp(v) for v in context))
+    plain = AESGCM(wk).decrypt(bytes(12), b64(m["box"], 80 if f["hidden"] else 48), bytes.fromhex(m["com"]))
+    return ss, wk, plain[:32], plain[32:]

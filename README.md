@@ -44,7 +44,7 @@ Imprime la CA, un certificado por SAE (maestra y esclava) y un ejemplo de `curl`
 
 ## Sobre poscuántico con quórum: `qce-sello`
 
-Sella archivos que solo se abren con un quórum de custodios y, opcionalmente, un candado simétrico que resiste aunque se rompa la criptografía de clave pública. **Prototipo de laboratorio, sin revisión externa.** Ceremonia y límites: [`docs/SEALED_ENVELOPE.md`](docs/SEALED_ENVELOPE.md); formato: [`docs/SEALED_ENVELOPE_SPEC.md`](docs/SEALED_ENVELOPE_SPEC.md).
+Sella archivos que solo se abren con un quórum de custodios y, opcionalmente, un candado simétrico que resiste aunque se rompa la criptografía de clave pública. Permite rotar la política, retirar archivos, ocultar a los participantes (modo discreto) y tiene un modelo simbólico en Tamarin. **Prototipo de laboratorio, sin revisión externa.** Ceremonia y límites: [`docs/SEALED_ENVELOPE.md`](docs/SEALED_ENVELOPE.md); formato: [`docs/SEALED_ENVELOPE_SPEC.md`](docs/SEALED_ENVELOPE_SPEC.md).
 
 ```bash
 .venv/bin/python -m qce.sealed --help
@@ -58,7 +58,7 @@ Sella archivos que solo se abren con un quórum de custodios y, opcionalmente, u
 
 ```bash
 cd ~/Claude/q-crypto-evolve
-.venv/bin/python -m qce test      # batería completa (1287 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
+.venv/bin/python -m qce test      # batería completa (1439 pruebas; ≈2 min en local, necesita abrir puertos en 127.0.0.1)
 .venv/bin/python -m qce scan      # malos usos, secretos, dependencias (pip-audit, con red)
 .venv/bin/python -m qce mutate    # ¿las pruebas detectan controles de seguridad rotos?
 .venv/bin/python -m qce gates     # G1–G6 completas → estado (REVIEW_REQUIRED/VERIFIED/…)
@@ -79,7 +79,7 @@ cd ~/Claude/q-crypto-evolve
 | `qce/transport/hsm_tls.py` | servidor TLS 1.3 híbrido con la clave privada en un HSM/token PKCS#11 (probado con SoftHSM): `docs/HSM.md` |
 | `qce/sealed/` | sobre con quórum, candado simétrico, guardián y custodios con diario (`docs/SEALED_ENVELOPE.md`) |
 | `qce/core/openssl_ffi.py` | carga de OpenSSL ≥ 3.5 por `ctypes` (PSK, HSM y SLH-DSA la comparten) |
-| `qce/evolve/mutants/` | los 727 mutantes como datos, un módulo por familia |
+| `qce/evolve/mutants/` | los 794 mutantes como datos, un módulo por familia |
 | `qce/security/approvals.py` | declaraciones firmadas de implementador, revisor y aprobador (G5/G6) |
 | `qce/evolve/ceremony.py` | ceremonia de firma humana G5/G6 (`python -m qce identity new|register`, `python -m qce sign`): `review/GUIA_PARA_ENVIAR.md` §5 |
 | `qce/evolve/supply_chain.py` | hashes de dependencias + SBOM CycloneDX (`python -m qce supply-chain`): `docs/SUPPLY_CHAIN.md` |

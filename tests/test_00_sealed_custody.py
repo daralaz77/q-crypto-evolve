@@ -275,8 +275,12 @@ def test_setting_the_clock_back_does_not_revive_an_expired_request(w):
     clock.t = NOW + 7200
     k.enroll(HybridSigPrivateKey.generate().public_bytes)                    # un apunte posterior a la caducidad
     clock.t = NOW + 100                                                      # el reloj «vuelve» a cuando la solicitud valía
-    with pytest.raises(PolicyViolation, match="RETROCEDIÓ"):
+    with pytest.raises(PolicyViolation, match="según el diario"):
         k.release(f, w.sender.public_bytes, request, proof)
+    assert k.deliveries() == []
+    still_valid = _request_at(w, f, now=NOW + 100, ttl=86_400)              # vigente según el diario, pero el reloj va 2 h atrás: no se puede anotar
+    with pytest.raises(PolicyViolation, match="RETROCEDIÓ"):
+        k.release(f, w.sender.public_bytes, still_valid, _proof(w, k, f, still_valid))
     assert k.deliveries() == []
 
 

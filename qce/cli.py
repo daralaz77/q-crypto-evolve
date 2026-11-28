@@ -26,7 +26,7 @@ def _build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("gates", help="puertas G1–G6 y estado")
     g.add_argument("--fast", action="store_true", help="omite mutación y auditoría de dependencias (NO promocionable)")
     sub.add_parser("demo", help="demostración: fallo → reparación → regresión → reversión")
-    sub.add_parser("formal", help="modelo formal Tamarin de QCE1: matriz de configuraciones y mutantes del modelo")
+    sub.add_parser("formal", help="modelos formales Tamarin (QCE1, QIL1, sobre con quórum): matriz de configuraciones y mutantes de modelo")
     rp = sub.add_parser("review-package", help="construye (o verifica) el paquete de revisión externa de QCE1")
     rp.add_argument("--verify", metavar="ZIP", help="verifica un paquete existente en vez de construir")
     rp.add_argument("--out", default="dist", help="carpeta de salida (por defecto dist/)")
@@ -110,8 +110,10 @@ def _cmd_formal(a: argparse.Namespace) -> int:
         return 2
     problems = (formal.check_matrix(ROOT) + formal.check_model_mutants(ROOT)
                 + formal.check_matrix(ROOT, model_name="qil1.spthy", expected_name="expected_qil1.json")
-                + formal.check_model_mutants(ROOT, "qil1.spthy", formal.QIL1_MODEL_MUTANTS))
-    print("\n".join(problems) or "modelo formal: veredictos y mutantes del modelo conformes a formal/expected.json")
+                + formal.check_model_mutants(ROOT, "qil1.spthy", formal.QIL1_MODEL_MUTANTS)
+                + formal.check_matrix(ROOT, workers=2, model_name="qsel.spthy", expected_name="expected_qsel.json", timeout=3600)
+                + formal.check_model_mutants(ROOT, "qsel.spthy", formal.QSEL_MODEL_MUTANTS))
+    print("\n".join(problems) or "modelos formales: veredictos y mutantes de modelo conformes a formal/expected*.json")
     return int(bool(problems))
 
 

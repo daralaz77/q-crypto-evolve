@@ -5,6 +5,7 @@ LÍMITE: una frase débil se puede probar sin conexión; en memoria, Python no b
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -30,6 +31,12 @@ def algorithm(kind: str, level: str) -> str:
     if kind == CUSTODIO:
         return SUITES[level].kem
     return "simétrico-256"
+
+
+def random_passphrase() -> str:
+    """128 bits al azar (base32 en grupos de cinco): quien robe el archivo de clave no puede probarla sin conexión."""
+    text = base64.b32encode(os.urandom(16)).decode().rstrip("=")
+    return "-".join(text[i : i + 5] for i in range(0, len(text), 5))
 
 
 def _kdf(passphrase: str, salt: bytes, n: int) -> bytes:
