@@ -22,7 +22,7 @@ python -m qce.sealed keygen custodio carla
 python -m qce.sealed keygen custodio apertura
 python -m qce.sealed keygen candado plazo-2031
 ```
-Cada clave secreta se guarda **cifrada** con una frase (mínimo 12 caracteres; con `--generate-passphrase` se genera una de 128 bits y se muestra una sola vez). Para repartir la maestra: `split-lock --lock plazo-2031.candado --k 2 --n 3 --out-prefix parte` (luego se usa `--share` en lugar de `--lock`).
+Cada clave secreta se guarda **cifrada** con una frase (mínimo 12 caracteres; con `--generate-passphrase` se genera una de 128 bits y se muestra una sola vez, solo en la terminal: ni la salida redirigida ni un registro la reciben, y sin terminal la orden se niega). Para repartir la maestra: `split-lock --lock plazo-2031.candado --k 2 --n 3 --out-prefix parte` (luego se usa `--share` en lugar de `--lock`).
 
 ```bash
 python -m qce.sealed seal informe.pdf informe.qsel --sender ana.key --opener gil.pub --group direccion:2:bea.pub,carla.pub --lock plazo-2031.candado

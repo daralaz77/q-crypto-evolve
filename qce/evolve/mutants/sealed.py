@@ -1,4 +1,4 @@
-"""Mutantes de sealed (188). Archivos que rompen: qce/sealed/."""
+"""Mutantes de sealed (191). Archivos que rompen: qce/sealed/."""
 from ._base import Mutant as M
 
 MUTANTS = [
@@ -190,4 +190,7 @@ MUTANTS = [
     M('sealed-orden-resellar-quita-siempre', 'qce/sealed/cli.py', (('drop_locks=a.drop_locks)', 'drop_locks=True)'),), 'orden resellar quita siempre'),
     M('sealed-frase-mostrada-sin-crear', 'qce/sealed/cli.py', (('    if new and path.exists():', '    if False:'),), 'frase mostrada sin crear'),
     M('sealed-anclas-solo-por-mayusculas', 'qce/sealed/journal.py', (('.casefold() for p in', ' for p in'),), 'anclas solo por mayusculas'),
+    M('sealed-frase-por-la-salida-estandar', 'qce/sealed/cli.py', (('TERMINAL = "/dev/tty"', 'TERMINAL = "/dev/stdout"'),), 'frase por la salida estandar'),
+    M('sealed-frase-sin-terminal-continua', 'qce/sealed/cli.py', (('    except OSError as exc:\n        raise PolicyViolation("no hay terminal', '    except OSError as exc:\n        return\n        raise PolicyViolation("no hay terminal'),), 'frase sin terminal continua'),
+    M('sealed-frase-tambien-por-pantalla', 'qce/sealed/cli.py', (('        _show_on_terminal(f"frase de', '        print(phrase)\n        _show_on_terminal(f"frase de'),), 'frase tambien por pantalla'),
 ]

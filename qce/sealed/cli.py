@@ -15,6 +15,19 @@ from ..pqc.hybrid import LEVELS, HybridSigPrivateKey
 from . import envelope, keeper, keys, lockshare
 
 
+TERMINAL = "/dev/tty"  # la terminal que controla el proceso
+
+
+def _show_on_terminal(text: str) -> None:
+    """Escribe SOLO en la terminal: ni redirecciones, ni tuberías, ni registros de la salida lo capturan (quedan el historial de la ventana y la vista de quien
+    mire). Sin terminal, se niega: un secreto generado no se vuelca a ningún otro sitio."""
+    try:
+        with open(TERMINAL, "w", encoding="utf-8") as tty:
+            tty.write(text + "\n")
+    except OSError as exc:
+        raise PolicyViolation("no hay terminal donde mostrar la frase: ejecuta la orden en una terminal o usa --passphrase-file") from exc
+
+
 def _passphrase(a, path: Path, new: bool = False) -> str:
     if new and path.exists():  # antes de pedir o MOSTRAR una frase que no llegaría a usarse
         raise PolicyViolation(f"{path} ya existe: no se sobrescribe una clave")
@@ -22,7 +35,7 @@ def _passphrase(a, path: Path, new: bool = False) -> str:
         if a.passphrase_file:
             raise PolicyViolation("--generate-passphrase y --passphrase-file se excluyen")
         phrase = keys.random_passphrase()
-        print(f"frase de {path.name} (anótala AHORA, no se guarda en ningún sitio): {phrase}")
+        _show_on_terminal(f"frase de {path.name} (anótala AHORA, no se guarda en ningún sitio): {phrase}")
         return phrase
     if a.passphrase_file:
         f = Path(a.passphrase_file)
@@ -233,7 +246,7 @@ def _open(a) -> None:
 def _parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--passphrase-file", help="archivo 0600 con la frase (si no, se pide por terminal)")
-    common.add_argument("--generate-passphrase", action="store_true", help="para claves NUEVAS: genera una frase de 128 bits y la muestra una vez")
+    common.add_argument("--generate-passphrase", action="store_true", help="para claves NUEVAS: genera una frase de 128 bits y la muestra una vez en la terminal")
     ap = argparse.ArgumentParser(prog="qce-sello", description="Sobre poscuántico con quórum (LABORATORIO: sin revisión externa)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 

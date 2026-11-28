@@ -190,13 +190,22 @@ def test_a_random_passphrase_carries_128_bits(tmp_path):
         assert len(base64.b32decode("".join(groups) + "=" * 6)) == 16
 
 
+def _fake_terminal(tmp_path, monkeypatch):
+    tty = tmp_path / "terminal"
+    tty.write_text("")
+    monkeypatch.setattr(cli, "TERMINAL", str(tty))
+    return tty
+
+
 def test_the_command_line_can_generate_the_phrase_of_a_new_key(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
+    tty = _fake_terminal(tmp_path, monkeypatch)
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: pytest.fail("no debe preguntar"))
     assert cli.main(["keygen", "emisor", "ana", "--generate-passphrase"]) == 0
-    out = capsys.readouterr().out
-    phrase = out.split("no se guarda en ningún sitio): ")[1].split("\n")[0]
+    phrase = tty.read_text().split("no se guarda en ningún sitio): ")[1].split("\n")[0]
     assert len(phrase) == 31 and keys.load_secret(tmp_path / "ana.key", keys.EMISOR, phrase)[1]
+    said = capsys.readouterr()
+    assert phrase not in said.out + said.err and "anótala" not in said.out + said.err      # nada de la frase por la salida
     (tmp_path / "f").write_text(PHRASE)
     (tmp_path / "f").chmod(0o600)
     assert cli.main(["keygen", "emisor", "eva", "--generate-passphrase", "--passphrase-file", "f"]) == 1
@@ -775,11 +784,77 @@ def test_the_command_line_drops_a_lock_only_with_the_explicit_option(tmp_path, m
 @pytest.mark.parametrize("argv", [["keygen", "candado", "caja"], ["keygen", "emisor", "ana"]])
 def test_no_phrase_is_shown_for_a_key_that_already_exists(tmp_path, monkeypatch, capsys, argv):
     monkeypatch.chdir(tmp_path)
-    assert cli.main([*argv, "--generate-passphrase"]) == 0
+    tty = _fake_terminal(tmp_path, monkeypatch)
+    assert cli.main([*argv, "--generate-passphrase"]) == 0 and "anótala" in tty.read_text()
+    tty.write_text("")
     capsys.readouterr()
     assert cli.main([*argv, "--generate-passphrase"]) == 1
+    assert "ya existe" in capsys.readouterr().err and tty.read_text() == ""
+
+
+def test_without_a_terminal_no_phrase_is_generated_anywhere(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "TERMINAL", str(tmp_path / "no-existe" / "terminal"))
+    assert cli.main(["keygen", "candado", "caja", "--generate-passphrase"]) == 1
     said = capsys.readouterr()
-    assert "ya existe" in said.err and "anótala" not in said.out
+    assert "no hay terminal" in said.err and said.out == "" and not (tmp_path / "caja.candado").exists()
+
+
+def _run_keygen(tmp_path, tty_fd=None, drain=None):
+    """La orden en un proceso en sesión NUEVA (sin terminal heredada); con `tty_fd`, esa pseudoterminal pasa a ser la suya. La salida va a archivos. `drain` se
+    llama mientras el proceso vive: en macOS cerrar una terminal con texto sin leer BLOQUEA, así que hay que ir leyéndolo."""
+    import subprocess
+    import sys
+    import time
+    adopt = "" if tty_fd is None else f"import fcntl, termios; fcntl.ioctl({tty_fd}, termios.TIOCSCTTY, 0); "
+    code = f"import sys; {adopt}from qce.sealed import cli; sys.exit(cli.main(['keygen', 'candado', 'caja', '--generate-passphrase']))"
+    root = Path(__file__).resolve().parents[1]
+    out, err = tmp_path / "salida.txt", tmp_path / "errores.txt"
+    with open(out, "w") as o, open(err, "w") as e:
+        child = subprocess.Popen([sys.executable, "-c", code], stdout=o, stderr=e, cwd=tmp_path, env={**os.environ, "PYTHONPATH": str(root)},
+                                 start_new_session=True, stdin=subprocess.DEVNULL, pass_fds=() if tty_fd is None else (tty_fd,))
+        deadline = time.monotonic() + 60
+        while child.poll() is None and time.monotonic() < deadline:
+            if drain:
+                drain()
+            time.sleep(0.05)
+        if child.poll() is None:
+            child.kill()
+            if drain:
+                drain()
+        child.wait(timeout=30)
+    if drain:
+        drain()
+    return child.returncode, out.read_text() + err.read_text()
+
+
+def test_a_process_with_redirected_output_shows_the_phrase_only_on_its_real_terminal(tmp_path):
+    import select
+    assert cli.TERMINAL == "/dev/tty"
+    main_end, tty_end = os.openpty()
+    shown = bytearray()
+
+    def drain():
+        while select.select([main_end], [], [], 0)[0]:
+            try:
+                data = os.read(main_end, 4096)
+            except OSError:                                                    # Linux avisa así de que la terminal colgó…
+                return
+            if not data:                                                       # …y macOS, con un fin de archivo que se repite
+                return
+            shown.extend(data)
+    try:
+        status, output = _run_keygen(tmp_path, tty_end, drain)
+    finally:
+        os.close(main_end), os.close(tty_end)
+    assert status == 0, output
+    phrase = shown.decode().split("no se guarda en ningún sitio): ")[1].strip()
+    assert keys.load_secret(tmp_path / "caja.candado", "candado", phrase)[1] and phrase not in output and "anótala" not in output
+
+
+def test_a_process_with_no_terminal_refuses_to_generate_a_phrase(tmp_path):
+    status, output = _run_keygen(tmp_path)
+    assert status == 1 and "no hay terminal" in output and "anótala" not in output and not (tmp_path / "caja.candado").exists()
 
 
 def test_two_anchors_that_differ_only_in_capitals_are_one_anchor(tmp_path):
