@@ -1,6 +1,6 @@
 {
   "version": "0.3.0-lab",
-  "release_id": "f6c0478f8c1c35ed",
+  "release_id": "e13e4557776a4f54",
   "state": "REVIEW_REQUIRED",
   "gates": [
     {
@@ -8,14 +8,14 @@
       "status": "pass",
       "detail": "cadenas de registro íntegras (98 incidentes/eventos), lock coincide, hashes y SBOM coherentes, umbrales no debilitados",
       "evidence": {},
-      "seconds": 0.25
+      "seconds": 0.35
     },
     {
       "gate": "G2-FUNCIONALIDAD",
       "status": "pass",
-      "detail": "1436 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
+      "detail": "1439 pruebas superadas (incluye vectores NIST ACVP y fuzzing)",
       "evidence": {},
-      "seconds": 186.28
+      "seconds": 206.74
     },
     {
       "gate": "G3-SEGURIDAD",
@@ -25,9 +25,9 @@
         "misuse": [],
         "secrets": [],
         "mutation": {
-          "total": 791,
-          "scored": 785,
-          "killed": 785,
+          "total": 794,
+          "scored": 788,
+          "killed": 788,
           "score": 1.0,
           "survivors": [],
           "declared_equivalent": [
@@ -37,10 +37,10 @@
             "rel-path-check-off",
             "tls-config-allows-tls12"
           ],
-          "seconds": 10487.9,
+          "seconds": 12065.2,
           "canary_ok": true,
-          "baseline_seconds": 190.3,
-          "timeout_s": 952,
+          "baseline_seconds": 172.3,
+          "timeout_s": 862,
           "timed_out": []
         },
         "dependencies": {
@@ -49,7 +49,7 @@
           "checked": 3
         }
       },
-      "seconds": 10491.25
+      "seconds": 12068.66
     },
     {
       "gate": "G4-REGRESION",
@@ -58,14 +58,14 @@
       "evidence": {
         "checked": 35
       },
-      "seconds": 42.82
+      "seconds": 56.6
     },
     {
       "gate": "G5-INDEPENDENCIA",
       "status": "skipped",
       "detail": "sin declaración firmada del implementador para este código",
       "evidence": {},
-      "seconds": 0.0
+      "seconds": 0.01
     },
     {
       "gate": "G6-AUTORIZACION",
@@ -76,8 +76,8 @@
     }
   ],
   "metrics": {
-    "tests_passed": 1436,
-    "total_seconds": 10720.6,
+    "tests_passed": 1439,
+    "total_seconds": 12332.4,
     "incidents_total": 35,
     "incidents_resolved": 35,
     "recurring_patterns": [
